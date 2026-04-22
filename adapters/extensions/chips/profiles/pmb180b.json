@@ -1,0 +1,510 @@
+{
+  "name": "pmb180b",
+  "vendor": "Padauk",
+  "family": "padauk-pmb180",
+  "sample": false,
+  "series": "PMB180(B)",
+  "package": "esop8/essop10",
+  "architecture": "8-bit OTP with charger",
+  "runtime_model": "main_loop_plus_isr",
+  "description": "Padauk PMB180B with 1.25KW OTP, 64B RAM, Timer16, Timer2 PWM, LPWMG, comparator, LVDC, and charging logic.",
+  "source_refs": [
+    "mcu/padauk-pmb180b",
+    "mcu/padauk-pmb180b-registers"
+  ],
+  "component_refs": [],
+  "summary": {
+    "program_memory": "1.25KW OTP",
+    "data_memory": "64B RAM",
+    "io_count": "7",
+    "peripherals": "Timer16, Timer2 PWM, LPWMG, comparator, LVDC, charger"
+  },
+  "capabilities": [
+    "timer16",
+    "tm2-pwm",
+    "lpwmg",
+    "comparator",
+    "lvdc",
+    "charger",
+    "sleep-wakeup"
+  ],
+  "packages": [
+    {
+      "name": "esop8",
+      "pin_count": 8,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vbat",
+          "label": "VBAT",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "pa6",
+          "label": "PA6/LPG1PWM/CIN4-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "lpwmg1",
+            "cmp-",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa5",
+          "label": "PA5/PRSTB/LPG2PWM/LPG0PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "prstb",
+            "lpwmg2",
+            "lpwmg0",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa3",
+          "label": "PA3/CIN0-/TM2PWM/LPG2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm",
+            "lpwmg2",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN1-/TM2PWM/LPG1PWM/INT1",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm",
+            "lpwmg1",
+            "int1",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa0",
+          "label": "PA0/CO/LPG0PWM/INT0",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmpo",
+            "lpwmg0",
+            "int0",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "vcc5",
+          "label": "VCC5",
+          "default_function": "charger_in",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "ESOP8 只引出 PA6、PA5、PA3、PA4、PA0，不包含 PA7 和 PA1。"
+      ]
+    },
+    {
+      "name": "essop10",
+      "pin_count": 10,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vbat",
+          "label": "VBAT",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "pa7",
+          "label": "PA7/CIN5-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa6",
+          "label": "PA6/LPG1PWM/CIN4-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "lpwmg1",
+            "cmp-",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa5",
+          "label": "PA5/PRSTB/LPG2PWM/LPG0PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "prstb",
+            "lpwmg2",
+            "lpwmg0",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "pa3",
+          "label": "PA3/CIN0-/TM2PWM/LPG2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm",
+            "lpwmg2",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN1-/TM2PWM/LPG1PWM/INT1",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm",
+            "lpwmg1",
+            "int1",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "pa1",
+          "label": "PA1/LPG0PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "lpwmg0",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "pa0",
+          "label": "PA0/CO/LPG0PWM/INT0",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmpo",
+            "lpwmg0",
+            "int0",
+            "wakeup"
+          ],
+          "notes": []
+        },
+        {
+          "number": 9,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 10,
+          "signal": "vcc5",
+          "label": "VCC5",
+          "default_function": "charger_in",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "ESSOP10 额外引出 PA7 与 PA1。"
+      ]
+    }
+  ],
+  "pins": {
+    "vbat": {
+      "name": "VBAT",
+      "functions": [
+        "power_in",
+        "battery"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "esop8": 1,
+        "essop10": 1
+      },
+      "notes": [
+        "芯片系统工作电压范围为 1.8V~5.5V。"
+      ]
+    },
+    "vcc5": {
+      "name": "VCC5",
+      "functions": [
+        "charger_in",
+        "charge_supply"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "esop8": 8,
+        "essop10": 10
+      },
+      "notes": [
+        "VCC5 为充电输入电源引脚，输入范围为 4.3V~6.5V。",
+        "PMB180B 已修正旧版 PMB180 的 VCC_Pin 浮空微漏电问题。"
+      ]
+    },
+    "gnd": {
+      "name": "GND",
+      "functions": [
+        "ground"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "esop8": 7,
+        "essop10": 9
+      },
+      "notes": []
+    },
+    "pa7": {
+      "name": "PA7/CIN5-",
+      "port": "A",
+      "bit": 7,
+      "functions": [
+        "gpio",
+        "cmp-",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "essop10": 2
+      },
+      "notes": [
+        "仅 ESSOP10 引出。",
+        "作为比较器模拟输入时，需关闭数字输入。"
+      ]
+    },
+    "pa6": {
+      "name": "PA6/LPG1PWM/CIN4-",
+      "port": "A",
+      "bit": 6,
+      "functions": [
+        "gpio",
+        "lpwmg1",
+        "cmp-",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "esop8": 2,
+        "essop10": 3
+      },
+      "notes": [
+        "LPWMG1 可输出到 PA6。",
+        "作为比较器模拟输入时，需关闭数字输入。"
+      ]
+    },
+    "pa5": {
+      "name": "PA5/PRSTB/LPG2PWM/LPG0PWM",
+      "port": "A",
+      "bit": 5,
+      "functions": [
+        "gpio",
+        "prstb",
+        "lpwmg2",
+        "lpwmg0",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "esop8": 3,
+        "essop10": 4
+      },
+      "notes": [
+        "PA5 兼具硬件复位 PRSTB 功能。"
+      ]
+    },
+    "pa4": {
+      "name": "PA4/CIN+/CIN1-/TM2PWM/LPG1PWM/INT1",
+      "port": "A",
+      "bit": 4,
+      "functions": [
+        "gpio",
+        "cmp+",
+        "cmp-",
+        "tm2pwm",
+        "lpwmg1",
+        "int1",
+        "wakeup"
+      ],
+      "interrupts": [
+        "external-int",
+        "wakeup"
+      ],
+      "package_locations": {
+        "esop8": 5,
+        "essop10": 6
+      },
+      "notes": [
+        "INT1 位于 PA4。",
+        "TM2 PWM 可输出到 PA4。",
+        "LPWMG1 也可输出到 PA4。"
+      ]
+    },
+    "pa3": {
+      "name": "PA3/CIN0-/TM2PWM/LPG2PWM",
+      "port": "A",
+      "bit": 3,
+      "functions": [
+        "gpio",
+        "cmp-",
+        "tm2pwm",
+        "lpwmg2",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "esop8": 4,
+        "essop10": 5
+      },
+      "notes": [
+        "TM2 PWM 可输出到 PA3。",
+        "LPWMG2 也可输出到 PA3。"
+      ]
+    },
+    "pa1": {
+      "name": "PA1/LPG0PWM",
+      "port": "A",
+      "bit": 1,
+      "functions": [
+        "gpio",
+        "lpwmg0",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "essop10": 7
+      },
+      "notes": [
+        "仅 ESSOP10 引出。",
+        "LPWMG0 可输出到 PA1。"
+      ]
+    },
+    "pa0": {
+      "name": "PA0/CO/LPG0PWM/INT0",
+      "port": "A",
+      "bit": 0,
+      "functions": [
+        "gpio",
+        "cmpo",
+        "lpwmg0",
+        "int0",
+        "wakeup"
+      ],
+      "interrupts": [
+        "external-int",
+        "wakeup"
+      ],
+      "package_locations": {
+        "esop8": 6,
+        "essop10": 8
+      },
+      "notes": [
+        "INT0 位于 PA0。",
+        "比较器结果可输出到 PA0。",
+        "LPWMG0 可输出到 PA0。"
+      ]
+    }
+  },
+  "docs": [
+    {
+      "id": "padauk-pmb180b-datasheet",
+      "kind": "datasheet",
+      "title": "PMB180(B) datasheet",
+      "lookup_keys": [
+        "PMB180B",
+        "PMB180",
+        "Timer16",
+        "TM2",
+        "LPWMG",
+        "Comparator",
+        "LVDC"
+      ],
+      "notes": [
+        "实际项目里请配合本地 datasheet 或已入库文档使用。"
+      ]
+    }
+  ],
+  "related_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "lpwmg-calc",
+    "lvdc-threshold",
+    "charger-config",
+    "comparator-threshold"
+  ],
+  "source_modules": [],
+  "notes": [
+    "PMB180 与 PMB180B 共用同一份手册，封装和引脚排列一致。",
+    "PMB180B 相比旧版 PMB180 增加充电完成状态位，并修正 VCC_Pin 浮空微漏电问题。",
+    "Timer16、TM2 PWM、LPWMG、LVDC、充电配置、GPC comparator 已接入工具层。",
+    "LPWMG0/1/2 共享频率寄存器，适合由工具统一搜索共享周期后再落到单通道输出。",
+    "LVDC 阈值范围为 1.85V~5.0V，步进 0.05V；仅支持软件轮询，不支持中断和唤醒；充电中内部检测通常比实际电池电压高约 0.15V。",
+    "5V 输入判定不能只看 CHG_TEMP.4，必须同时满足 CHG_TEMP.4 && CHG_TEMP.3。",
+    "PMB180 老版本判满需结合 CHG_CTRL.0、V400_FG 和持续时间；4V以上延时规则按 500mAh/小时下限估算。",
+    "PMB180B 的 CHG_TEMP.1 语义按实测修正为高电平=充电中、低电平=充电完成，应广资料常写反。",
+    "充电电流当前支持 50/100/200/250/300/350/400/500mA 八档，CHG_CTRL.0 与 CHG_TEMP[4:3] 可用于状态判读。",
+    "看门狗由 ILRC 驱动，可选 8k/16k/64k/256k ILRC 周期。",
+    "当前手册未体现 ADC 资源。"
+  ]
+}

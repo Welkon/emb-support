@@ -1,0 +1,338 @@
+{
+  "name": "esp32-c3",
+  "family": "espressif-esp32-c3",
+  "sample": false,
+  "description": "Concrete ESP32-C3 tool profile with baseline GPTimer, LEDC PWM, and SAR ADC executable support.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "adc-scale"
+  ],
+  "source_refs": [
+    "mcu/espressif-esp32-c3"
+  ],
+  "component_refs": [],
+  "bindings": {
+    "timer-calc": {
+      "algorithm": "espressif-gptimer",
+      "params": {
+        "chip": "esp32-c3",
+        "peripheral": "gptimer",
+        "default_timer": "timer0",
+        "timers": [
+          "timer0",
+          "timer1"
+        ],
+        "timer_aliases": {
+          "0": "timer0",
+          "1": "timer1",
+          "gptimer0": "timer0",
+          "gptimer1": "timer1"
+        },
+        "counter_bits": 54,
+        "prescaler_min": 2,
+        "prescaler_max": 65536,
+        "default_clock_source": "apb_clk",
+        "default_auto_reload": true,
+        "clock_source_aliases": {
+          "apb": "apb_clk",
+          "apbclk": "apb_clk",
+          "system": "apb_clk",
+          "sysclk": "apb_clk",
+          "xtal": "xtal_clk",
+          "rcfast": "rc_fast_clk",
+          "rcfastclk": "rc_fast_clk"
+        },
+        "clock_sources": {
+          "apb_clk": {
+            "label": "APB_CLK",
+            "default_hz": 80000000
+          },
+          "xtal_clk": {
+            "label": "XTAL_CLK",
+            "default_hz": 40000000
+          },
+          "rc_fast_clk": {
+            "label": "RC_FAST_CLK",
+            "default_hz": 17500000
+          }
+        }
+      }
+    },
+    "pwm-calc": {
+      "algorithm": "espressif-ledc-pwm",
+      "params": {
+        "chip": "esp32-c3",
+        "peripheral": "ledc",
+        "default_clock_source": "apb_clk",
+        "default_timer": "timer0",
+        "default_channel": "pwm0",
+        "default_output_pin": "GPIO18",
+        "timers": [
+          "timer0",
+          "timer1",
+          "timer2",
+          "timer3"
+        ],
+        "channels": [
+          "pwm0",
+          "pwm1",
+          "pwm2",
+          "pwm3",
+          "pwm4",
+          "pwm5"
+        ],
+        "timer_aliases": {
+          "0": "timer0",
+          "1": "timer1",
+          "2": "timer2",
+          "3": "timer3",
+          "ledctimer0": "timer0",
+          "ledctimer1": "timer1",
+          "ledctimer2": "timer2",
+          "ledctimer3": "timer3"
+        },
+        "channel_aliases": {
+          "0": "pwm0",
+          "1": "pwm1",
+          "2": "pwm2",
+          "3": "pwm3",
+          "4": "pwm4",
+          "5": "pwm5",
+          "channel0": "pwm0",
+          "channel1": "pwm1",
+          "channel2": "pwm2",
+          "channel3": "pwm3",
+          "channel4": "pwm4",
+          "channel5": "pwm5",
+          "ledc0": "pwm0",
+          "ledc1": "pwm1",
+          "ledc2": "pwm2",
+          "ledc3": "pwm3",
+          "ledc4": "pwm4",
+          "ledc5": "pwm5"
+        },
+        "clock_source_aliases": {
+          "apb": "apb_clk",
+          "apbclk": "apb_clk",
+          "system": "apb_clk",
+          "sysclk": "apb_clk",
+          "xtal": "xtal_clk",
+          "rcfast": "rc_fast_clk",
+          "rcfastclk": "rc_fast_clk"
+        },
+        "clock_sources": {
+          "apb_clk": {
+            "label": "APB_CLK",
+            "default_hz": 80000000
+          },
+          "xtal_clk": {
+            "label": "XTAL_CLK",
+            "default_hz": 40000000
+          },
+          "rc_fast_clk": {
+            "label": "RC_FAST_CLK",
+            "default_hz": 17500000
+          }
+        },
+        "duty_resolution_min": 1,
+        "duty_resolution_max": 14,
+        "divider_integer_bits": 10,
+        "divider_fractional_bits": 8,
+        "divider_min": 1,
+        "divider_max": 1023.99609375,
+        "output_pin_aliases": {
+          "0": "GPIO0",
+          "1": "GPIO1",
+          "2": "GPIO2",
+          "3": "GPIO3",
+          "4": "GPIO4",
+          "5": "GPIO5",
+          "6": "GPIO6",
+          "7": "GPIO7",
+          "8": "GPIO8",
+          "9": "GPIO9",
+          "10": "GPIO10",
+          "11": "GPIO11",
+          "12": "GPIO12",
+          "13": "GPIO13",
+          "14": "GPIO14",
+          "15": "GPIO15",
+          "16": "GPIO16",
+          "17": "GPIO17",
+          "18": "GPIO18",
+          "19": "GPIO19",
+          "20": "GPIO20",
+          "21": "GPIO21",
+          "gpio0": "GPIO0",
+          "gpio1": "GPIO1",
+          "gpio2": "GPIO2",
+          "gpio3": "GPIO3",
+          "gpio4": "GPIO4",
+          "gpio5": "GPIO5",
+          "gpio6": "GPIO6",
+          "gpio7": "GPIO7",
+          "gpio8": "GPIO8",
+          "gpio9": "GPIO9",
+          "gpio10": "GPIO10",
+          "gpio11": "GPIO11",
+          "gpio12": "GPIO12",
+          "gpio13": "GPIO13",
+          "gpio14": "GPIO14",
+          "gpio15": "GPIO15",
+          "gpio16": "GPIO16",
+          "gpio17": "GPIO17",
+          "gpio18": "GPIO18",
+          "gpio19": "GPIO19",
+          "gpio20": "GPIO20",
+          "gpio21": "GPIO21"
+        },
+        "output_pins": {
+          "GPIO0": { "pin": "GPIO0" },
+          "GPIO1": { "pin": "GPIO1" },
+          "GPIO2": { "pin": "GPIO2", "notes": ["GPIO2 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO3": { "pin": "GPIO3", "notes": ["GPIO3 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO4": { "pin": "GPIO4" },
+          "GPIO5": { "pin": "GPIO5" },
+          "GPIO6": { "pin": "GPIO6" },
+          "GPIO7": { "pin": "GPIO7" },
+          "GPIO8": { "pin": "GPIO8", "notes": ["GPIO8 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO9": { "pin": "GPIO9", "notes": ["GPIO9 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO10": { "pin": "GPIO10" },
+          "GPIO11": { "pin": "GPIO11", "notes": ["GPIO11 默认与 VDD_SPI 相关，只有在合适硬件方案下才适合作普通 GPIO。"] },
+          "GPIO12": { "pin": "GPIO12", "notes": ["GPIO12 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO13": { "pin": "GPIO13", "notes": ["GPIO13 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO14": { "pin": "GPIO14", "notes": ["GPIO14 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO15": { "pin": "GPIO15", "notes": ["GPIO15 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO16": { "pin": "GPIO16", "notes": ["GPIO16 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO17": { "pin": "GPIO17", "notes": ["GPIO17 常用于 Flash 连接，通用项目里不建议随意复用。"] },
+          "GPIO18": { "pin": "GPIO18", "notes": ["GPIO18 默认连接 USB Serial/JTAG。"] },
+          "GPIO19": { "pin": "GPIO19", "notes": ["GPIO19 默认连接 USB Serial/JTAG。"] },
+          "GPIO20": { "pin": "GPIO20", "notes": ["GPIO20 默认是 UART0 RX。"] },
+          "GPIO21": { "pin": "GPIO21", "notes": ["GPIO21 默认是 UART0 TX。"] }
+        }
+      }
+    },
+    "adc-scale": {
+      "algorithm": "espressif-adc12",
+      "params": {
+        "chip": "esp32-c3",
+        "peripheral": "adc12",
+        "default_reference_source": "internal_vref",
+        "default_resolution": 12,
+        "supported_resolutions": [
+          12
+        ],
+        "default_attenuation": "12db",
+        "reference_source_aliases": {
+          "vref": "internal_vref",
+          "internal": "internal_vref"
+        },
+        "reference_sources": {
+          "internal_vref": {
+            "label": "Internal Vref",
+            "fixed_voltage": 1.1
+          }
+        },
+        "attenuation_aliases": {
+          "0": "0db",
+          "0db": "0db",
+          "2.5db": "2_5db",
+          "2_5db": "2_5db",
+          "25db": "2_5db",
+          "6": "6db",
+          "6db": "6db",
+          "12": "12db",
+          "12db": "12db"
+        },
+        "attenuation_profiles": {
+          "0db": {
+            "label": "0 dB",
+            "full_scale_v": 0.75
+          },
+          "2_5db": {
+            "label": "2.5 dB",
+            "full_scale_v": 1.05
+          },
+          "6db": {
+            "label": "6 dB",
+            "full_scale_v": 1.3
+          },
+          "12db": {
+            "label": "12 dB",
+            "full_scale_v": 2.5
+          }
+        },
+        "default_channel": "ADC1_CH0",
+        "channel_aliases": {
+          "gpio0": "ADC1_CH0",
+          "gpio1": "ADC1_CH1",
+          "gpio2": "ADC1_CH2",
+          "gpio3": "ADC1_CH3",
+          "gpio4": "ADC1_CH4",
+          "gpio5": "ADC2_CH0",
+          "adc1ch0": "ADC1_CH0",
+          "adc1ch1": "ADC1_CH1",
+          "adc1ch2": "ADC1_CH2",
+          "adc1ch3": "ADC1_CH3",
+          "adc1ch4": "ADC1_CH4",
+          "adc2ch0": "ADC2_CH0"
+        },
+        "channels": {
+          "ADC1_CH0": {
+            "name": "ADC1_CH0",
+            "gpio": "GPIO0",
+            "adc_unit": "ADC1"
+          },
+          "ADC1_CH1": {
+            "name": "ADC1_CH1",
+            "gpio": "GPIO1",
+            "adc_unit": "ADC1"
+          },
+          "ADC1_CH2": {
+            "name": "ADC1_CH2",
+            "gpio": "GPIO2",
+            "adc_unit": "ADC1"
+          },
+          "ADC1_CH3": {
+            "name": "ADC1_CH3",
+            "gpio": "GPIO3",
+            "adc_unit": "ADC1"
+          },
+          "ADC1_CH4": {
+            "name": "ADC1_CH4",
+            "gpio": "GPIO4",
+            "adc_unit": "ADC1"
+          },
+          "ADC2_CH0": {
+            "name": "ADC2_CH0",
+            "gpio": "GPIO5",
+            "adc_unit": "ADC2",
+            "warning": "ESP32-C3 上 ADC2 不建议作为通用采样路径，部分芯片版本存在不可用限制，优先选 ADC1。"
+          }
+        }
+      }
+    },
+    "comparator-threshold": {
+      "algorithm": "unsupported",
+      "reason": "ESP32-C3 没有可供用户配置使用的独立模拟 comparator 外设。"
+    },
+    "lvdc-threshold": {
+      "algorithm": "unsupported",
+      "reason": "ESP32-C3 虽有 brownout detector，但未提供可直接计算的用户离散阈值表；默认 brownout 阈值约为 2.7V。"
+    },
+    "charger-config": {
+      "algorithm": "unsupported",
+      "reason": "ESP32-C3 不包含片上 charger / 充电管理模块。"
+    },
+    "lpwmg-calc": {
+      "algorithm": "unsupported",
+      "reason": "ESP32-C3 没有 LPWMG 这类独立低功耗 PWM 外设；低功耗 PWM 场景应使用 LEDC。"
+    }
+  },
+  "notes": [
+    "当前已落地 GPTimer、LEDC PWM、SAR ADC 三条基础 executable route。",
+    "comparator-threshold、lvdc-threshold、charger-config、lpwmg-calc 已显式收口为 unsupported，避免用户遇到 route-required。",
+    "其他外设能力仍以芯片真值层和文档沉淀为主，后续再扩更多 route。"
+  ]
+}

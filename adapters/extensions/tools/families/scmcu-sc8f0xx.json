@@ -1,0 +1,29 @@
+{
+  "name": "scmcu-sc8f0xx",
+  "vendor": "SCMCU",
+  "series": "SC8F0xx",
+  "sample": false,
+  "description": "SCMCU SC8F0xx enhanced-flash 8-bit family with TMR0/TMR2, independent 10-bit PWM, comparator, and 12-bit ADC.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold",
+    "adc-scale"
+  ],
+  "source_refs": [
+    "mcu/scmcu-sc8f072",
+    "mcu/scmcu-sc8f072-registers"
+  ],
+  "component_refs": [],
+  "bindings": {},
+  "clock_sources": [
+    "fsys_div4",
+    "t0cki",
+    "flse32k",
+    "fhsi"
+  ],
+  "notes": [
+    "当前第二套真实适配先覆盖 SC8F072。",
+    "TMR0 为 8-bit 定时器，10-bit PWM 为独立模块，不依附于 TMR0/TMR2。"
+  ]
+}

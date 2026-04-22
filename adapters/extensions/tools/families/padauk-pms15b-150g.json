@@ -1,0 +1,30 @@
+{
+  "name": "padauk-pms15b-150g",
+  "vendor": "Padauk",
+  "series": "PMS15B/PMS150G",
+  "sample": false,
+  "description": "Padauk PMS15B/PMS150G low-end 8-bit OTP family with Timer16, TM2 PWM, and comparator.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold"
+  ],
+  "source_refs": [
+    "mcu/padauk-pms150g",
+    "mcu/padauk-pms150g-registers"
+  ],
+  "component_refs": [],
+  "bindings": {},
+  "clock_sources": [
+    "sysclk",
+    "ihrc",
+    "ilrc",
+    "pa0",
+    "pa4",
+    "comparator"
+  ],
+  "notes": [
+    "当前首套真实适配只覆盖 PMS150G。",
+    "该 family 不包含 ADC。"
+  ]
+}

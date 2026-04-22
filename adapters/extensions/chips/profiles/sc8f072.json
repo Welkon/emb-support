@@ -1,0 +1,1292 @@
+{
+  "name": "sc8f072",
+  "vendor": "SCMCU",
+  "family": "scmcu-sc8f0xx",
+  "sample": false,
+  "series": "SC8F072",
+  "package": "sot23-6/sop8/msop10/sop14/sop16/qfn16",
+  "architecture": "8-bit Flash",
+  "runtime_model": "main_loop_plus_isr",
+  "description": "SCMCU SC8F072 with TMR0, TMR2, independent 10-bit PWM, comparator, and 12-bit ADC.",
+  "source_refs": [
+    "mcu/scmcu-sc8f072",
+    "mcu/scmcu-sc8f072-registers"
+  ],
+  "component_refs": [],
+  "summary": {
+    "program_memory": "flash MCU",
+    "data_memory": "banked SRAM",
+    "io_count": "up to 14 external analog-capable pins depending on package",
+    "peripherals": "TMR0, TMR2, 10-bit PWM, comparator, 12-bit ADC"
+  },
+  "capabilities": [
+    "tmr0",
+    "tmr2",
+    "pwm10",
+    "comparator",
+    "adc12",
+    "sleep-wakeup"
+  ],
+  "packages": [
+    {
+      "name": "sot23-6",
+      "pin_count": 6,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOT23-6 引脚表来自已入库的 SC8F072 用户手册。"
+      ]
+    },
+    {
+      "name": "sop8",
+      "pin_count": 8,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "ra2",
+          "label": "RA2",
+          "default_function": "gpio",
+          "mux": [
+            "an2",
+            "pwma2",
+            "pwmb2",
+            "cmp0-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "ra1",
+          "label": "RA1",
+          "default_function": "gpio",
+          "mux": [
+            "an1",
+            "pwma1",
+            "pwmb1",
+            "cmp+",
+            "cmp3-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOP8 引脚表来自已入库的 SC8F072 用户手册。"
+      ]
+    },
+    {
+      "name": "msop10",
+      "pin_count": 10,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "rb3",
+          "label": "RB3",
+          "default_function": "gpio",
+          "mux": [
+            "t0cki",
+            "pwmd2",
+            "an11"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "ra3",
+          "label": "RA3",
+          "default_function": "gpio",
+          "mux": [
+            "an3",
+            "pwma3"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "ra2",
+          "label": "RA2",
+          "default_function": "gpio",
+          "mux": [
+            "an2",
+            "pwma2",
+            "pwmb2",
+            "cmp0-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "ra1",
+          "label": "RA1",
+          "default_function": "gpio",
+          "mux": [
+            "an1",
+            "pwma1",
+            "pwmb1",
+            "cmp+",
+            "cmp3-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 9,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        },
+        {
+          "number": 10,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "MSOP10 引脚表来自已入库的 SC8F072 用户手册。"
+      ]
+    },
+    {
+      "name": "sop14",
+      "pin_count": 14,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "rb3",
+          "label": "RB3",
+          "default_function": "gpio",
+          "mux": [
+            "t0cki",
+            "pwmd2",
+            "an11"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "rb4",
+          "label": "RB4",
+          "default_function": "gpio",
+          "mux": [
+            "pwmd3",
+            "pwmc4",
+            "an12"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "rb5",
+          "label": "RB5",
+          "default_function": "gpio",
+          "mux": [
+            "pwmc3",
+            "an13"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "ra5",
+          "label": "RA5",
+          "default_function": "gpio",
+          "mux": [
+            "an5",
+            "pwmc0"
+          ],
+          "notes": []
+        },
+        {
+          "number": 9,
+          "signal": "ra4",
+          "label": "RA4",
+          "default_function": "gpio",
+          "mux": [
+            "an4",
+            "pwma4"
+          ],
+          "notes": []
+        },
+        {
+          "number": 10,
+          "signal": "ra3",
+          "label": "RA3",
+          "default_function": "gpio",
+          "mux": [
+            "an3",
+            "pwma3"
+          ],
+          "notes": []
+        },
+        {
+          "number": 11,
+          "signal": "ra2",
+          "label": "RA2",
+          "default_function": "gpio",
+          "mux": [
+            "an2",
+            "pwma2",
+            "pwmb2",
+            "cmp0-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 12,
+          "signal": "ra1",
+          "label": "RA1",
+          "default_function": "gpio",
+          "mux": [
+            "an1",
+            "pwma1",
+            "pwmb1",
+            "cmp+",
+            "cmp3-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 13,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        },
+        {
+          "number": 14,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOP14 引脚表来自已入库的 SC8F072 用户手册。"
+      ]
+    },
+    {
+      "name": "sop16",
+      "pin_count": 16,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "rb3",
+          "label": "RB3",
+          "default_function": "gpio",
+          "mux": [
+            "t0cki",
+            "pwmd2",
+            "an11"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "rb4",
+          "label": "RB4",
+          "default_function": "gpio",
+          "mux": [
+            "pwmd3",
+            "pwmc4",
+            "an12"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "rb5",
+          "label": "RB5",
+          "default_function": "gpio",
+          "mux": [
+            "pwmc3",
+            "an13"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "rb6",
+          "label": "RB6",
+          "default_function": "gpio",
+          "mux": [
+            "pwmc2",
+            "an14"
+          ],
+          "notes": []
+        },
+        {
+          "number": 9,
+          "signal": "rb7",
+          "label": "RB7",
+          "default_function": "gpio",
+          "mux": [
+            "an15",
+            "pwmc1"
+          ],
+          "notes": []
+        },
+        {
+          "number": 10,
+          "signal": "ra5",
+          "label": "RA5",
+          "default_function": "gpio",
+          "mux": [
+            "an5",
+            "pwmc0"
+          ],
+          "notes": []
+        },
+        {
+          "number": 11,
+          "signal": "ra4",
+          "label": "RA4",
+          "default_function": "gpio",
+          "mux": [
+            "an4",
+            "pwma4"
+          ],
+          "notes": []
+        },
+        {
+          "number": 12,
+          "signal": "ra3",
+          "label": "RA3",
+          "default_function": "gpio",
+          "mux": [
+            "an3",
+            "pwma3"
+          ],
+          "notes": []
+        },
+        {
+          "number": 13,
+          "signal": "ra2",
+          "label": "RA2",
+          "default_function": "gpio",
+          "mux": [
+            "an2",
+            "pwma2",
+            "pwmb2",
+            "cmp0-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 14,
+          "signal": "ra1",
+          "label": "RA1",
+          "default_function": "gpio",
+          "mux": [
+            "an1",
+            "pwma1",
+            "pwmb1",
+            "cmp+",
+            "cmp3-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 15,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        },
+        {
+          "number": 16,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOP16 引脚表来自已入库的 SC8F072 用户手册。"
+      ]
+    },
+    {
+      "name": "qfn16",
+      "pin_count": 16,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "rb0",
+          "label": "RB0",
+          "default_function": "gpio",
+          "mux": [
+            "icspdat",
+            "pwmd0",
+            "an8",
+            "oscin",
+            "cmp2-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "rb1",
+          "label": "RB1",
+          "default_function": "gpio",
+          "mux": [
+            "icspclk",
+            "pwmd1",
+            "pwmb4",
+            "an9",
+            "oscout",
+            "cmp1-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "rb2",
+          "label": "RB2/MCLR",
+          "default_function": "mclr",
+          "mux": [
+            "gpio",
+            "pwmd4",
+            "pwmb3",
+            "an10"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "rb3",
+          "label": "RB3",
+          "default_function": "gpio",
+          "mux": [
+            "t0cki",
+            "pwmd2",
+            "an11"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "rb4",
+          "label": "RB4",
+          "default_function": "gpio",
+          "mux": [
+            "pwmd3",
+            "pwmc4",
+            "an12"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "rb5",
+          "label": "RB5",
+          "default_function": "gpio",
+          "mux": [
+            "pwmc3",
+            "an13"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "rb6",
+          "label": "RB6",
+          "default_function": "gpio",
+          "mux": [
+            "pwmc2",
+            "an14"
+          ],
+          "notes": []
+        },
+        {
+          "number": 9,
+          "signal": "rb7",
+          "label": "RB7",
+          "default_function": "gpio",
+          "mux": [
+            "an15",
+            "pwmc1"
+          ],
+          "notes": []
+        },
+        {
+          "number": 10,
+          "signal": "ra5",
+          "label": "RA5",
+          "default_function": "gpio",
+          "mux": [
+            "an5",
+            "pwmc0"
+          ],
+          "notes": []
+        },
+        {
+          "number": 11,
+          "signal": "ra4",
+          "label": "RA4",
+          "default_function": "gpio",
+          "mux": [
+            "an4",
+            "pwma4"
+          ],
+          "notes": []
+        },
+        {
+          "number": 12,
+          "signal": "ra3",
+          "label": "RA3",
+          "default_function": "gpio",
+          "mux": [
+            "an3",
+            "pwma3"
+          ],
+          "notes": []
+        },
+        {
+          "number": 13,
+          "signal": "ra2",
+          "label": "RA2",
+          "default_function": "gpio",
+          "mux": [
+            "an2",
+            "pwma2",
+            "pwmb2",
+            "cmp0-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 14,
+          "signal": "ra1",
+          "label": "RA1",
+          "default_function": "gpio",
+          "mux": [
+            "an1",
+            "pwma1",
+            "pwmb1",
+            "cmp+",
+            "cmp3-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 15,
+          "signal": "ra0",
+          "label": "RA0",
+          "default_function": "gpio",
+          "mux": [
+            "an0",
+            "pwma0",
+            "pwmb0",
+            "cmpo",
+            "int"
+          ],
+          "notes": []
+        },
+        {
+          "number": 16,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "QFN16 引脚表来自已入库的 SC8F072 用户手册。",
+        "QFN16 的 VDD/GND 物理位置与 SOP16 不同：Pin1 为 GND，Pin16 为 VDD。"
+      ]
+    }
+  ],
+  "pins": {
+    "vdd": {
+      "name": "VDD",
+      "functions": [
+        "power_in"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "sot23-6": 5,
+        "sop8": 1,
+        "msop10": 1,
+        "sop14": 1,
+        "sop16": 1,
+        "qfn16": 16
+      },
+      "notes": []
+    },
+    "gnd": {
+      "name": "GND",
+      "functions": [
+        "ground"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "sot23-6": 2,
+        "sop8": 8,
+        "msop10": 10,
+        "sop14": 14,
+        "sop16": 16,
+        "qfn16": 1
+      },
+      "notes": []
+    },
+    "rb0": {
+      "name": "RB0",
+      "port": "B",
+      "bit": 0,
+      "functions": [
+        "gpio",
+        "icspdat",
+        "pwmd0",
+        "an8",
+        "oscin",
+        "cmp2-"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sot23-6": 4,
+        "sop8": 2,
+        "msop10": 2,
+        "sop14": 2,
+        "sop16": 2,
+        "qfn16": 2
+      },
+      "notes": []
+    },
+    "rb1": {
+      "name": "RB1",
+      "port": "B",
+      "bit": 1,
+      "functions": [
+        "gpio",
+        "icspclk",
+        "pwmd1",
+        "pwmb4",
+        "an9",
+        "oscout",
+        "cmp1-"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sot23-6": 3,
+        "sop8": 3,
+        "msop10": 3,
+        "sop14": 3,
+        "sop16": 3,
+        "qfn16": 3
+      },
+      "notes": []
+    },
+    "rb2": {
+      "name": "RB2/MCLR",
+      "port": "B",
+      "bit": 2,
+      "functions": [
+        "mclr",
+        "gpio",
+        "pwmd4",
+        "pwmb3",
+        "an10"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sot23-6": 1,
+        "sop8": 4,
+        "msop10": 4,
+        "sop14": 4,
+        "sop16": 4,
+        "qfn16": 4
+      },
+      "notes": []
+    },
+    "rb3": {
+      "name": "RB3",
+      "port": "B",
+      "bit": 3,
+      "functions": [
+        "gpio",
+        "t0cki",
+        "pwmd2",
+        "an11"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "msop10": 5,
+        "sop14": 5,
+        "sop16": 5,
+        "qfn16": 5
+      },
+      "notes": []
+    },
+    "rb4": {
+      "name": "RB4",
+      "port": "B",
+      "bit": 4,
+      "functions": [
+        "gpio",
+        "pwmd3",
+        "pwmc4",
+        "an12"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop14": 6,
+        "sop16": 6,
+        "qfn16": 6
+      },
+      "notes": []
+    },
+    "rb5": {
+      "name": "RB5",
+      "port": "B",
+      "bit": 5,
+      "functions": [
+        "gpio",
+        "pwmc3",
+        "an13"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop14": 7,
+        "sop16": 7,
+        "qfn16": 7
+      },
+      "notes": []
+    },
+    "rb6": {
+      "name": "RB6",
+      "port": "B",
+      "bit": 6,
+      "functions": [
+        "gpio",
+        "pwmc2",
+        "an14"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop16": 8,
+        "qfn16": 8
+      },
+      "notes": []
+    },
+    "rb7": {
+      "name": "RB7",
+      "port": "B",
+      "bit": 7,
+      "functions": [
+        "gpio",
+        "an15",
+        "pwmc1"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop16": 9,
+        "qfn16": 9
+      },
+      "notes": []
+    },
+    "ra2": {
+      "name": "RA2",
+      "port": "A",
+      "bit": 2,
+      "functions": [
+        "gpio",
+        "an2",
+        "pwma2",
+        "pwmb2",
+        "cmp0-"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop8": 5,
+        "msop10": 7,
+        "sop14": 11,
+        "sop16": 13,
+        "qfn16": 13
+      },
+      "notes": []
+    },
+    "ra1": {
+      "name": "RA1",
+      "port": "A",
+      "bit": 1,
+      "functions": [
+        "gpio",
+        "an1",
+        "pwma1",
+        "pwmb1",
+        "cmp+",
+        "cmp3-"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop8": 6,
+        "msop10": 8,
+        "sop14": 12,
+        "sop16": 14,
+        "qfn16": 14
+      },
+      "notes": []
+    },
+    "ra0": {
+      "name": "RA0",
+      "port": "A",
+      "bit": 0,
+      "functions": [
+        "gpio",
+        "an0",
+        "pwma0",
+        "pwmb0",
+        "cmpo",
+        "int"
+      ],
+      "interrupts": [
+        "external-int",
+        "port-change"
+      ],
+      "package_locations": {
+        "sot23-6": 6,
+        "sop8": 7,
+        "msop10": 9,
+        "sop14": 13,
+        "sop16": 15,
+        "qfn16": 15
+      },
+      "notes": []
+    },
+    "ra3": {
+      "name": "RA3",
+      "port": "A",
+      "bit": 3,
+      "functions": [
+        "gpio",
+        "an3",
+        "pwma3"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "msop10": 6,
+        "sop14": 10,
+        "sop16": 12,
+        "qfn16": 12
+      },
+      "notes": []
+    },
+    "ra4": {
+      "name": "RA4",
+      "port": "A",
+      "bit": 4,
+      "functions": [
+        "gpio",
+        "an4",
+        "pwma4"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop14": 9,
+        "sop16": 11,
+        "qfn16": 11
+      },
+      "notes": []
+    },
+    "ra5": {
+      "name": "RA5",
+      "port": "A",
+      "bit": 5,
+      "functions": [
+        "gpio",
+        "an5",
+        "pwmc0"
+      ],
+      "interrupts": [
+        "port-change"
+      ],
+      "package_locations": {
+        "sop14": 8,
+        "sop16": 10,
+        "qfn16": 10
+      },
+      "notes": []
+    }
+  },
+  "docs": [
+    {
+      "id": "scmcu-sc8f072-user-manual",
+      "kind": "user-manual",
+      "title": "SC8F072 用户手册",
+      "lookup_keys": [
+        "SC8F072",
+        "TMR0",
+        "TMR2",
+        "PWM",
+        "Comparator",
+        "ADC"
+      ],
+      "notes": [
+        "建议结合本地例程与 NotebookLM 已入库手册一起使用。"
+      ]
+    }
+  ],
+  "related_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold",
+    "adc-scale"
+  ],
+  "source_modules": [],
+  "notes": [
+    "PWM 频率由 FHSI 驱动，不随系统主频分频变化而改变。",
+    "PWM0~PWM3 共享周期，PWM4 可单独设定周期。",
+    "比较器内部 VR 由 RBIAS_H/RBIAS_L 与 LVDS<3:0> 联合配置。",
+    "ADC 支持 12-bit 与截断 10-bit 两种结果解释方式。"
+  ]
+}

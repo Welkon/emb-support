@@ -1,0 +1,27 @@
+{
+  "name": "espressif-esp32-c3",
+  "vendor": "Espressif",
+  "series": "ESP32-C3",
+  "sample": false,
+  "description": "Espressif ESP32-C3 family with baseline GPTimer, LEDC PWM, and SAR ADC adapter coverage.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "adc-scale"
+  ],
+  "source_refs": [
+    "mcu/espressif-esp32-c3"
+  ],
+  "component_refs": [],
+  "clock_sources": [
+    "apb_clk",
+    "xtal_clk",
+    "rc_fast_clk",
+    "rtc_fast_clk"
+  ],
+  "bindings": {},
+  "notes": [
+    "family 级仍主要承担识别与知识引用，真实 executable binding 当前落在 esp32-c3 device 级。",
+    "已优先补 LEDC、GPTimer 与 SAR ADC 的基础参数模型，后续可继续扩展 GPIO matrix、RMT、UART、I2C、SPI、TWAI。"
+  ]
+}

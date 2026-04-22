@@ -1,0 +1,574 @@
+{
+  "name": "sc8f072",
+  "family": "scmcu-sc8f0xx",
+  "sample": false,
+  "description": "Concrete SC8F072 tool profile for TMR0/TMR2 timing, 10-bit PWM, comparator threshold search, and ADC scaling.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold",
+    "adc-scale"
+  ],
+  "source_refs": [
+    "mcu/scmcu-sc8f072",
+    "mcu/scmcu-sc8f072-registers"
+  ],
+  "component_refs": [],
+  "bindings": {
+    "timer-calc": {
+      "algorithm": "scmcu-timer",
+      "params": {
+        "chip": "sc8f072",
+        "default_timer": "tmr0",
+        "timer_variants": {
+          "tmr0": {
+            "chip": "sc8f072",
+            "kind": "tmr0-overflow",
+            "peripheral": "tmr0",
+            "timer_register": "TMR0",
+            "interrupt_flag": "T0IF",
+            "interrupt_enable": "T0IE",
+            "default_clock_source": "fsys_div4",
+            "default_edge": "rising",
+            "prescalers": [
+              1,
+              2,
+              4,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "prescaler_bits": {
+              "2": "000",
+              "4": "001",
+              "8": "010",
+              "16": "011",
+              "32": "100",
+              "64": "101",
+              "128": "110",
+              "256": "111"
+            },
+            "clock_source_aliases": {
+              "sysclk": "fsys_div4",
+              "system": "fsys_div4",
+              "internal": "fsys_div4",
+              "flse": "flse32k",
+              "lse": "flse32k",
+              "32k": "flse32k"
+            },
+            "clock_sources": {
+              "fsys_div4": {
+                "label": "FSYS/4",
+                "input_divider": 4,
+                "option_t0lse_en": 0,
+                "option_t0cs": 0,
+                "supports_edge": false
+              },
+              "t0cki": {
+                "label": "T0CKI",
+                "input_divider": 1,
+                "option_t0lse_en": 0,
+                "option_t0cs": 1,
+                "supports_edge": true
+              },
+              "flse32k": {
+                "label": "FLSE32K",
+                "input_divider": 1,
+                "option_t0lse_en": 1,
+                "option_t0cs": 0,
+                "supports_edge": false
+              }
+            }
+          },
+          "tmr2": {
+            "chip": "sc8f072",
+            "kind": "tmr2-periodic",
+            "peripheral": "tmr2",
+            "period_register": "PR2",
+            "control_register": "T2CON",
+            "interrupt_flag": "TMR2IF",
+            "interrupt_enable": "TMR2IE",
+            "default_clock_source": "fsys_div4",
+            "prescalers": [
+              1,
+              4,
+              16
+            ],
+            "postscalers": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16
+            ],
+            "prescaler_bits": {
+              "1": "00",
+              "4": "01",
+              "16": "10"
+            },
+            "postscaler_bits": {
+              "1": "0000",
+              "2": "0001",
+              "3": "0010",
+              "4": "0011",
+              "5": "0100",
+              "6": "0101",
+              "7": "0110",
+              "8": "0111",
+              "9": "1000",
+              "10": "1001",
+              "11": "1010",
+              "12": "1011",
+              "13": "1100",
+              "14": "1101",
+              "15": "1110",
+              "16": "1111"
+            },
+            "clock_source_aliases": {
+              "sysclk": "fsys_div4",
+              "system": "fsys_div4",
+              "internal": "fsys_div4",
+              "flse": "flse_div4",
+              "lse": "flse_div4",
+              "32k": "flse_div4"
+            },
+            "clock_sources": {
+              "fsys_div4": {
+                "label": "FSYS/4",
+                "input_divider": 4,
+                "clk_sel": 0
+              },
+              "flse_div4": {
+                "label": "FLSE/4",
+                "input_divider": 4,
+                "clk_sel": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "pwm-calc": {
+      "algorithm": "scmcu-pwm10",
+      "params": {
+        "chip": "sc8f072",
+        "peripheral": "pwm10",
+        "default_clock_source": "fhsi",
+        "default_output_pin": "pwm0-ra0",
+        "clock_source_aliases": {
+          "fosc": "fhsi",
+          "sysclk": "fhsi",
+          "system": "fhsi",
+          "internal": "fhsi"
+        },
+        "clock_sources": {
+          "fhsi": {
+            "label": "FHSI",
+            "divider_bits": {
+              "1": "000",
+              "2": "001",
+              "4": "010",
+              "8": "011",
+              "16": "100",
+              "32": "101",
+              "64": "110",
+              "128": "111"
+            }
+          }
+        },
+        "dividers": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128
+        ],
+        "output_pin_aliases": {
+          "pa0": "pwm0-ra0",
+          "pa1": "pwm1-ra1",
+          "pa2": "pwm2-ra2",
+          "pa3": "pwm3-ra3",
+          "pa4": "pwm4-ra4",
+          "pa5": "pwm0-ra5",
+          "pb0": "pwm0-rb0",
+          "pb1": "pwm4-rb1",
+          "pb2": "pwm3-rb2",
+          "pb3": "pwm2-rb3",
+          "pb4": "pwm4-rb4",
+          "pb5": "pwm3-rb5",
+          "pb6": "pwm2-rb6",
+          "pb7": "pwm1-rb7",
+          "ra0": "pwm0-ra0",
+          "ra1": "pwm1-ra1",
+          "ra2": "pwm2-ra2",
+          "ra3": "pwm3-ra3",
+          "ra4": "pwm4-ra4",
+          "ra5": "pwm0-ra5",
+          "rb0": "pwm0-rb0",
+          "rb1": "pwm4-rb1",
+          "rb2": "pwm3-rb2",
+          "rb3": "pwm2-rb3",
+          "rb5": "pwm3-rb5",
+          "rb6": "pwm2-rb6",
+          "rb7": "pwm1-rb7"
+        },
+        "output_pins": {
+          "pwm0-ra0": {
+            "pin": "ra0",
+            "group": "a",
+            "group_bits": "11",
+            "channel": 0,
+            "channel_label": "PWM0",
+            "enable_bit": "PWM0EN",
+            "duty_low_register": "PWMD0L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm1-ra1": {
+            "pin": "ra1",
+            "group": "a",
+            "group_bits": "11",
+            "channel": 1,
+            "channel_label": "PWM1",
+            "enable_bit": "PWM1EN",
+            "duty_low_register": "PWMD1L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm2-ra2": {
+            "pin": "ra2",
+            "group": "a",
+            "group_bits": "11",
+            "channel": 2,
+            "channel_label": "PWM2",
+            "enable_bit": "PWM2EN",
+            "duty_low_register": "PWMD2L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm3-ra3": {
+            "pin": "ra3",
+            "group": "a",
+            "group_bits": "11",
+            "channel": 3,
+            "channel_label": "PWM3",
+            "enable_bit": "PWM3EN",
+            "duty_low_register": "PWMD3L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm4-ra4": {
+            "pin": "ra4",
+            "group": "a",
+            "group_bits": "11",
+            "channel": 4,
+            "channel_label": "PWM4",
+            "enable_bit": "PWM4EN",
+            "duty_low_register": "PWMD4L",
+            "duty_high_register": "PWMTH",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm3-rb2": {
+            "pin": "rb2",
+            "group": "b",
+            "group_bits": "10",
+            "channel": 3,
+            "channel_label": "PWM3",
+            "enable_bit": "PWM3EN",
+            "duty_low_register": "PWMD3L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm4-rb1": {
+            "pin": "rb1",
+            "group": "b",
+            "group_bits": "10",
+            "channel": 4,
+            "channel_label": "PWM4",
+            "enable_bit": "PWM4EN",
+            "duty_low_register": "PWMD4L",
+            "duty_high_register": "PWMTH",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm0-ra5": {
+            "pin": "ra5",
+            "group": "c",
+            "group_bits": "01",
+            "channel": 0,
+            "channel_label": "PWM0",
+            "enable_bit": "PWM0EN",
+            "duty_low_register": "PWMD0L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm1-rb7": {
+            "pin": "rb7",
+            "group": "c",
+            "group_bits": "01",
+            "channel": 1,
+            "channel_label": "PWM1",
+            "enable_bit": "PWM1EN",
+            "duty_low_register": "PWMD1L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm2-rb6": {
+            "pin": "rb6",
+            "group": "c",
+            "group_bits": "01",
+            "channel": 2,
+            "channel_label": "PWM2",
+            "enable_bit": "PWM2EN",
+            "duty_low_register": "PWMD2L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm3-rb5": {
+            "pin": "rb5",
+            "group": "c",
+            "group_bits": "01",
+            "channel": 3,
+            "channel_label": "PWM3",
+            "enable_bit": "PWM3EN",
+            "duty_low_register": "PWMD3L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm4-rb4": {
+            "pin": "rb4",
+            "group": "c",
+            "group_bits": "01",
+            "channel": 4,
+            "channel_label": "PWM4",
+            "enable_bit": "PWM4EN",
+            "duty_low_register": "PWMD4L",
+            "duty_high_register": "PWMTH",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm0-rb0": {
+            "pin": "rb0",
+            "group": "d",
+            "group_bits": "00",
+            "channel": 0,
+            "channel_label": "PWM0",
+            "enable_bit": "PWM0EN",
+            "duty_low_register": "PWMD0L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm1-rb1": {
+            "pin": "rb1",
+            "group": "d",
+            "group_bits": "00",
+            "channel": 1,
+            "channel_label": "PWM1",
+            "enable_bit": "PWM1EN",
+            "duty_low_register": "PWMD1L",
+            "duty_high_register": "PWMD01H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm2-rb3": {
+            "pin": "rb3",
+            "group": "d",
+            "group_bits": "00",
+            "channel": 2,
+            "channel_label": "PWM2",
+            "enable_bit": "PWM2EN",
+            "duty_low_register": "PWMD2L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<1:0>"
+          },
+          "pwm3-rb4": {
+            "pin": "rb4",
+            "group": "d",
+            "group_bits": "00",
+            "channel": 3,
+            "channel_label": "PWM3",
+            "enable_bit": "PWM3EN",
+            "duty_low_register": "PWMD3L",
+            "duty_high_register": "PWMD23H",
+            "duty_high_bits": "<5:4>"
+          },
+          "pwm4-rb2": {
+            "pin": "rb2",
+            "group": "d",
+            "group_bits": "00",
+            "channel": 4,
+            "channel_label": "PWM4",
+            "enable_bit": "PWM4EN",
+            "duty_low_register": "PWMD4L",
+            "duty_high_register": "PWMTH",
+            "duty_high_bits": "<5:4>"
+          }
+        }
+      }
+    },
+    "comparator-threshold": {
+      "algorithm": "scmcu-comparator",
+      "params": {
+        "chip": "sc8f072",
+        "peripheral": "comp",
+        "bandgap_voltage": 1.2,
+        "default_positive_source": "vr",
+        "default_negative_source": "cmp0n",
+        "positive_sources": {
+          "vr": {
+            "cmp_ps": 0
+          },
+          "cmp_plus": {
+            "cmp_ps": 1
+          }
+        },
+        "positive_source_aliases": {},
+        "negative_sources": {
+          "cmp0n": {
+            "cmp_ns": "000"
+          },
+          "cmp1n": {
+            "cmp_ns": "001"
+          },
+          "cmp2n": {
+            "cmp_ns": "010"
+          },
+          "cmp3n": {
+            "cmp_ns": "011"
+          },
+          "vr": {
+            "cmp_ns": "100"
+          },
+          "bandgap": {
+            "cmp_ns": "101"
+          }
+        },
+        "negative_source_aliases": {
+          "pa1": "cmp0n",
+          "cmp_in": "cmp0n"
+        },
+        "internal_reference_cases": [
+          {
+            "rbias_h": 0,
+            "rbias_l": 0,
+            "offset_numerator": 1,
+            "offset_denominator": 4,
+            "step_base": 1,
+            "step_denominator": 32,
+            "formula": "VDD/4 + (n+1)/32 * VDD"
+          },
+          {
+            "rbias_h": 0,
+            "rbias_l": 1,
+            "offset_numerator": 0,
+            "offset_denominator": 1,
+            "step_base": 1,
+            "step_denominator": 24,
+            "formula": "(n+1)/24 * VDD"
+          },
+          {
+            "rbias_h": 1,
+            "rbias_l": 0,
+            "offset_numerator": 1,
+            "offset_denominator": 5,
+            "step_base": 1,
+            "step_denominator": 40,
+            "formula": "VDD/5 + (n+1)/40 * VDD"
+          },
+          {
+            "rbias_h": 1,
+            "rbias_l": 1,
+            "offset_numerator": 0,
+            "offset_denominator": 1,
+            "step_base": 1,
+            "step_denominator": 32,
+            "formula": "(n+1)/32 * VDD"
+          }
+        ]
+      }
+    },
+    "adc-scale": {
+      "algorithm": "scmcu-adc12",
+      "params": {
+        "chip": "sc8f072",
+        "peripheral": "adc12",
+        "default_reference_source": "vdd",
+        "default_resolution": 12,
+        "supported_resolutions": [
+          12,
+          10
+        ],
+        "reference_source_aliases": {
+          "system": "vdd",
+          "ldo20": "ldo2.0",
+          "ldo24": "ldo2.4",
+          "ldo30": "ldo3.0"
+        },
+        "reference_sources": {
+          "vdd": {
+            "label": "VDD"
+          },
+          "ldo2.0": {
+            "label": "LDO 2.0V",
+            "fixed_voltage": 2.0
+          },
+          "ldo2.4": {
+            "label": "LDO 2.4V",
+            "fixed_voltage": 2.4
+          },
+          "ldo3.0": {
+            "label": "LDO 3.0V",
+            "fixed_voltage": 3.0
+          }
+        },
+        "channel_aliases": {
+          "pa2": "an1",
+          "adc_in": "an1",
+          "bg": "bg1.2",
+          "bandgap": "bg1.2",
+          "bg12": "bg1.2"
+        },
+        "channels": {
+          "an0": { "name": "AN0" },
+          "an1": { "name": "AN1" },
+          "an2": { "name": "AN2" },
+          "an3": { "name": "AN3" },
+          "an4": { "name": "AN4" },
+          "an5": { "name": "AN5" },
+          "an8": { "name": "AN8" },
+          "an9": { "name": "AN9" },
+          "an10": { "name": "AN10" },
+          "an11": { "name": "AN11" },
+          "an12": { "name": "AN12" },
+          "an13": { "name": "AN13" },
+          "an14": { "name": "AN14" },
+          "an15": { "name": "AN15" },
+          "bg1.2": {
+            "name": "Internal 1.2V BG",
+            "note": "内部固定通道"
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "TMR0 为 8-bit 计时器，支持内部 FCPU、T0CKI 边沿与 32.768KHz 外部低速时钟。",
+    "10-bit PWM 为独立模块，PWM0~PWM3 共用周期，PWM4 独立周期。",
+    "比较器支持内部 VR 与 1.2V BG。",
+    "ADC 为 12-bit SAR，支持 VDD 或内部 LDO 参考。"
+  ]
+}

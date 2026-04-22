@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tektronix Scope"
+  short_description: "Control Tek scopes and capture waveform data"
+  default_prompt: "Use $tektronix-scope to connect to a Tektronix oscilloscope, query its state, and capture a waveform to CSV."

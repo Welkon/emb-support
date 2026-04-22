@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generated_at_utc": "2026-04-22T08:00:00Z",
+  "skills": [
+    {
+      "name": "xc8-build",
+      "path": "./xc8-build",
+      "description": "Build firmware with the repo-local Python XC8 build script. The script stays generic by defaulting to SCMCU project-file metadata, while still allowing explicit overrides for chip, source files, and image prefix when an agent or user needs to drive a custom build. Keep artifacts under build/xc8/<build-name>/ and inspect cmscerr.err plus map output for ROM/RAM usage, warnings, and function sizes. Use when the user asks to compile, rebuild, verify code size, inspect map output, or produce a named build output set.",
+      "short_description": "Build firmware and inspect ROM/RAM/map output",
+      "interface": {
+        "display_name": "XC8 Build",
+        "short_description": "Build firmware and inspect ROM/RAM/map output",
+        "default_prompt": "Use $xc8-build to run the repo-local XC8 build flow, inspect build status, and report ROM/RAM usage plus key artifacts."
+      }
+    },
+    {
+      "name": "tektronix-scope",
+      "path": "./tektronix-scope",
+      "description": "Remote-control Tektronix oscilloscopes over VISA/SCPI and capture live waveform data to local files for debugging. Use when Codex needs to discover a Tek scope, connect by USB or TCPIP resource string, run direct SCPI queries or writes, inspect instrument state non-invasively, or export waveform samples to CSV and JSON for AI-assisted analysis.",
+      "short_description": "Control Tek scopes and capture waveform data",
+      "interface": {
+        "display_name": "Tektronix Scope",
+        "short_description": "Control Tek scopes and capture waveform data",
+        "default_prompt": "Use $tektronix-scope to connect to a Tektronix oscilloscope, query its state, and capture a waveform to CSV."
+      }
+    }
+  ]
+}

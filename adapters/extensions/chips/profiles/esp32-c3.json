@@ -1,0 +1,854 @@
+{
+  "name": "esp32-c3",
+  "vendor": "Espressif",
+  "family": "espressif-esp32-c3",
+  "sample": false,
+  "series": "ESP32-C3",
+  "package": "qfn32",
+  "architecture": "32-bit RISC-V",
+  "runtime_model": "main_loop_plus_isr",
+  "description": "Espressif ESP32-C3 Wi-Fi/BLE SoC with GPIO matrix, UART/SPI/I2C/I2S/TWAI/RMT, SAR ADC, LEDC PWM, timers, GDMA, security engines, and brownout detection.",
+  "source_refs": [
+    "mcu/espressif-esp32-c3"
+  ],
+  "component_refs": [],
+  "summary": {
+    "program_memory": "384KB ROM + external SPI flash support up to 16MB",
+    "data_memory": "400KB SRAM + 8KB RTC fast SRAM",
+    "io_count": "up to 22 GPIOs depending on package and variant",
+    "peripherals": "UART, SPI, I2C, I2S, TWAI, RMT, USB Serial JTAG, 12-bit SAR ADC, temperature sensor, LEDC PWM, 54-bit timers, systimer, watchdog, GDMA, brownout, PMU, Wi-Fi, BLE, crypto"
+  },
+  "capabilities": [
+    "uart",
+    "spi",
+    "i2c",
+    "i2s",
+    "twai",
+    "rmt",
+    "usb-serial-jtag",
+    "wifi",
+    "ble",
+    "adc12",
+    "temp-sensor",
+    "ledc-pwm",
+    "timer54",
+    "systimer",
+    "watchdog",
+    "gdma",
+    "clock-tree",
+    "pmu",
+    "brownout",
+    "sleep-wakeup",
+    "rtc-memory",
+    "rtc-wakeup",
+    "gpio-matrix",
+    "aes",
+    "sha",
+    "rsa",
+    "hmac",
+    "rng",
+    "efuse",
+    "flash-encryption",
+    "assist-debug"
+  ],
+  "packages": [
+    {
+      "name": "qfn32",
+      "pin_count": 32,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "lna_in",
+          "label": "LNA_IN",
+          "default_function": "rf",
+          "mux": [],
+          "notes": [
+            "RF 模拟引脚。"
+          ]
+        },
+        {
+          "number": 2,
+          "signal": "vdd3p3",
+          "label": "VDD3P3",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "模拟电源。"
+          ]
+        },
+        {
+          "number": 3,
+          "signal": "vdd3p3",
+          "label": "VDD3P3",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "模拟电源。"
+          ]
+        },
+        {
+          "number": 4,
+          "signal": "gpio0",
+          "label": "XTAL_32K_P/GPIO0",
+          "default_function": "rtc_io",
+          "mux": [
+            "gpio",
+            "adc1_ch0",
+            "xtal32k_p"
+          ],
+          "notes": [
+            "RTC IO。"
+          ]
+        },
+        {
+          "number": 5,
+          "signal": "gpio1",
+          "label": "XTAL_32K_N/GPIO1",
+          "default_function": "rtc_io",
+          "mux": [
+            "gpio",
+            "adc1_ch1",
+            "xtal32k_n"
+          ],
+          "notes": [
+            "RTC IO。"
+          ]
+        },
+        {
+          "number": 6,
+          "signal": "gpio2",
+          "label": "GPIO2",
+          "default_function": "rtc_io",
+          "mux": [
+            "gpio",
+            "adc1_ch2",
+            "fspi_q"
+          ],
+          "notes": [
+            "RTC IO。",
+            "Strapping 引脚。"
+          ]
+        },
+        {
+          "number": 7,
+          "signal": "chip_en",
+          "label": "CHIP_EN",
+          "default_function": "chip_enable",
+          "mux": [],
+          "notes": [
+            "芯片使能引脚，不应悬空。"
+          ]
+        },
+        {
+          "number": 8,
+          "signal": "gpio3",
+          "label": "GPIO3",
+          "default_function": "rtc_io",
+          "mux": [
+            "gpio",
+            "adc1_ch3"
+          ],
+          "notes": [
+            "RTC IO。",
+            "Strapping 引脚。"
+          ]
+        },
+        {
+          "number": 9,
+          "signal": "gpio4",
+          "label": "MTMS/GPIO4",
+          "default_function": "jtag",
+          "mux": [
+            "gpio",
+            "jtag_mtms",
+            "adc1_ch4",
+            "fspi_hd"
+          ],
+          "notes": [
+            "RTC IO。"
+          ]
+        },
+        {
+          "number": 10,
+          "signal": "gpio5",
+          "label": "MTDI/GPIO5",
+          "default_function": "jtag",
+          "mux": [
+            "gpio",
+            "jtag_mtdi",
+            "adc2_ch0",
+            "fspi_wp"
+          ],
+          "notes": [
+            "RTC IO。"
+          ]
+        },
+        {
+          "number": 11,
+          "signal": "vdd3p3_rtc",
+          "label": "VDD3P3_RTC",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "RTC 与部分数字域电源。"
+          ]
+        },
+        {
+          "number": 12,
+          "signal": "gpio6",
+          "label": "MTCK/GPIO6",
+          "default_function": "jtag",
+          "mux": [
+            "gpio",
+            "jtag_mtck",
+            "fspi_clk"
+          ],
+          "notes": []
+        },
+        {
+          "number": 13,
+          "signal": "gpio7",
+          "label": "MTDO/GPIO7",
+          "default_function": "jtag",
+          "mux": [
+            "gpio",
+            "jtag_mtdo",
+            "fspi_d"
+          ],
+          "notes": []
+        },
+        {
+          "number": 14,
+          "signal": "gpio8",
+          "label": "GPIO8",
+          "default_function": "gpio",
+          "mux": [
+            "gpio"
+          ],
+          "notes": [
+            "Strapping 引脚。"
+          ]
+        },
+        {
+          "number": 15,
+          "signal": "gpio9",
+          "label": "GPIO9",
+          "default_function": "gpio",
+          "mux": [
+            "gpio"
+          ],
+          "notes": [
+            "Strapping 引脚。"
+          ]
+        },
+        {
+          "number": 16,
+          "signal": "gpio10",
+          "label": "GPIO10",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "fspi_cs0"
+          ],
+          "notes": []
+        },
+        {
+          "number": 17,
+          "signal": "vdd3p3_cpu",
+          "label": "VDD3P3_CPU",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "数字电源域。"
+          ]
+        },
+        {
+          "number": 18,
+          "signal": "gpio11",
+          "label": "VDD_SPI/GPIO11",
+          "default_function": "power_or_gpio",
+          "mux": [
+            "gpio",
+            "vdd_spi"
+          ],
+          "notes": [
+            "默认用于 Flash 供电；外部供电方案下才可复用为 GPIO11。"
+          ]
+        },
+        {
+          "number": 19,
+          "signal": "gpio12",
+          "label": "SPIHD/GPIO12",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_hd"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 20,
+          "signal": "gpio13",
+          "label": "SPIWP/GPIO13",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_wp"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 21,
+          "signal": "gpio14",
+          "label": "SPICS0/GPIO14",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_cs0"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 22,
+          "signal": "gpio15",
+          "label": "SPICLK/GPIO15",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_clk"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 23,
+          "signal": "gpio16",
+          "label": "SPID/GPIO16",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_d"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 24,
+          "signal": "gpio17",
+          "label": "SPIQ/GPIO17",
+          "default_function": "spi_flash",
+          "mux": [
+            "gpio",
+            "spi_q"
+          ],
+          "notes": [
+            "默认连接 Flash；部分子型号为 NC。"
+          ]
+        },
+        {
+          "number": 25,
+          "signal": "gpio18",
+          "label": "GPIO18/USB_D-",
+          "default_function": "usb",
+          "mux": [
+            "gpio",
+            "usb_d-"
+          ],
+          "notes": [
+            "默认连接 USB Serial/JTAG 控制器。"
+          ]
+        },
+        {
+          "number": 26,
+          "signal": "gpio19",
+          "label": "GPIO19/USB_D+",
+          "default_function": "usb",
+          "mux": [
+            "gpio",
+            "usb_d+"
+          ],
+          "notes": [
+            "默认连接 USB Serial/JTAG 控制器。"
+          ]
+        },
+        {
+          "number": 27,
+          "signal": "gpio20",
+          "label": "U0RXD/GPIO20",
+          "default_function": "uart",
+          "mux": [
+            "gpio",
+            "uart0_rx"
+          ],
+          "notes": []
+        },
+        {
+          "number": 28,
+          "signal": "gpio21",
+          "label": "U0TXD/GPIO21",
+          "default_function": "uart",
+          "mux": [
+            "gpio",
+            "uart0_tx"
+          ],
+          "notes": []
+        },
+        {
+          "number": 29,
+          "signal": "xtal_n",
+          "label": "XTAL_N",
+          "default_function": "crystal",
+          "mux": [],
+          "notes": [
+            "主晶振负端。"
+          ]
+        },
+        {
+          "number": 30,
+          "signal": "xtal_p",
+          "label": "XTAL_P",
+          "default_function": "crystal",
+          "mux": [],
+          "notes": [
+            "主晶振正端。"
+          ]
+        },
+        {
+          "number": 31,
+          "signal": "vdda",
+          "label": "VDDA",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "模拟电源。"
+          ]
+        },
+        {
+          "number": 32,
+          "signal": "vdda",
+          "label": "VDDA",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": [
+            "模拟电源。"
+          ]
+        }
+      ],
+      "notes": [
+        "QFN32 为 ESP32-C3 常见主封装。",
+        "底部还带 exposed pad，通常接地与散热焊盘使用。",
+        "GPIO12-GPIO17 默认多用于片上/片外 Flash 连接，不建议在通用项目里随意复用。",
+        "GPIO18/GPIO19 默认接 USB Serial/JTAG。",
+        "GPIO2、GPIO3、GPIO8、GPIO9 为 strapping 引脚，复位/启动阶段需要特别注意外部电平。"
+      ]
+    }
+  ],
+  "pins": {
+    "gpio0": {
+      "name": "gpio0",
+      "port": "gpio",
+      "bit": 0,
+      "functions": [
+        "gpio",
+        "adc1_ch0",
+        "xtal32k_p",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 4
+      },
+      "notes": [
+        "RTC IO。"
+      ]
+    },
+    "gpio1": {
+      "name": "gpio1",
+      "port": "gpio",
+      "bit": 1,
+      "functions": [
+        "gpio",
+        "adc1_ch1",
+        "xtal32k_n",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 5
+      },
+      "notes": [
+        "RTC IO。"
+      ]
+    },
+    "gpio2": {
+      "name": "gpio2",
+      "port": "gpio",
+      "bit": 2,
+      "functions": [
+        "gpio",
+        "adc1_ch2",
+        "fspi_q",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 6
+      },
+      "notes": [
+        "RTC IO。",
+        "Strapping 引脚。"
+      ]
+    },
+    "gpio3": {
+      "name": "gpio3",
+      "port": "gpio",
+      "bit": 3,
+      "functions": [
+        "gpio",
+        "adc1_ch3",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 8
+      },
+      "notes": [
+        "RTC IO。",
+        "Strapping 引脚。"
+      ]
+    },
+    "gpio4": {
+      "name": "gpio4",
+      "port": "gpio",
+      "bit": 4,
+      "functions": [
+        "gpio",
+        "jtag_mtms",
+        "adc1_ch4",
+        "fspi_hd",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 9
+      },
+      "notes": [
+        "RTC IO。"
+      ]
+    },
+    "gpio5": {
+      "name": "gpio5",
+      "port": "gpio",
+      "bit": 5,
+      "functions": [
+        "gpio",
+        "jtag_mtdi",
+        "adc2_ch0",
+        "fspi_wp",
+        "rtc_io"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 10
+      },
+      "notes": [
+        "RTC IO。",
+        "ADC2 在部分场景下受限制。"
+      ]
+    },
+    "gpio6": {
+      "name": "gpio6",
+      "port": "gpio",
+      "bit": 6,
+      "functions": [
+        "gpio",
+        "jtag_mtck",
+        "fspi_clk"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 12
+      },
+      "notes": []
+    },
+    "gpio7": {
+      "name": "gpio7",
+      "port": "gpio",
+      "bit": 7,
+      "functions": [
+        "gpio",
+        "jtag_mtdo",
+        "fspi_d"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 13
+      },
+      "notes": []
+    },
+    "gpio8": {
+      "name": "gpio8",
+      "port": "gpio",
+      "bit": 8,
+      "functions": [
+        "gpio"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 14
+      },
+      "notes": [
+        "Strapping 引脚。"
+      ]
+    },
+    "gpio9": {
+      "name": "gpio9",
+      "port": "gpio",
+      "bit": 9,
+      "functions": [
+        "gpio"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 15
+      },
+      "notes": [
+        "Strapping 引脚。"
+      ]
+    },
+    "gpio10": {
+      "name": "gpio10",
+      "port": "gpio",
+      "bit": 10,
+      "functions": [
+        "gpio",
+        "fspi_cs0"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 16
+      },
+      "notes": []
+    },
+    "gpio11": {
+      "name": "gpio11",
+      "port": "gpio",
+      "bit": 11,
+      "functions": [
+        "gpio",
+        "vdd_spi"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 18
+      },
+      "notes": [
+        "默认多作为 VDD_SPI；是否能作 GPIO 取决于供电方案。"
+      ]
+    },
+    "gpio12": {
+      "name": "gpio12",
+      "port": "gpio",
+      "bit": 12,
+      "functions": [
+        "gpio",
+        "spi_hd"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 19
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio13": {
+      "name": "gpio13",
+      "port": "gpio",
+      "bit": 13,
+      "functions": [
+        "gpio",
+        "spi_wp"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 20
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio14": {
+      "name": "gpio14",
+      "port": "gpio",
+      "bit": 14,
+      "functions": [
+        "gpio",
+        "spi_cs0"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 21
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio15": {
+      "name": "gpio15",
+      "port": "gpio",
+      "bit": 15,
+      "functions": [
+        "gpio",
+        "spi_clk"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 22
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio16": {
+      "name": "gpio16",
+      "port": "gpio",
+      "bit": 16,
+      "functions": [
+        "gpio",
+        "spi_d"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 23
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio17": {
+      "name": "gpio17",
+      "port": "gpio",
+      "bit": 17,
+      "functions": [
+        "gpio",
+        "spi_q"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 24
+      },
+      "notes": [
+        "默认连接 Flash；部分子型号为 NC。"
+      ]
+    },
+    "gpio18": {
+      "name": "gpio18",
+      "port": "gpio",
+      "bit": 18,
+      "functions": [
+        "gpio",
+        "usb_d-"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 25
+      },
+      "notes": [
+        "默认连接 USB Serial/JTAG。"
+      ]
+    },
+    "gpio19": {
+      "name": "gpio19",
+      "port": "gpio",
+      "bit": 19,
+      "functions": [
+        "gpio",
+        "usb_d+"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 26
+      },
+      "notes": [
+        "默认连接 USB Serial/JTAG。"
+      ]
+    },
+    "gpio20": {
+      "name": "gpio20",
+      "port": "gpio",
+      "bit": 20,
+      "functions": [
+        "gpio",
+        "uart0_rx"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 27
+      },
+      "notes": []
+    },
+    "gpio21": {
+      "name": "gpio21",
+      "port": "gpio",
+      "bit": 21,
+      "functions": [
+        "gpio",
+        "uart0_tx"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "qfn32": 28
+      },
+      "notes": []
+    }
+  },
+  "docs": [
+    {
+      "id": "esp32-c3-datasheet-cn",
+      "kind": "datasheet",
+      "title": "ESP32-C3 Datasheet (CN)",
+      "lookup_keys": [
+        "ESP32-C3 datasheet",
+        "esp32-c3_datasheet_cn.pdf"
+      ],
+      "notes": [
+        "Notebook source id: e70ed6fd-9dab-424c-9c1e-ad777a8eda08"
+      ]
+    },
+    {
+      "id": "esp32-c3-trm-cn",
+      "kind": "reference-manual",
+      "title": "ESP32-C3 Technical Reference Manual (CN)",
+      "lookup_keys": [
+        "ESP32-C3 technical reference manual",
+        "esp32-c3_technical_reference_manual_cn.pdf"
+      ],
+      "notes": [
+        "Notebook source id: caa47a5f-75d4-4797-8416-5e8d7a550289"
+      ]
+    }
+  ],
+  "related_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "adc-scale"
+  ],
+  "source_modules": [],
+  "notes": [
+    "该 profile 基于 notebook 对 ESP32-C3 数据手册与技术参考手册的提炼摘要生成。",
+    "当前已尽量补全芯片真值层，包括主要外设分类与 QFN32 主封装引脚信息。",
+    "当前尚未声明 Espressif 专用 executable binding。",
+    "brownout 已记录为芯片能力，但当前不等于已适配 lvdc-threshold。",
+    "不应把 comparator-threshold 或 charger-config 关联到该芯片。",
+    "related_tools 只反映 emb 当前已有且最适合推荐的工具入口，不等于芯片外设全集。"
+  ]
+}

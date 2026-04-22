@@ -1,0 +1,9 @@
+{
+  "name": "emb-support-skills",
+  "version": "0.1.0",
+  "description": "Installable skill bundle source for emb-agent external support assets.",
+  "skills": [
+    "./xc8-build/SKILL.md",
+    "./tektronix-scope/SKILL.md"
+  ]
+}

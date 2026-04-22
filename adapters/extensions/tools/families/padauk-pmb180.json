@@ -1,0 +1,35 @@
+{
+  "name": "padauk-pmb180",
+  "vendor": "Padauk",
+  "series": "PMB180(B)",
+  "sample": false,
+  "description": "Padauk PMB180(B) charging MCU family with Timer16, Timer2 PWM, comparator, LPWMG, and LVDC.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "lpwmg-calc",
+    "lvdc-threshold",
+    "charger-config",
+    "comparator-threshold"
+  ],
+  "source_refs": [
+    "mcu/padauk-pmb180b",
+    "mcu/padauk-pmb180b-registers"
+  ],
+  "component_refs": [],
+  "bindings": {},
+  "clock_sources": [
+    "sysclk",
+    "ihrc",
+    "ilrc",
+    "nilrc",
+    "pa0",
+    "pa4",
+    "comparator"
+  ],
+  "notes": [
+    "当前首套真实适配落在 PMB180B。",
+    "PMB180B 当前已接入 T16、TM2 PWM、LPWMG、LVDC、充电配置与 GPC comparator 工具。",
+    "该 family 未体现 ADC 能力。"
+  ]
+}

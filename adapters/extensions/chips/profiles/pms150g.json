@@ -1,0 +1,597 @@
+{
+  "name": "pms150g",
+  "vendor": "Padauk",
+  "family": "padauk-pms15b-150g",
+  "sample": false,
+  "series": "PMS150G",
+  "package": "sop8/dip8/sot23-6/sot23-8",
+  "architecture": "8-bit OTP",
+  "runtime_model": "main_loop_plus_isr",
+  "description": "Padauk PMS150G with 1KW OTP, 64B RAM, Timer16, TM2 PWM, and comparator.",
+  "source_refs": [
+    "mcu/padauk-pms150g",
+    "mcu/padauk-pms150g-registers"
+  ],
+  "component_refs": [],
+  "summary": {
+    "program_memory": "1KW OTP",
+    "data_memory": "64B RAM",
+    "io_count": "6",
+    "peripherals": "Timer16, TM2 PWM, comparator"
+  },
+  "capabilities": [
+    "timer16",
+    "tm2-pwm",
+    "comparator",
+    "sleep-wakeup"
+  ],
+  "packages": [
+    {
+      "name": "sot23-6",
+      "pin_count": 6,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa6",
+          "label": "PA6/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa5",
+          "label": "PA5/PRSTB",
+          "default_function": "reset",
+          "mux": [
+            "gpio",
+            "prstb",
+            "open-drain"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa3",
+          "label": "PA3/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOT23-6 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+      ]
+    },
+    {
+      "name": "sop8",
+      "pin_count": 8,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "pa7",
+          "label": "PA7/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa6",
+          "label": "PA6/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa5",
+          "label": "PA5/PRSTB",
+          "default_function": "reset",
+          "mux": [
+            "gpio",
+            "prstb",
+            "open-drain"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "pa3",
+          "label": "PA3/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "pa0",
+          "label": "PA0/INT0/CO",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "int0",
+            "cmpo"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOP8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+      ]
+    },
+    {
+      "name": "dip8",
+      "pin_count": 8,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "pa7",
+          "label": "PA7/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa6",
+          "label": "PA6/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa5",
+          "label": "PA5/PRSTB",
+          "default_function": "reset",
+          "mux": [
+            "gpio",
+            "prstb",
+            "open-drain"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "pa3",
+          "label": "PA3/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "pa0",
+          "label": "PA0/INT0/CO",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "int0",
+            "cmpo"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "DIP8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+      ]
+    },
+    {
+      "name": "sot23-8",
+      "pin_count": 8,
+      "pins": [
+        {
+          "number": 1,
+          "signal": "vdd",
+          "label": "VDD",
+          "default_function": "power_in",
+          "mux": [],
+          "notes": []
+        },
+        {
+          "number": 2,
+          "signal": "pa7",
+          "label": "PA7/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 3,
+          "signal": "pa6",
+          "label": "PA6/CIN-",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-"
+          ],
+          "notes": []
+        },
+        {
+          "number": 4,
+          "signal": "pa5",
+          "label": "PA5/PRSTB",
+          "default_function": "reset",
+          "mux": [
+            "gpio",
+            "prstb",
+            "open-drain"
+          ],
+          "notes": []
+        },
+        {
+          "number": 5,
+          "signal": "pa3",
+          "label": "PA3/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 6,
+          "signal": "pa4",
+          "label": "PA4/CIN+/CIN-/TM2PWM",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "cmp+",
+            "cmp-",
+            "tm2pwm"
+          ],
+          "notes": []
+        },
+        {
+          "number": 7,
+          "signal": "pa0",
+          "label": "PA0/INT0/CO",
+          "default_function": "gpio",
+          "mux": [
+            "gpio",
+            "int0",
+            "cmpo"
+          ],
+          "notes": []
+        },
+        {
+          "number": 8,
+          "signal": "gnd",
+          "label": "GND",
+          "default_function": "ground",
+          "mux": [],
+          "notes": []
+        }
+      ],
+      "notes": [
+        "SOT23-8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+      ]
+    }
+  ],
+  "pins": {
+    "vdd": {
+      "name": "VDD",
+      "functions": [
+        "power_in",
+        "program"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "sot23-6": 5,
+        "sop8": 1,
+        "dip8": 1,
+        "sot23-8": 1
+      },
+      "notes": []
+    },
+    "gnd": {
+      "name": "GND",
+      "functions": [
+        "ground",
+        "program"
+      ],
+      "interrupts": [],
+      "package_locations": {
+        "sot23-6": 2,
+        "sop8": 8,
+        "dip8": 8,
+        "sot23-8": 8
+      },
+      "notes": []
+    },
+    "pa7": {
+      "name": "PA7/CIN-",
+      "port": "A",
+      "bit": 7,
+      "functions": [
+        "gpio",
+        "cmp-",
+        "wakeup"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "sop8": 2,
+        "dip8": 2,
+        "sot23-8": 2
+      },
+      "notes": [
+        "作为比较器模拟输入时，需关闭 PADIER.7 数字输入。"
+      ]
+    },
+    "pa6": {
+      "name": "PA6/CIN-",
+      "port": "A",
+      "bit": 6,
+      "functions": [
+        "gpio",
+        "cmp-",
+        "wakeup",
+        "program"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "sot23-6": 3,
+        "sop8": 3,
+        "dip8": 3,
+        "sot23-8": 3
+      },
+      "notes": [
+        "作为比较器模拟输入时，需关闭 PADIER.6 数字输入。",
+        "属于手册定义的烧录脚。"
+      ]
+    },
+    "pa5": {
+      "name": "PA5/PRSTB",
+      "port": "A",
+      "bit": 5,
+      "functions": [
+        "gpio",
+        "prstb",
+        "open-drain",
+        "wakeup",
+        "program"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "sot23-6": 4,
+        "sop8": 4,
+        "dip8": 4,
+        "sot23-8": 4
+      },
+      "notes": [
+        "高抗干扰输入场景下，手册建议串接 33Ω。",
+        "烧录时手册建议在 PA5 路径串接 100Ω。"
+      ]
+    },
+    "pa4": {
+      "name": "PA4/CIN+/CIN-/TM2PWM",
+      "port": "A",
+      "bit": 4,
+      "functions": [
+        "gpio",
+        "cmp+",
+        "cmp-",
+        "tm2pwm",
+        "wakeup",
+        "program"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "sot23-6": 1,
+        "sop8": 6,
+        "dip8": 6,
+        "sot23-8": 6
+      },
+      "notes": [
+        "作为比较器模拟输入时，需关闭 PADIER.4 数字输入。",
+        "TM2 PWM 可输出到 PA4，但部分仿真器不支持该输出。",
+        "属于手册定义的烧录脚。"
+      ]
+    },
+    "pa3": {
+      "name": "PA3/CIN-/TM2PWM",
+      "port": "A",
+      "bit": 3,
+      "functions": [
+        "gpio",
+        "cmp-",
+        "tm2pwm",
+        "wakeup",
+        "program"
+      ],
+      "interrupts": [
+        "wakeup"
+      ],
+      "package_locations": {
+        "sot23-6": 6,
+        "sop8": 5,
+        "dip8": 5,
+        "sot23-8": 5
+      },
+      "notes": [
+        "作为比较器模拟输入时，需关闭 PADIER.3 数字输入。",
+        "属于手册定义的烧录脚。"
+      ]
+    },
+    "pa0": {
+      "name": "PA0/INT0/CO",
+      "port": "A",
+      "bit": 0,
+      "functions": [
+        "gpio",
+        "int0",
+        "cmpo",
+        "wakeup"
+      ],
+      "interrupts": [
+        "external-int",
+        "wakeup"
+      ],
+      "package_locations": {
+        "sop8": 7,
+        "dip8": 7,
+        "sot23-8": 7
+      },
+      "notes": [
+        "支持 INT0 外部中断，上升沿和下降沿都可触发。"
+      ]
+    }
+  },
+  "docs": [
+    {
+      "id": "padauk-pms150g-datasheet",
+      "kind": "datasheet",
+      "title": "PMS150G datasheet",
+      "lookup_keys": [
+        "PMS150G",
+        "Timer16",
+        "TM2",
+        "Comparator"
+      ],
+      "notes": [
+        "实际项目里请配合本地 datasheet 或已入库文档使用。"
+      ]
+    }
+  ],
+  "related_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold"
+  ],
+  "source_modules": [],
+  "notes": [
+    "四种封装的物理引脚表来自已入库 PMS15B/PMS150G 数据手册。",
+    "SOT23-6 只暴露 PA4、PA6、PA5、PA3、VDD、GND，不包含 PA7 和 PA0。",
+    "烧录脚为 PA3、PA4、PA5、PA6、VDD、GND。",
+    "不支持 ADC。",
+    "TM2 输出到 PA4 在部分仿真器上有限制，但芯片本身支持。"
+  ]
+}

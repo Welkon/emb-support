@@ -1,0 +1,311 @@
+{
+  "name": "pmb180b",
+  "family": "padauk-pmb180",
+  "sample": false,
+  "description": "Concrete PMB180B tool profile for Timer16, Timer2 PWM, LPWMG, LVDC, charger, and comparator calculations.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "lpwmg-calc",
+    "lvdc-threshold",
+    "charger-config",
+    "comparator-threshold"
+  ],
+  "source_refs": [
+    "mcu/padauk-pmb180b",
+    "mcu/padauk-pmb180b-registers"
+  ],
+  "component_refs": [],
+  "bindings": {
+    "timer-calc": {
+      "algorithm": "padauk-timer16",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "timer16",
+        "mode_macro": "T16M",
+        "default_clock_source": "sysclk",
+        "default_edge": "rising",
+        "prescalers": [
+          1,
+          4,
+          16,
+          64
+        ],
+        "interrupt_bits": [
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "clock_source_aliases": {
+          "clk": "sysclk",
+          "system": "sysclk",
+          "pa0f": "pa0",
+          "pa4f": "pa4"
+        },
+        "clock_sources": {
+          "sysclk": { "macro": "SYSCLK" },
+          "ihrc": { "macro": "IHRC" },
+          "ilrc": { "macro": "ILRC" },
+          "pa0": { "macro": "PA0" },
+          "pa4": { "macro": "PA4" }
+        }
+      }
+    },
+    "pwm-calc": {
+      "algorithm": "padauk-tm2-pwm",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "tm2",
+        "mode_macro": "TM2C",
+        "scale_macro": "TM2S",
+        "counter_register": "TM2CT",
+        "period_register": "TM2B",
+        "default_clock_source": "sysclk",
+        "default_output_pin": "pa3",
+        "default_resolution": "auto",
+        "prescalers": [
+          1,
+          4,
+          16,
+          64
+        ],
+        "divider_min": 1,
+        "divider_max": 32,
+        "resolutions": [
+          8,
+          7,
+          6
+        ],
+        "clock_source_aliases": {
+          "clk": "sysclk",
+          "system": "sysclk",
+          "comp": "comparator",
+          "co": "comparator",
+          "eosc": "nilrc",
+          "pa0": "pa0r",
+          "pa4": "pa4r"
+        },
+        "clock_sources": {
+          "sysclk": { "macro": "SYSCLK" },
+          "ihrc": { "macro": "IHRC" },
+          "ilrc": { "macro": "ILRC" },
+          "nilrc": { "macro": "NILRC" },
+          "comparator": { "macro": "COMPARATOR" },
+          "pa0r": { "macro": "PA0_R" },
+          "pa0f": { "macro": "PA0_F" },
+          "pa4r": { "macro": "PA4_R" },
+          "pa4f": { "macro": "PA4_F" }
+        },
+        "output_pins": {
+          "pa3": { "macro": "PA3" },
+          "pa4": { "macro": "PA4" }
+        }
+      }
+    },
+    "lpwmg-calc": {
+      "algorithm": "padauk-lpwmg",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "lpwmg",
+        "clock_control_register": "LPWMGCLK",
+        "upper_limit_high_register": "LPWMGCUBH",
+        "upper_limit_low_register": "LPWMGCUBL",
+        "default_clock_source": "sysclk",
+        "default_channel": "lpwmg0",
+        "prescalers": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128
+        ],
+        "max_counter": 1023,
+        "clock_source_aliases": {
+          "clk": "sysclk",
+          "system": "sysclk",
+          "ihrcx2": "ihrc2x",
+          "ihrc2x": "ihrc2x",
+          "2xihrc": "ihrc2x"
+        },
+        "clock_sources": {
+          "sysclk": { "macro": "SYSCLK" },
+          "ihrc": { "macro": "IHRC" },
+          "ihrc2x": { "macro": "IHRC" }
+        },
+        "channel_aliases": {
+          "0": "lpwmg0",
+          "1": "lpwmg1",
+          "2": "lpwmg2",
+          "lpg0": "lpwmg0",
+          "lpg1": "lpwmg1",
+          "lpg2": "lpwmg2"
+        },
+        "channels": {
+          "lpwmg0": {
+            "control_macro": "LPWMG0C",
+            "output_select_macro": "LPWMG0",
+            "duty_high_register": "LPWMG0DTH",
+            "duty_low_register": "LPWMG0DTL",
+            "default_output_pin": "pa0",
+            "output_pins": {
+              "pa0": { "macro": "PA0" },
+              "pa1": { "macro": "PA1" },
+              "pa5": { "macro": "PA5" }
+            }
+          },
+          "lpwmg1": {
+            "control_macro": "LPWMG1C",
+            "output_select_macro": "LPWMG1",
+            "duty_high_register": "LPWMG1DTH",
+            "duty_low_register": "LPWMG1DTL",
+            "default_output_pin": "pa4",
+            "output_pins": {
+              "pa4": { "macro": "PA4" },
+              "pa6": { "macro": "PA6" }
+            }
+          },
+          "lpwmg2": {
+            "control_macro": "LPWMG2C",
+            "output_select_macro": "LPWMG2",
+            "duty_high_register": "LPWMG2DTH",
+            "duty_low_register": "LPWMG2DTL",
+            "default_output_pin": "pa3",
+            "output_pins": {
+              "pa3": { "macro": "PA3" },
+              "pa5": { "macro": "PA5" }
+            }
+          }
+        }
+      }
+    },
+    "lvdc-threshold": {
+      "algorithm": "padauk-lvdc",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "lvdc",
+        "register_name": "LVDC",
+        "threshold_field": "[7:2]",
+        "shift_bits": 2,
+        "min_voltage": 1.85,
+        "step_voltage": 0.05,
+        "level_count": 64,
+        "charging_voltage_bias": 0.15,
+        "status_when_set": "VBAT 低于设定的 LVD 阈值。",
+        "status_when_clear": "VBAT 高于设定的 LVD 阈值。",
+        "status_when_set_charging": "充电中内部检测电压偏高约 0.15V；实际 VBAT 通常会比设定阈值再低约 0.15V。",
+        "status_when_clear_charging": "充电中内部检测电压偏高约 0.15V；当前实际 VBAT 通常比比较结果再低约 0.15V。",
+        "interrupt_supported": false,
+        "wakeup_supported": false
+      }
+    },
+    "charger-config": {
+      "algorithm": "padauk-charger",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "charger",
+        "control_macro": "CHG_CTRL",
+        "status_register": "CHG_TEMP",
+        "current_steps_ma": [
+          50,
+          100,
+          200,
+          250,
+          300,
+          350,
+          400,
+          500
+        ],
+        "legacy_full_hold_seconds": 1,
+        "capacity_rule_mah_per_hour": 500,
+        "auto_start_note": "PMB180(B) 充电模块在供电后即可按硬件默认状态工作，不一定要求 MCU 先初始化。",
+        "status_bits": {
+          "charge_indicator": {
+            "register": "CHG_CTRL",
+            "bit": 0,
+            "when_set": "进入终止/停止态候选；不要单独据此判定充满，需结合 V400_FG 与持续时间。",
+            "when_clear": "开始充电或正在充电中。"
+          },
+          "charge_complete_indicator": {
+            "register": "CHG_TEMP",
+            "bit": 1,
+            "when_set": "PMB180B 实测为正在充电。应广资料常写反。",
+            "when_clear": "PMB180B 实测为充电完成。应广资料常写反。"
+          },
+          "vcc_greater_than_vbat": {
+            "register": "CHG_TEMP",
+            "bit": 4,
+            "when_set": "VCC 高于 VBAT。",
+            "when_clear": "VCC 低于或不高于 VBAT。"
+          },
+          "vcc_normal": {
+            "register": "CHG_TEMP",
+            "bit": 3,
+            "when_set": "VCC 电压正常。",
+            "when_clear": "VCC 电压过低，充电已关闭。"
+          },
+          "v400_flag": {
+            "register": "V400_FG",
+            "bit": 0,
+            "when_set": "电池电压已超过 4V 判定门槛。",
+            "when_clear": "电池电压尚未超过 4V 判定门槛。"
+          }
+        }
+      }
+    },
+    "comparator-threshold": {
+      "algorithm": "padauk-comparator",
+      "params": {
+        "chip": "pmb180b",
+        "peripheral": "gpc",
+        "control_macro": "GPCC",
+        "select_macro": "GPCS",
+        "default_positive_source": "internal_ref",
+        "default_negative_source": "pa3",
+        "bandgap_voltage": 1.2,
+        "charging_voltage_bias": 0.15,
+        "positive_sources": {
+          "internal_ref": { "macro": "P_R" },
+          "pa4": { "macro": "P_PA4" }
+        },
+        "negative_sources": {
+          "pa3": { "macro": "N_PA3" },
+          "pa4": { "macro": "N_PA4" },
+          "bandgap": { "macro": "BANDGAP" },
+          "internal_ref": { "macro": "N_R" },
+          "pa6": { "macro": "N_PA6" },
+          "pa7": { "macro": "N_PA7" }
+        },
+        "internal_reference_cases": [
+          { "bits": "00", "base": 8, "denominator": 32 },
+          { "bits": "01", "base": 0, "denominator": 24 },
+          { "bits": "10", "base": 8, "denominator": 40 },
+          { "bits": "11", "base": 0, "denominator": 32 }
+        ]
+      }
+    },
+    "adc-scale": {
+      "algorithm": "unsupported",
+      "reason": "PMB180(B) 当前手册未体现 ADC 资源。"
+    }
+  },
+  "notes": [
+    "Timer16 预分频支持 /1、/4、/16、/64；中断位支持 BIT8~BIT15。",
+    "Timer2 PWM 支持 8/7/6-bit 分辨率，输出脚为 PA3 或 PA4。",
+    "Timer2 可选时钟包括 SYSCLK、IHRC、ILRC、NILRC、比较器输出以及 PA0/PA4 边沿。",
+    "LPWMG0/1/2 共用 LPWMGCLK、LPWMGCUBH、LPWMGCUBL；当前已暴露 lpwmg-calc。",
+    "LVDC 当前已暴露 lvdc-threshold；充电中内部检测电压比实际电池电压通常高约 0.15V。",
+    "充电模块当前已暴露 charger-config；5V 输入判定必须同时满足 CHG_TEMP.4 && CHG_TEMP.3。",
+    "PMB180 老版本判满需结合 CHG_CTRL.0、V400_FG 和持续时间；PMB180B 可额外参考 CHG_TEMP.1，且其语义为高=充电、低=充满。",
+    "GPC comparator 使用与 PMS150G 同构的 4 组内部参考公式，但 PMB180(B) 还具备 comparator interrupt/wakeup 能力。",
+    "LPWMG 使用共享上限计数与 half-step duty 模型，占空比分子按 DB + DB0*0.5 + 0.5 计算。",
+    "PMB180B 不提供 ADC。"
+  ]
+}

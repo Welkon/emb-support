@@ -1,0 +1,146 @@
+{
+  "name": "pms150g",
+  "family": "padauk-pms15b-150g",
+  "sample": false,
+  "description": "Concrete PMS150G tool profile for Timer16, TM2 PWM, and comparator calculations.",
+  "supported_tools": [
+    "timer-calc",
+    "pwm-calc",
+    "comparator-threshold"
+  ],
+  "source_refs": [
+    "mcu/padauk-pms150g",
+    "mcu/padauk-pms150g-registers"
+  ],
+  "component_refs": [],
+  "bindings": {
+    "timer-calc": {
+      "algorithm": "padauk-timer16",
+      "params": {
+        "chip": "pms150g",
+        "peripheral": "timer16",
+        "mode_macro": "T16M",
+        "default_clock_source": "sysclk",
+        "default_edge": "rising",
+        "prescalers": [
+          1,
+          4,
+          16,
+          64
+        ],
+        "interrupt_bits": [
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "clock_source_aliases": {
+          "clk": "sysclk",
+          "system": "sysclk",
+          "pa0f": "pa0",
+          "pa4f": "pa4"
+        },
+        "clock_sources": {
+          "sysclk": { "macro": "SYSCLK" },
+          "ihrc": { "macro": "IHRC" },
+          "ilrc": { "macro": "ILRC" },
+          "pa0": { "macro": "PA0" },
+          "pa4": { "macro": "PA4" }
+        }
+      }
+    },
+    "pwm-calc": {
+      "algorithm": "padauk-tm2-pwm",
+      "params": {
+        "chip": "pms150g",
+        "peripheral": "tm2",
+        "mode_macro": "TM2C",
+        "scale_macro": "TM2S",
+        "counter_register": "TM2CT",
+        "period_register": "TM2B",
+        "default_clock_source": "sysclk",
+        "default_output_pin": "pa3",
+        "default_resolution": "auto",
+        "prescalers": [
+          1,
+          4,
+          16,
+          64
+        ],
+        "divider_min": 1,
+        "divider_max": 32,
+        "resolutions": [
+          8,
+          6
+        ],
+        "clock_source_aliases": {
+          "clk": "sysclk",
+          "system": "sysclk",
+          "comp": "comparator",
+          "co": "comparator",
+          "pa0": "pa0r",
+          "pa4": "pa4r"
+        },
+        "clock_sources": {
+          "sysclk": { "macro": "SYSCLK" },
+          "ihrc": { "macro": "IHRC" },
+          "ilrc": { "macro": "ILRC" },
+          "comparator": { "macro": "COMPARATOR" },
+          "pa0r": { "macro": "PA0_RISE" },
+          "pa0f": { "macro": "PA0_FALL" },
+          "pa4r": { "macro": "PA4_RISE" },
+          "pa4f": { "macro": "PA4_FALL" }
+        },
+        "output_pins": {
+          "pa3": { "macro": "PA3" },
+          "pa4": { "macro": "PA4" }
+        }
+      }
+    },
+    "comparator-threshold": {
+      "algorithm": "padauk-comparator",
+      "params": {
+        "chip": "pms150g",
+        "peripheral": "gpc",
+        "control_macro": "GPCC",
+        "select_macro": "GPCS",
+        "default_positive_source": "internal_ref",
+        "default_negative_source": "pa3",
+        "bandgap_voltage": 1.2,
+        "bandgap_wakeup_supported": false,
+        "positive_sources": {
+          "internal_ref": { "macro": "P_R" },
+          "pa4": { "macro": "P_PA4" }
+        },
+        "negative_sources": {
+          "pa3": { "macro": "N_PA3" },
+          "pa4": { "macro": "N_PA4" },
+          "bandgap": { "macro": "BANDGAP" },
+          "internal_ref": { "macro": "N_R" },
+          "pa6": { "macro": "N_PA6" },
+          "pa7": { "macro": "N_PA7" }
+        },
+        "internal_reference_cases": [
+          { "bits": "00", "base": 9, "denominator": 32 },
+          { "bits": "01", "base": 1, "denominator": 24 },
+          { "bits": "10", "base": 9, "denominator": 40 },
+          { "bits": "11", "base": 1, "denominator": 32 }
+        ]
+      }
+    },
+    "adc-scale": {
+      "algorithm": "unsupported",
+      "reason": "PMS150G 只有 Timer16、TM2 和 Comparator，没有 ADC。"
+    }
+  },
+  "notes": [
+    "Timer16 interrupt source only supports BIT8~BIT15.",
+    "TM2 output only supports PA3 and PA4.",
+    "Comparator supports VinternalR and 1.20V bandgap, but bandgap is not valid for comparator wake-up.",
+    "PMS150G does not expose ADC capability."
+  ]
+}
