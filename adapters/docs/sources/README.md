@@ -1,32 +1,32 @@
 # Sources
 
-`docs/sources/` 用来放可复用的“提炼后知识”，不是原始资料归档区。
+`docs/sources/` holds reusable "distilled knowledge" — not raw document archives.
 
-这里适合放：
+What belongs here:
 
-- MCU 手册提炼摘要
-- 封装/引脚/外设限制摘要
-- 常用外围器件约束摘要
-- 具体型号元器件的高复用摘要
-- 生成 chip-support/profile 时需要反复引用的共享结论
+- MCU manual extraction summaries
+- Package/pin/peripheral constraint summaries
+- Common external component constraint summaries
+- High-reuse summaries for specific part numbers
+- Shared conclusions that chip-support/profile generation repeatedly references
 
-这里不适合放：
+What does NOT belong here:
 
-- 原始 PDF
-- 大体积扫描件
-- 项目私有调试记录
-- 只能服务单一项目的一次性草稿
+- Raw PDFs
+- Large scanned documents
+- Project-private debug notes
+- One-off drafts serving a single project
 
-## 引用方式
+## Reference Style
 
-建议在 `extensions/**/*.json` 里使用：
+Recommended usage in `extensions/**/*.json`:
 
 - `source_refs`
 - `component_refs`
 
-这两个字段只放 ID，不内联长文本。
+These two fields hold IDs only, no inline long text.
 
-例如：
+Example:
 
 ```json
 {
@@ -35,47 +35,47 @@
 }
 ```
 
-对应文件路径形式：
+Corresponding file paths:
 
 - `docs/sources/mcu/scmcu-sc8f072.md`
 - `docs/sources/components/<part-number>.md`
 - `docs/sources/components/tq322.md`
 
-## components 目录建议
+## Components Directory Guidance
 
-`docs/sources/components/` 只放具体型号摘要：
+`docs/sources/components/` holds only specific part number summaries:
 
 - `<part-number>.md`
-  放某个高频、跨项目复用的具体型号摘要，例如 `vs1838b`、`hx1838`、`hc-sr501`
+  For high-frequency, cross-project reusable part summaries, e.g. `vs1838b`, `hx1838`, `hc-sr501`
 
-推荐原则是：
+Recommended principles:
 
-1. 只有具体型号在多个项目反复出现时，才补进这个 catalog
-2. 如果只有“这类器件通常如此”的泛化结论，不要写成共享真值
-3. 如果某型号只是单项目一次性出现，不要急着进这个 catalog
+1. Only add a part to this catalog when it appears repeatedly across multiple projects
+2. If you only have "this class of device usually behaves like this" generalizations, do not write them as shared truth
+3. If a part appears in only one project, don't rush to add it to this catalog
 
-具体型号文档适合记录：
+Part-specific documents should record:
 
-- 明确的引脚名/极性
-- 电源电压范围
-- 输出类型
-- 时序或保持时间
-- 与 MCU 选型/引脚/定时器/唤醒能力直接相关的约束
+- Explicit pin names/polarity
+- Supply voltage range
+- Output type
+- Timing or hold time
+- Constraints directly relevant to MCU selection/pin/timer/wakeup capability
 
-不建议新增：
+Do NOT add:
 
-- 类别级摘要文件
-- 只表达“大多数器件如此”的泛化结论
+- Category-level summary files
+- Generalizations that only express "most devices behave like this"
 
-不建议记录：
+Do NOT record:
 
-- 大段 datasheet 摘抄
-- 单个项目私有焊接经验
-- 不会影响 agent 判断和 tool 选择的低信息量参数
+- Large verbatim datasheet excerpts
+- Single-project private soldering experience
+- Low-information parameters that won't influence agent decisions or tool selection
 
-## 设计目标
+## Design Goals
 
-- 让 chip-support/profile 有轻量可追溯来源
-- 避免每次生成都重新通读整份手册
-- 不把 chip-support catalog 膨胀成资料仓库
-- 让维护者能审核“结论”而不是审核整份 PDF
+- Give chip-support/profile lightweight traceable sources
+- Avoid re-reading the entire manual on every generation
+- Don't bloat the chip-support catalog into a document warehouse
+- Let maintainers review "conclusions" rather than entire PDFs

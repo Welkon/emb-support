@@ -190,8 +190,8 @@ module.exports = {
             duty_low: `${channelParams.duty_low_register} = ${duty.low_hex};`,
             duty_high: `${channelParams.duty_high_register} = ${duty.high_hex};`,
             polarity: inverse
-              ? '如需反向极性，请在 LPWMGxC 宏中补 Inverse 选项；具体参数顺序以 IDE/手册为准。'
-              : '默认按非反相输出生成。'
+              ? 'Inverted output requested; add Inverse option in LPWMGxC macro. Parameter order per IDE/manual.'
+              : 'Default non-inverted output.'
           }
         });
       });
@@ -201,8 +201,8 @@ module.exports = {
       return {
         status: 'unsupported',
         notes: [
-          `${params.chip || 'target'} ${params.peripheral || 'lpwmg'} 在当前输入下找不到可行 prescaler/top 组合。`,
-          `已搜索 prescaler: ${(params.prescalers || []).join(', ')}；counter 上限按 ${maxCounter} 处理。`
+          `${params.chip || 'target'} ${params.peripheral || 'lpwmg'} no feasible prescaler/top combination found for given inputs.`,
+          `Searched prescalers: ${(params.prescalers || []).join(', ')}; counter max: ${maxCounter}.`
         ]
       };
     }
@@ -224,10 +224,10 @@ module.exports = {
         candidates: candidates.slice(0, 10)
       },
       notes: [
-        `${params.chip || 'target'} ${params.peripheral || 'lpwmg'} 三个通道共享 ${params.upper_limit_high_register}/${params.upper_limit_low_register} 周期寄存器。`,
-        `当前按 ${maxCounter + 1} 级周期计数与 half-step duty 模型搜索，占空比分子公式为 DB + DB0*0.5 + 0.5。`,
-        `${channel} 可输出到: ${Object.keys(channelParams.output_pins || {}).join(', ')}`,
-        '如果选择 IHRC*2，请把 clock-hz 传成倍频后的实际频率，并同步确认 code option PWM_source。'
+        `${params.chip || 'target'} ${params.peripheral || 'lpwmg'} three channels share the ${params.upper_limit_high_register}/${params.upper_limit_low_register} period registers.`,
+        `Searching with ${maxCounter + 1}-step period counter and half-step duty model; duty numerator formula: DB + DB0*0.5 + 0.5.`,
+        `${channel} output pins: ${Object.keys(channelParams.output_pins || {}).join(', ')}`,
+        'If using IHRC*2, pass clock-hz as the doubled frequency and verify code option PWM_source.'
       ]
     };
   }

@@ -11,13 +11,13 @@ module.exports = {
 
     if (!binding) {
       return shared.buildRouteRequired(context, 'lpwmg-calc', options, identity, profiles, {
-        notes: ['请先在 tool device/family profile 中声明 bindings.lpwmg-calc。']
+        notes: ['Declare bindings.lpwmg-calc in the tool device/family profile first.']
       });
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'lpwmg-calc', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 lpwmg-calc。']
+        notes: [binding.reason || 'This route explicitly declares no support for lpwmg-calc.']
       });
     }
 

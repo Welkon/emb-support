@@ -103,8 +103,8 @@ module.exports = {
       channel: channel.name
     };
     const notes = [
-      `${params.chip || 'target'} ADC 支持的参考源: ${Object.keys(params.reference_sources || {}).join(', ')}`,
-      `${params.chip || 'target'} ADC 支持的通道: ${Object.keys(params.channels || {}).join(', ')}`
+      `${params.chip || 'target'} ADC reference sources: ${Object.keys(params.reference_sources || {}).join(', ')}`,
+      `${params.chip || 'target'} ADC channels: ${Object.keys(params.channels || {}).join(', ')}`
     ];
 
     if (sampleCode !== null) {
@@ -112,9 +112,9 @@ module.exports = {
       outputs.sample_code = sampleCode;
       outputs.converted_voltage = shared.roundNumber(convertedVoltage, 6);
       outputs.register_hints = {
-        channel: `选择 ADC 通道: ${channel.name}${channel.note ? ` (${channel.note})` : ''}`,
-        reference: `选择参考源: ${referenceSource.label}`,
-        result_format: resolution === 12 ? '结果按 12-bit 左对齐模型解释 (0..4095)' : '结果按 10-bit 右对齐模型解释 (0..1023)'
+        channel: `Select ADC channel: ${channel.name}${channel.note ? ` (${channel.note})` : ''}`,
+        reference: `Select reference source: ${referenceSource.label}`,
+        result_format: resolution === 12 ? '12-bit left-aligned model (0..4095)' : '10-bit right-aligned model (0..1023)'
       };
     }
 
@@ -129,7 +129,7 @@ module.exports = {
       };
 
       if (targetVoltage < 0 || targetVoltage > referenceV) {
-        notes.push('target-voltage 超出当前参考电压范围，结果已做饱和裁剪。');
+        notes.push('target-voltage exceeds reference voltage range; result saturated to limit.');
       }
     }
 

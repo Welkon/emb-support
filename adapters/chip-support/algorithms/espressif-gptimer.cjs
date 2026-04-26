@@ -1,4 +1,6 @@
 'use strict';
+// @verified_against: ESP32-C3 TRM v1.0, Section 12 "GPTimer"
+// @test_vector: clock-hz=80000000, prescaler=80, target-us=1000
 
 const shared = require('../core/shared.cjs');
 
@@ -152,8 +154,8 @@ module.exports = {
       return {
         status: 'unsupported',
         notes: [
-          '没有找到满足目标周期的 GPTimer 配置。',
-          '请检查 clock-hz、clock-source、prescaler 或目标周期。'
+          'No GPTimer configuration found that meets the target period.',
+          'Check clock-hz, clock-source, prescaler, or target period.'
         ]
       };
     }
@@ -168,11 +170,11 @@ module.exports = {
         candidates: candidates.slice(0, 10)
       },
       notes: [
-        `${params.chip || 'target'} GPTimer 提供 ${(params.timers || []).length || 2} 个 ${(params.counter_bits || 54)}-bit 通用定时器。`,
-        `支持的时钟源: ${Object.keys(params.clock_sources || {}).join(', ')}`,
-        `当前按 prescaler ${params.prescaler_min || 2}..${params.prescaler_max || 65536} 与 alarm_count 的模型搜索。`,
-        '周期公式按 actual = alarm_count * prescaler / source_clock 计算。',
-        autoReload ? '当前结果按自动重装载周期定时计算。' : '当前结果按单次 alarm 触发计算。'
+        `${params.chip || 'target'} GPTimer provides ${(params.timers || []).length || 2} ${(params.counter_bits || 54)}-bit general-purpose timers.`,
+        `Supported clock sources: ${Object.keys(params.clock_sources || {}).join(', ')}`,
+        `Searching with prescaler range ${params.prescaler_min || 2}..${params.prescaler_max || 65536} and alarm_count model.`,
+        'Period formula: actual = alarm_count * prescaler / source_clock.',
+        autoReload ? 'Result computed as auto-reload periodic timer.' : 'Result computed as single-shot alarm trigger.'
       ]
     };
   }

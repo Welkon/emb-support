@@ -120,7 +120,7 @@ module.exports = {
         freq_error_pct: shared.roundNumber(((actualHz - targetHz) / targetHz) * 100, 6),
         duty_error_pct: shared.roundNumber(actualDuty - targetDuty, 6),
         register_hints: {
-          io_group: `PWMCON1: PWMIO_SEL=${outputPin.group_bits} (${outputPin.group.toUpperCase()}组 -> ${outputPin.pin}/${outputPin.channel_label})`,
+          io_group: `PWMCON1: PWMIO_SEL=${outputPin.group_bits} (group ${outputPin.group.toUpperCase()} -> ${outputPin.pin}/${outputPin.channel_label})`,
           ...buildPeriodHints(period, outputPin),
           ...buildDutyHints(duty, outputPin),
           enable: `PWMCON0: CLKDIV=${source.divider_bits[String(divider)]} (/${divider}), ${outputPin.enable_bit}=1`
@@ -138,8 +138,8 @@ module.exports = {
       return {
         status: 'unsupported',
         notes: [
-          '没有找到满足目标频率的 10-bit PWM 配置。',
-          '请检查 clock-hz、target-hz 或输出通道。'
+          'No 10-bit PWM configuration found that meets the target frequency.',
+          'Check clock-hz, target-hz, or output channel.'
         ]
       };
     }
@@ -155,10 +155,10 @@ module.exports = {
         candidates: candidates.slice(0, 10)
       },
       notes: [
-        `${params.chip || 'target'} 10-bit PWM 时钟固定来自 FHSI，系统主频分频不会改变 PWM 频率。`,
-        `支持的 PWM 输出: ${Object.values(params.output_pins || {}).map(item => item.pin).join(', ')}`,
-        'PWM0~PWM3 共用周期寄存器，PWM4 使用独立周期寄存器。',
-        '当目标占空比为 0% 时，保持 PWM 使能可能仍会有最小脉宽；需要纯低电平时应关闭对应 PWMEN。'
+        `${params.chip || 'target'} 10-bit PWM clock is fixed from FHSI; system clock divider does not affect PWM frequency.`,
+        `Supported PWM outputs: ${Object.values(params.output_pins || {}).map(item => item.pin).join(', ')}`,
+        'PWM0~PWM3 share a period register; PWM4 uses an independent period register.',
+        'At 0% target duty, keeping PWM enabled may still produce a minimum pulse; disable PWMEN for pure low output.'
       ]
     };
   }

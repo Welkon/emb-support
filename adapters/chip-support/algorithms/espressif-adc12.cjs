@@ -125,9 +125,9 @@ module.exports = {
       gpio: channel.gpio
     };
     const notes = [
-      `${params.chip || 'target'} SAR ADC 当前按 ${resolution}-bit 结果模型计算。`,
-      `支持的衰减档位: ${Object.keys(params.attenuation_profiles || {}).join(', ')}`,
-      '当前电压换算按 voltage = code / 4095 * full_scale 近似计算。'
+      `${params.chip || 'target'} SAR ADC computed using ${resolution}-bit result model.`,
+      `Supported attenuation levels: ${Object.keys(params.attenuation_profiles || {}).join(', ')}`,
+      'Voltage conversion: voltage = code / 4095 * full_scale (approximation).'
     ];
 
     if (channel.warning) {
@@ -158,7 +158,7 @@ module.exports = {
       };
 
       if (targetVoltage < 0 || targetVoltage > fullScaleV) {
-        notes.push('target-voltage 超出当前衰减档近似量程，结果已做饱和裁剪。');
+        notes.push('target-voltage exceeds approximate range of current attenuation; result saturated to limit.');
       }
     }
 

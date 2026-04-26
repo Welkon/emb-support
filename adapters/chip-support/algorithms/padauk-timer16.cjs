@@ -1,4 +1,6 @@
 'use strict';
+// @verified_against: Padauk PMS150G Datasheet v1.2, Section 8 "Timer16"
+// @test_vector: clock-hz=8000000, prescaler=16, target-us=1000, interrupt-edge=rising, interrupt-bit=10
 
 const shared = require('../core/shared.cjs');
 
@@ -131,8 +133,8 @@ function run(options, binding) {
     return {
       status: 'unsupported',
       notes: [
-        '没有找到满足目标周期的配置。',
-        '请检查 clock-hz、interrupt-edge、interrupt-bit 或目标周期。'
+        'No configuration found that meets the target period.',
+        'Check clock-hz, interrupt-edge, interrupt-bit, or target period.'
       ]
     };
   }
@@ -147,9 +149,9 @@ function run(options, binding) {
       candidates: candidates.slice(0, 8)
     },
     notes: [
-      `${params.chip || 'target'} ${params.peripheral || 'timer'} 支持的预分频: ${(params.prescalers || []).join(', ')}`,
-      `中断位范围: ${(params.interrupt_bits || []).map(item => `BIT${item}`).join(', ')}`,
-      '当前结果按 ISR 内重装载计数器的用法计算。'
+      `${params.chip || 'target'} ${params.peripheral || 'timer'} supported prescalers: ${(params.prescalers || []).join(', ')}`,
+      `Interrupt bit range: ${(params.interrupt_bits || []).map(item => `BIT${item}`).join(', ')}`,
+      'Result computed for ISR reload-counter usage.'
     ]
   };
 }

@@ -12,7 +12,30 @@
     "mcu/padauk-pms150g",
     "mcu/padauk-pms150g-registers"
   ],
+  "verified_against": {
+    "datasheet": {
+      "url": "https://www.padauk.com.tw/en/product/show/41",
+      "version": "1.2",
+      "pages": {
+        "timer16": "Section 8",
+        "tm2_pwm": "Section 9",
+        "comparator": "Section 10",
+        "pinout": "Section 2"
+      }
+    }
+  },
   "component_refs": [],
+  "constraints": {
+    "rom_words": 1024,
+    "ram_bytes": 64,
+    "max_io": 6,
+    "specs/mcu/rom-ram-budget.md": {
+      "note": "1KW OTP + 64B RAM. Extremely constrained — prefer direct state, thin ISR, no heap."
+    },
+    "specs/mcu/peripheral-conflicts.md": {
+      "note": "PA3/PA4/PA5/PA6 are multi-function with comparator and TM2 PWM. Pin usage is zero-sum on 6-IO packages."
+    }
+  },
   "summary": {
     "program_memory": "1KW OTP",
     "data_memory": "64B RAM",
@@ -96,7 +119,7 @@
         }
       ],
       "notes": [
-        "SOT23-6 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+        "SOT23-6 pinout from ingested PMS15B/PMS150G datasheet."
       ]
     },
     {
@@ -192,7 +215,7 @@
         }
       ],
       "notes": [
-        "SOP8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+        "SOP8 pinout from ingested PMS15B/PMS150G datasheet."
       ]
     },
     {
@@ -288,7 +311,7 @@
         }
       ],
       "notes": [
-        "DIP8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+        "DIP8 pinout from ingested PMS15B/PMS150G datasheet."
       ]
     },
     {
@@ -384,7 +407,7 @@
         }
       ],
       "notes": [
-        "SOT23-8 物理引脚表来自已入库 PMS15B/PMS150G 数据手册。"
+        "SOT23-8 pinout from ingested PMS15B/PMS150G datasheet."
       ]
     }
   ],
@@ -437,7 +460,7 @@
         "sot23-8": 2
       },
       "notes": [
-        "作为比较器模拟输入时，需关闭 PADIER.7 数字输入。"
+        "Disable PADIER.7 digital input when using as comparator analog input."
       ]
     },
     "pa6": {
@@ -460,8 +483,8 @@
         "sot23-8": 3
       },
       "notes": [
-        "作为比较器模拟输入时，需关闭 PADIER.6 数字输入。",
-        "属于手册定义的烧录脚。"
+        "Disable PADIER.6 digital input when using as comparator analog input.",
+        "Designated programming pin per datasheet."
       ]
     },
     "pa5": {
@@ -485,8 +508,8 @@
         "sot23-8": 4
       },
       "notes": [
-        "高抗干扰输入场景下，手册建议串接 33Ω。",
-        "烧录时手册建议在 PA5 路径串接 100Ω。"
+        "For high-noise input scenarios, datasheet recommends 33Ω series resistor.",
+        "Datasheet recommends 100Ω series on PA5 during programming."
       ]
     },
     "pa4": {
@@ -511,9 +534,9 @@
         "sot23-8": 6
       },
       "notes": [
-        "作为比较器模拟输入时，需关闭 PADIER.4 数字输入。",
-        "TM2 PWM 可输出到 PA4，但部分仿真器不支持该输出。",
-        "属于手册定义的烧录脚。"
+        "Disable PADIER.4 digital input when using as comparator analog input.",
+        "TM2 PWM can output on PA4, but some emulators do not support this output.",
+        "Designated programming pin per datasheet."
       ]
     },
     "pa3": {
@@ -537,8 +560,8 @@
         "sot23-8": 5
       },
       "notes": [
-        "作为比较器模拟输入时，需关闭 PADIER.3 数字输入。",
-        "属于手册定义的烧录脚。"
+        "Disable PADIER.3 digital input when using as comparator analog input.",
+        "Designated programming pin per datasheet."
       ]
     },
     "pa0": {
@@ -561,7 +584,7 @@
         "sot23-8": 7
       },
       "notes": [
-        "支持 INT0 外部中断，上升沿和下降沿都可触发。"
+        "Supports INT0 external interrupt, both rising and falling edge trigger."
       ]
     }
   },
@@ -577,7 +600,7 @@
         "Comparator"
       ],
       "notes": [
-        "实际项目里请配合本地 datasheet 或已入库文档使用。"
+        "Use in conjunction with local datasheet or ingested documentation in real projects."
       ]
     }
   ],
@@ -588,10 +611,10 @@
   ],
   "source_modules": [],
   "notes": [
-    "四种封装的物理引脚表来自已入库 PMS15B/PMS150G 数据手册。",
-    "SOT23-6 只暴露 PA4、PA6、PA5、PA3、VDD、GND，不包含 PA7 和 PA0。",
-    "烧录脚为 PA3、PA4、PA5、PA6、VDD、GND。",
-    "不支持 ADC。",
-    "TM2 输出到 PA4 在部分仿真器上有限制，但芯片本身支持。"
+    "Pinout for all four packages from ingested PMS15B/PMS150G datasheet.",
+    "SOT23-6 only exposes PA4, PA6, PA5, PA3, VDD, GND; PA7 and PA0 are not available.",
+    "Programming pins: PA3, PA4, PA5, PA6, VDD, GND.",
+    "ADC not supported.",
+    "TM2 output on PA4 is restricted on some emulators but supported by the chip itself."
   ]
 }

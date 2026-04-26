@@ -1,35 +1,35 @@
 # Adding Chip Support
 
-## 推荐顺序
+## Recommended Order
 
-1. 定义 family
-2. 定义 device
-3. 定义 chip
-4. 在 chip profile 里补 `packages / pins`
-5. 在 device/family profile 里声明 `bindings`
-6. 只有现有算法不够时才新增算法文件
-7. 优先复用已有 route；只有工具入口分发模型不兼容时才修改 route
+1. Define family
+2. Define device
+3. Define chip
+4. Add `packages / pins` in the chip profile
+5. Declare `bindings` in the device/family profile
+6. Add new algorithm files only when existing ones are insufficient
+7. Reuse existing routes first; only modify a route when the tool entry dispatch model is incompatible
 
-## 推荐贡献流程
+## Recommended Contribution Workflow
 
-1. 先同步或确认你本地的 `emb-agent` 引擎可用
-2. 在当前仓库根目录执行 `npm run generate -- --from-project --project /abs/path/to/project`
-3. 检查生成的 `extensions/**` 和 `chip-support/routes/**` diff
-4. 必要时手工补算法参数、证据、`notes`、`source_refs`、`component_refs`
-5. 执行 `npm run validate`
-6. 提交 PR，等待维护者审核
+1. Sync or verify that your local `emb-agent` engine is working
+2. From this repo root, run `npm run generate -- --from-project --project /abs/path/to/project`
+3. Review the generated `extensions/**` and `chip-support/routes/**` diff
+4. Manually fill in algorithm parameters, evidence, `notes`, `source_refs`, `component_refs` as needed
+5. Run `npm run validate`
+6. Submit PR and wait for maintainer review
 
-如果不是从项目真值生成，也可以改用：
+If not generating from project truth, you can also use:
 
 ```bash
 npm run generate -- --from-doc <doc-id> --project /abs/path/to/project --vendor Padauk
 ```
 
-生成入口本身不实现推断逻辑，只是调用 `emb-agent` 的 `adapter generate` 引擎。
+The generation entry point does not implement inference logic itself; it delegates to `emb-agent`'s `adapter generate` engine.
 
-## 需要补哪些文件
+## Files Required
 
-例如新增某个 `vendor-family`：
+For example, adding a new `vendor-family`:
 
 ```text
 extensions/tools/families/vendor-family.json
@@ -44,37 +44,39 @@ chip-support/routes/comparator-threshold.cjs
 chip-support/routes/adc-scale.cjs
 ```
 
-上面的 route 文件是“该工具在 catalog 中的固定入口位”，不是“新增一颗芯片就要复制一套”。
+The route files above are the "fixed entry points for the tool in the catalog" — they are not "copy one set per new chip."
 
-不是所有工具都必须实现。只实现该芯片真正相关的工具即可。
+Not all tools must be implemented. Only implement the tools actually relevant to that chip.
 
-如果只是参数不同，通常既不需要新增 route，也不需要新增算法文件，只需要在 profile 的 `bindings` 里给现有算法喂参数。
+If only parameters differ, typically you need neither a new route nor a new algorithm file — just feed parameters to the existing algorithm via the profile `bindings`.
 
-`chip profile` 建议额外维护两层真值：
+### Chip Profile Truth Layers
+
+`chip profile` should maintain two truth layers:
 
 - `packages`
-  封装级物理引脚表，例如 SOP8/QFN16 各自 Pin1..PinN 对应什么信号
+  Package-level physical pin table, e.g., SOP8/QFN16 with Pin1..PinN to signal mapping
 - `pins`
-  逻辑 pad 能力表，例如 `ra0` 支持哪些复用、在哪些 package 上落到几号脚、是否带外部中断
+  Logical pad capability table, e.g., what mux options `ra0` supports, which package pins it lands on, whether it has external interrupt
 
-另外建议补两类轻量引用：
+Also recommend adding two lightweight reference fields:
 
 - `source_refs`
-  指向 `docs/sources/mcu/*.md` 这类 MCU/手册提炼摘要
+  Pointers to `docs/sources/mcu/*.md` MCU/manual extraction summaries
 - `component_refs`
-  指向 `docs/sources/components/*.md` 这类具体外围器件型号摘要
+  Pointers to `docs/sources/components/*.md` specific external component part summaries
 
-这两个字段只放 ID，不放长说明文本。
+These two fields contain IDs only, not long descriptive text.
 
-`component_refs` 只引用具体型号摘要，例如 `components/<part-number>`。
+`component_refs` only references specific part number summaries, e.g., `components/<part-number>`.
 
-只有当某个具体器件在多个项目里重复出现，而且它的极性、时序、输出形式、保持时间或供电约束会直接影响 agent 判断时，才值得补进 `docs/sources/components/`。
+Only add an entry to `docs/sources/components/` when a specific component appears repeatedly across projects and its polarity, timing, output type, hold time, or power constraints would directly influence agent decisions.
 
-如果你只有“这类器件通常如此”的经验结论，不要写成共享真值；这类内容更适合留在项目侧事实或 agent 推理里，而不是沉淀到共享 catalog。
+If you only have "this class of device usually behaves like this" experience-based conclusions, do not write them as shared truth. That kind of content belongs in project-side facts or agent reasoning, not the shared catalog.
 
-## chip-support 返回约定
+## Chip-Support Return Contract
 
-建议至少返回：
+At minimum, return:
 
 - `tool`
 - `status`
@@ -84,17 +86,17 @@ chip-support/routes/adc-scale.cjs
 - `inputs`
 - `notes`
 
-如果已经算出结果，再补：
+If results were computed, also include:
 
 - `outputs`
 - `candidates`
 - `warnings`
 - `register_hints`
 
-## 失败时不要做什么
+## Failure Rules
 
-- 不要编造寄存器值
-- 不要假装支持某个 family/device
-- 不要因为缺少路由就返回 `ok`
+- Do not fabricate register values
+- Do not pretend to support a family/device
+- Do not return `ok` because a route is missing
 
-缺少实现时，明确返回 `route-required` 或更具体的错误更安全。
+When implementation is missing, explicitly return `route-required` or a more specific error — that is safer.

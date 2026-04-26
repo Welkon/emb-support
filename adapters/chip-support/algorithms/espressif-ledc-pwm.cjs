@@ -205,20 +205,20 @@ module.exports = {
       return {
         status: 'unsupported',
         notes: [
-          '没有找到满足目标频率的 LEDC PWM 配置。',
-          '请检查 clock-hz、clock-source、target-hz、duty-resolution 或输出引脚。'
+          'No LEDC PWM configuration found that meets the target frequency.',
+          'Check clock-hz, clock-source, target-hz, duty-resolution, or output pin.'
         ]
       };
     }
 
     const notes = [
-      `${params.chip || 'target'} LEDC 提供 ${(params.timers || []).length || 4} 个 timer 和 ${(params.channels || []).length || 6} 个通道。`,
-      `支持的时钟源: ${Object.keys(params.clock_sources || {}).join(', ')}`,
-      '频率公式按 f_pwm = source_clock / (divider * 2^duty_resolution) 计算。',
-      'LEDC 输出通过 GPIO matrix 路由，不绑定固定 PWM 引脚。'
+      `${params.chip || 'target'} LEDC provides ${(params.timers || []).length || 4} timers and ${(params.channels || []).length || 6} channels.`,
+      `Supported clock sources: ${Object.keys(params.clock_sources || {}).join(', ')}`,
+      'Frequency formula: f_pwm = source_clock / (divider * 2^duty_resolution).',
+      'LEDC output is routed through the GPIO matrix; not bound to fixed PWM pins.'
     ];
     if (clockSourceKey === 'rc_fast_clk') {
-      notes.push('RC_FAST 时钟可在 Light-sleep 场景下继续保持 PWM 输出。');
+      notes.push('RC_FAST clock can maintain PWM output during Light-sleep mode.');
     }
     if (outputPin && Array.isArray(outputPin.notes) && outputPin.notes.length > 0) {
       notes.push(...outputPin.notes);

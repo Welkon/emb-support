@@ -121,11 +121,11 @@ module.exports = {
 
     let inferredState = null;
     if (v5InputPresent === true) {
-      inferredState = '外部充电输入已接入且 VCC 电压正常。';
+      inferredState = 'External charging input connected and VCC voltage normal.';
     } else if (v5InputPresent === false && vccNormal === 0) {
-      inferredState = 'VCC 电压过低，充电器已关闭。';
+      inferredState = 'VCC voltage too low; charger is off.';
     } else if (v5InputPresent === false && vccGreaterThanVbat === 0) {
-      inferredState = 'VCC 未高于 VBAT，当前不满足正常充电输入条件。';
+      inferredState = 'VCC is not above VBAT; normal charging input conditions not met.';
     }
 
     const fullCharge = {
@@ -152,12 +152,12 @@ module.exports = {
         full_charge: fullCharge
       },
       notes: [
-        `${params.control_macro} 当前支持离散充电电流档: ${currentSteps.join(', ')} mA。`,
-        params.auto_start_note || '该充电模块是否上电自动工作取决于器件定义。',
-        '5V 输入判定不要只看 CHG_TEMP.4，必须同时满足 CHG_TEMP.4 && CHG_TEMP.3。',
-        'PMB180 老版本判满不能只看 CHG_CTRL.0，需结合 V400_FG 与持续时间。',
-        'PMB180B 的 CHG_TEMP.1 语义按实测修正为: 高电平=充电中，低电平=充电完成。',
-        '如果只传状态位，不传 target-current-ma，也可以当作状态解码器使用。'
+        `${params.control_macro} supports discrete charge current levels: ${currentSteps.join(', ')} mA.`,
+        params.auto_start_note || 'Auto-start behavior depends on device definition.',
+        '5V detection: do not check CHG_TEMP.4 alone; require CHG_TEMP.4 && CHG_TEMP.3.',
+        'PMB180 (revision 0): full-charge detection must combine CHG_CTRL.0 with V400_FG and duration.',
+        'PMB180B CHG_TEMP.1: measured semantics: high=charging, low=charge complete.',
+        'If only status bits are passed without target-current-ma, this operates as a status decoder.'
       ]
     };
   }

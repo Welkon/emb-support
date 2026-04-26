@@ -89,16 +89,16 @@ module.exports = {
             }
       },
       notes: [
-        `${params.register_name} 使用 ${params.threshold_field || '[7:2]'} 编码阈值，当前按 ${min}V ~ ${max}V、步进 ${step}V 搜索。`,
+        `${params.register_name} uses ${params.threshold_field || '[7:2]'} threshold encoding; searching ${min}V ~ ${max}V, step ${step}V.`,
         charging && chargingBias > 0
-          ? `已按充电状态补偿内部检测偏高约 ${chargingBias}V；target-v 视为实际电池电压。`
-          : '默认未启用充电偏移补偿。',
+          ? `Charging compensation applied: internal detection ~${chargingBias}V high; target-v represents actual battery voltage.`
+          : 'Charging offset compensation not enabled by default.',
         params.interrupt_supported === false
-          ? 'LVDC 不支持中断。'
-          : '中断支持取决于器件实现。',
+          ? 'LVDC does not support interrupts.'
+          : 'Interrupt support depends on device implementation.',
         params.wakeup_supported === false
-          ? 'LVDC 不支持唤醒，只能轮询状态位。'
-          : '唤醒支持取决于器件实现。'
+          ? 'LVDC does not support wakeup; poll status bit only.'
+          : 'Wakeup support depends on device implementation.'
       ]
     };
   }

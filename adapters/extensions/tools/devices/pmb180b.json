@@ -198,10 +198,10 @@
         "step_voltage": 0.05,
         "level_count": 64,
         "charging_voltage_bias": 0.15,
-        "status_when_set": "VBAT 低于设定的 LVD 阈值。",
-        "status_when_clear": "VBAT 高于设定的 LVD 阈值。",
-        "status_when_set_charging": "充电中内部检测电压偏高约 0.15V；实际 VBAT 通常会比设定阈值再低约 0.15V。",
-        "status_when_clear_charging": "充电中内部检测电压偏高约 0.15V；当前实际 VBAT 通常比比较结果再低约 0.15V。",
+        "status_when_set": "VBAT is below the configured LVD threshold.",
+        "status_when_clear": "VBAT is above the configured LVD threshold.",
+        "status_when_set_charging": "Internal detection reads ~0.15V high during charging; actual VBAT is typically ~0.15V below the configured threshold.",
+        "status_when_clear_charging": "Internal detection reads ~0.15V high during charging; actual VBAT is typically ~0.15V below the comparison result.",
         "interrupt_supported": false,
         "wakeup_supported": false
       }
@@ -225,37 +225,37 @@
         ],
         "legacy_full_hold_seconds": 1,
         "capacity_rule_mah_per_hour": 500,
-        "auto_start_note": "PMB180(B) 充电模块在供电后即可按硬件默认状态工作，不一定要求 MCU 先初始化。",
+        "auto_start_note": "PMB180(B) charger module operates on hardware defaults after power-up; MCU init is not strictly required.",
         "status_bits": {
           "charge_indicator": {
             "register": "CHG_CTRL",
             "bit": 0,
-            "when_set": "进入终止/停止态候选；不要单独据此判定充满，需结合 V400_FG 与持续时间。",
-            "when_clear": "开始充电或正在充电中。"
+            "when_set": "Candidate for termination/stop state. Do not use alone for full-charge detection; combine with V400_FG and duration.",
+            "when_clear": "Charging started or in progress."
           },
           "charge_complete_indicator": {
             "register": "CHG_TEMP",
             "bit": 1,
-            "when_set": "PMB180B 实测为正在充电。应广资料常写反。",
-            "when_clear": "PMB180B 实测为充电完成。应广资料常写反。"
+            "when_set": "PMB180B measured: charging. Padauk documentation often reverses this.",
+            "when_clear": "PMB180B measured: charge complete. Padauk documentation often reverses this."
           },
           "vcc_greater_than_vbat": {
             "register": "CHG_TEMP",
             "bit": 4,
-            "when_set": "VCC 高于 VBAT。",
-            "when_clear": "VCC 低于或不高于 VBAT。"
+            "when_set": "VCC is above VBAT.",
+            "when_clear": "VCC is below or not above VBAT."
           },
           "vcc_normal": {
             "register": "CHG_TEMP",
             "bit": 3,
-            "when_set": "VCC 电压正常。",
-            "when_clear": "VCC 电压过低，充电已关闭。"
+            "when_set": "VCC voltage normal.",
+            "when_clear": "VCC voltage too low; charger is off."
           },
           "v400_flag": {
             "register": "V400_FG",
             "bit": 0,
-            "when_set": "电池电压已超过 4V 判定门槛。",
-            "when_clear": "电池电压尚未超过 4V 判定门槛。"
+            "when_set": "Battery voltage has exceeded the 4V threshold.",
+            "when_clear": "Battery voltage has not yet exceeded the 4V threshold."
           }
         }
       }
@@ -293,19 +293,19 @@
     },
     "adc-scale": {
       "algorithm": "unsupported",
-      "reason": "PMB180(B) 当前手册未体现 ADC 资源。"
+      "reason": "PMB180(B) datasheet does not indicate ADC resources."
     }
   },
   "notes": [
-    "Timer16 预分频支持 /1、/4、/16、/64；中断位支持 BIT8~BIT15。",
-    "Timer2 PWM 支持 8/7/6-bit 分辨率，输出脚为 PA3 或 PA4。",
-    "Timer2 可选时钟包括 SYSCLK、IHRC、ILRC、NILRC、比较器输出以及 PA0/PA4 边沿。",
-    "LPWMG0/1/2 共用 LPWMGCLK、LPWMGCUBH、LPWMGCUBL；当前已暴露 lpwmg-calc。",
-    "LVDC 当前已暴露 lvdc-threshold；充电中内部检测电压比实际电池电压通常高约 0.15V。",
-    "充电模块当前已暴露 charger-config；5V 输入判定必须同时满足 CHG_TEMP.4 && CHG_TEMP.3。",
-    "PMB180 老版本判满需结合 CHG_CTRL.0、V400_FG 和持续时间；PMB180B 可额外参考 CHG_TEMP.1，且其语义为高=充电、低=充满。",
-    "GPC comparator 使用与 PMS150G 同构的 4 组内部参考公式，但 PMB180(B) 还具备 comparator interrupt/wakeup 能力。",
-    "LPWMG 使用共享上限计数与 half-step duty 模型，占空比分子按 DB + DB0*0.5 + 0.5 计算。",
-    "PMB180B 不提供 ADC。"
+    "Timer16 prescaler supports /1, /4, /16, /64; interrupt bits BIT8~BIT15.",
+    "Timer2 PWM supports 8/7/6-bit resolution; output pins PA3 or PA4.",
+    "Timer2 clock sources: SYSCLK, IHRC, ILRC, NILRC, comparator output, and PA0/PA4 edges.",
+    "LPWMG0/1/2 share LPWMGCLK, LPWMGCUBH, LPWMGCUBL; lpwmg-calc is exposed.",
+    "LVDC exposed as lvdc-threshold; internal detection reads ~0.15V above actual battery voltage during charging.",
+    "Charger module exposed as charger-config; 5V input detection requires CHG_TEMP.4 && CHG_TEMP.3.",
+    "PMB180 (rev 0) full-charge detection requires CHG_CTRL.0, V400_FG, and duration. PMB180B additionally references CHG_TEMP.1 (high=charging, low=full).",
+    "GPC comparator uses the same 4-group internal reference formulas as PMS150G; PMB180(B) also has comparator interrupt/wakeup capability.",
+    "LPWMG uses shared upper-limit counter and half-step duty model; duty numerator: DB + DB0*0.5 + 0.5.",
+    "PMB180B does not provide ADC."
   ]
 }

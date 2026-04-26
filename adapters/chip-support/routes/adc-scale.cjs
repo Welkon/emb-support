@@ -11,13 +11,13 @@ module.exports = {
 
     if (!binding) {
       return shared.buildRouteRequired(context, 'adc-scale', options, identity, profiles, {
-        notes: ['请先在 tool device/family profile 中声明 bindings.adc-scale。']
+        notes: ['Declare bindings.adc-scale in the tool device/family profile first.']
       });
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'adc-scale', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 adc-scale。']
+        notes: [binding.reason || 'This route explicitly declares no support for adc-scale.']
       });
     }
 

@@ -28,8 +28,8 @@
     "comparator"
   ],
   "notes": [
-    "当前首套真实适配落在 PMB180B。",
-    "PMB180B 当前已接入 T16、TM2 PWM、LPWMG、LVDC、充电配置与 GPC comparator 工具。",
-    "该 family 未体现 ADC 能力。"
+    "First real adapter targets PMB180B.",
+    "PMB180B currently wired up for T16, TM2 PWM, LPWMG, LVDC, charger config, and GPC comparator tools.",
+    "This family does not include ADC capability."
   ]
 }

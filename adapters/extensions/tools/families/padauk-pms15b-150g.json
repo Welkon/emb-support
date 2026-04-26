@@ -24,7 +24,7 @@
     "comparator"
   ],
   "notes": [
-    "当前首套真实适配只覆盖 PMS150G。",
-    "该 family 不包含 ADC。"
+    "First real adapter covers PMS150G only.",
+    "This family does not include ADC."
   ]
 }

@@ -11,13 +11,13 @@ module.exports = {
 
     if (!binding) {
       return shared.buildRouteRequired(context, 'pwm-calc', options, identity, profiles, {
-        notes: ['请先在 tool device/family profile 中声明 bindings.pwm-calc。']
+        notes: ['Declare bindings.pwm-calc in the tool device/family profile first.']
       });
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'pwm-calc', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 pwm-calc。']
+        notes: [binding.reason || 'This route explicitly declares no support for pwm-calc.']
       });
     }
 

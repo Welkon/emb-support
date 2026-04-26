@@ -118,8 +118,8 @@ module.exports = {
         candidates: candidates.slice(0, 10)
       },
       notes: [
-        `${params.chip || 'target'} ${params.peripheral || 'pwm'} 输出脚支持: ${Object.keys(params.output_pins || {}).join(', ')}`,
-        '频率公式和占空比寄存器换算来自该器件族的 TM2/PWM 模型参数。'
+        `${params.chip || 'target'} ${params.peripheral || 'pwm'} output pins: ${Object.keys(params.output_pins || {}).join(', ')}`,
+        'Frequency and duty-cycle register formulas from this device family TM2/PWM model parameters.'
       ]
     };
   }

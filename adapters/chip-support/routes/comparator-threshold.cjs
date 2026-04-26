@@ -17,14 +17,14 @@ module.exports = {
         identity,
         profiles,
         {
-          notes: ['请先在 tool device/family profile 中声明 bindings.comparator-threshold。']
+          notes: ['Declare bindings.comparator-threshold in the tool device/family profile first.']
         }
       );
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'comparator-threshold', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 comparator-threshold。']
+        notes: [binding.reason || 'This route explicitly declares no support for comparator-threshold.']
       });
     }
 

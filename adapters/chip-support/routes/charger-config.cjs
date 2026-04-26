@@ -11,13 +11,13 @@ module.exports = {
 
     if (!binding) {
       return shared.buildRouteRequired(context, 'charger-config', options, identity, profiles, {
-        notes: ['请先在 tool device/family profile 中声明 bindings.charger-config。']
+        notes: ['Declare bindings.charger-config in the tool device/family profile first.']
       });
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'charger-config', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 charger-config。']
+        notes: [binding.reason || 'This route explicitly declares no support for charger-config.']
       });
     }
 

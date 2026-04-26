@@ -11,13 +11,13 @@ module.exports = {
 
     if (!binding) {
       return shared.buildRouteRequired(context, 'lvdc-threshold', options, identity, profiles, {
-        notes: ['请先在 tool device/family profile 中声明 bindings.lvdc-threshold。']
+        notes: ['Declare bindings.lvdc-threshold in the tool device/family profile first.']
       });
     }
 
     if (binding.algorithm === 'unsupported') {
       return shared.buildUnsupported(context, 'lvdc-threshold', options, identity, {
-        notes: [binding.reason || '该 route 显式声明不支持 lvdc-threshold。']
+        notes: [binding.reason || 'This route explicitly declares no support for lvdc-threshold.']
       });
     }
 

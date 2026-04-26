@@ -192,25 +192,25 @@ module.exports = {
       return {
         status: 'unsupported',
         notes: [
-          `没有找到满足目标周期的 ${params.peripheral || 'timer'} 配置。`,
-          '请检查 clock-hz、clock-source、prescaler、postscaler 或目标周期。'
+          `No ${params.peripheral || 'timer'} configuration found that meets the target period.`,
+          'Check clock-hz, clock-source, prescaler, postscaler, or target period.'
         ]
       };
     }
 
     const notes = [
-      `${params.chip || 'target'} ${params.peripheral || 'timer'} 支持的预分频: ${(params.prescalers || []).join(', ')}`,
-      `支持的时钟源: ${Object.keys(params.clock_sources || {}).join(', ')}`
+      `${params.chip || 'target'} ${params.peripheral || 'timer'} supported prescalers: ${(params.prescalers || []).join(', ')}`,
+      `Supported clock sources: ${Object.keys(params.clock_sources || {}).join(', ')}`
     ];
     if ((params.postscalers || []).length > 0) {
-      notes.push(`支持的后分频: ${(params.postscalers || []).join(', ')}`);
+      notes.push(`Supported postscalers: ${(params.postscalers || []).join(', ')}`);
     }
     if (params.kind === 'tmr2-periodic') {
-      notes.push('TMR2 中断由 PR2 匹配后再经过后分频输出触发，结果按中断周期计算。');
-      notes.push('TMR2 的基础计数周期为 (PR2 + 1) * prescaler / input_clock。');
+      notes.push('TMR2 interrupt fires after PR2 match passes through postscaler; result computed as interrupt period.');
+      notes.push('TMR2 base count period: (PR2 + 1) * prescaler / input_clock.');
     } else {
-      notes.push('TMR0 无硬件自动重装载，当前结果按溢出后软件写回 TMR0 计算。');
-      notes.push('当前结果未自动补偿“写 TMR0 后停计数 2 个指令周期”的误差。');
+      notes.push('TMR0 has no hardware auto-reload; result computed for software TMR0 write-back after overflow.');
+      notes.push('Result does not auto-compensate for the 2-instruction-cycle halt after writing TMR0.');
     }
 
     return {

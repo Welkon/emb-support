@@ -1,23 +1,23 @@
 # Repo Contract
 
-这个仓库必须满足当前 `emb-agent support sync` 的 source 合同。
+This repository must satisfy the current `emb-agent support sync` source contract.
 
-## 三层分类
+## Three-Layer Classification
 
-仓库只保留三层主分类：
+The repo maintains only three primary classification layers:
 
 - `chip-support/`
-  可执行能力
+  Executable capabilities
 - `extensions/`
-  芯片与工具定义
+  Chip and tool definitions
 - `docs/sources/`
-  轻量知识摘要
+  Lightweight knowledge summaries
 
-如果这三层之外再长出新的“主分类”，通常说明分类又散了。
+If a new "primary classification" grows outside these three, it generally means the classification has drifted again.
 
-## 会被同步的内容
+## Synced Content
 
-会被同步到目标项目或 runtime 的只有这些：
+Only these are synced to the target project or runtime:
 
 - `chip-support/**/*.cjs`
 - `extensions/tools/specs/*.json`
@@ -27,9 +27,9 @@
 - `extensions/chips/devices/*.json`
 - `docs/sources/**/*.md`
 
-## 不会被同步的内容
+## Non-Synced Content
 
-这些内容只用于仓库维护，不会进入目标项目：
+These are for repository maintenance only and do not enter target projects:
 
 - `README.md`
 - `docs/ADDING-ADAPTERS.md`
@@ -37,45 +37,45 @@
 - `package.json`
 - `scripts/`
 - `tests/`
-- 任何不在上面同步名单里的自定义文件
+- Any custom files not in the sync list above
 
-## 目录布局要求
+## Directory Layout Requirements
 
-仓库根目录必须至少命中以下任意一项：
+The repo root must match at least one of:
 
 - `chip-support/`
 - `extensions/tools/`
 - `extensions/chips/`
 
-否则 `support sync` 会判定 source layout 无效。
+Otherwise `support sync` will reject the source layout as invalid.
 
-## 命名约束
+## Naming Constraints
 
-- route 文件名必须等于工具名，例如 `chip-support/routes/timer-calc.cjs`
-- family/device/chip 文件名建议直接用 slug
-- route 负责绑定 `tool -> binding -> algorithm`
-- algorithm 文件不要求与 tool 同名，可以按外设模型命名
-- 不要把 route 当成“每颗芯片一份”的入口；route 应尽量稳定，芯片差异优先下沉到 `bindings/params`
+- Route file names must equal the tool name, e.g., `chip-support/routes/timer-calc.cjs`
+- family/device/chip file names should use slugs directly
+- Routes bind `tool -> binding -> algorithm`
+- Algorithm files do not need to match tool names; they can be named by peripheral model
+- Do not treat routes as "one copy per chip"; routes should be stable; chip differences should sink into `bindings/params`
 
-## 分类职责
+## Classification Responsibilities
 
 - `chip-support/core/`
-  放共享解析、profile 读取、通用工具函数
+  Shared parsing, profile reading, common utility functions
 - `chip-support/algorithms/`
-  放可以被多颗芯片复用的算法
+  Algorithms reusable across multiple chips
 - `chip-support/routes/`
-  放真正被 runtime 按 `toolName` 加载的入口
+  Entry points actually loaded by runtime per `toolName`
 - `extensions/tools/*`
-  放 family/device/tool 绑定与约束
+  family/device/tool bindings and constraints
 - `extensions/chips/profiles/*`
-  放 chip 级封装、引脚、mux、相关工具与轻量引用
+  Chip-level package, pin, mux, related tools, and lightweight references
 - `docs/sources/*`
-  放被 `source_refs` / `component_refs` 引用的结论型知识
+  Conclusive knowledge referenced by `source_refs` / `component_refs`
 
-## 当前限制
+## Current Limitations
 
-- `extensions/tools/specs|families|devices` 与 `extensions/chips/profiles` 是当前推荐布局；runtime 仍兼容旧的 `extensions/chips/devices`
-- 如果只是参数不同，不要复制一份算法；优先把差异放进 profile 的 `bindings/params`
-- `chip profile` 里的 `packages / pins` 属于推荐真值层，不参与 route 选择，但会被上层 agent 用来做引脚、封装和 mux 推理
-- `extensions/**/*.json` 可以使用 `source_refs` / `component_refs`，指向 `docs/sources/` 下的提炼摘要
-- 当前仓库允许通过 `npm run generate` 直接把 AI 生成结果写回仓库根目录；生成后的内容仍必须通过 `npm run validate` 再提交
+- `extensions/tools/specs|families|devices` and `extensions/chips/profiles` are the recommended layout; runtime still supports legacy `extensions/chips/devices`
+- If only parameters differ, do not copy an algorithm; push differences into the profile `bindings/params` instead
+- `chip profile` `packages / pins` are a recommended truth layer; they do not participate in route selection but are used by upper-layer agents for pin, package, and mux reasoning
+- `extensions/**/*.json` may use `source_refs` / `component_refs`, pointing to summaries under `docs/sources/`
+- This repo allows `npm run generate` to write AI-generated results directly back to the repo root; generated content must still pass `npm run validate` before commit

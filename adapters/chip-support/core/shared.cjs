@@ -386,10 +386,10 @@ function buildRouteRequired(context, toolName, options, identity, profiles, extr
       options
     },
     notes: [
-      `${toolName} 已由外部 chip-support catalog 接管，但当前没有命中可执行的 route binding。`,
+      `${toolName} is managed by the external chip-support catalog, but no executable route binding was matched.`,
       knownTargets.length > 0
-        ? `当前识别到的 profile: ${knownTargets.join(', ')}`
-        : '当前没有识别到匹配的 chip/device/family profile。'
+        ? `Recognized profiles: ${knownTargets.join(', ')}`
+        : 'No matching chip/device/family profile recognized.'
     ].concat((extras && extras.notes) || [])
   };
 }

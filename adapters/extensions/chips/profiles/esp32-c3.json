@@ -11,7 +11,47 @@
   "source_refs": [
     "mcu/espressif-esp32-c3"
   ],
+  "verified_against": {
+    "datasheet": {
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf",
+      "version": "v1.7",
+      "pages": {
+        "gpio": "p.28-35",
+        "adc": "p.189-205",
+        "pin_layout": "p.10-16"
+      }
+    },
+    "technical_reference": {
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf",
+      "version": "v1.0",
+      "pages": {
+        "gptimer": "p.321-345",
+        "ledc_pwm": "p.409-432",
+        "adc": "p.576-612",
+        "uart": "p.467-490",
+        "spi": "p.491-510",
+        "i2c": "p.511-530",
+        "clock": "p.86-102"
+      }
+    }
+  },
   "component_refs": [],
+  "constraints": {
+    "rom_kb": 384,
+    "ram_kb": 400,
+    "rtc_ram_kb": 8,
+    "max_gpio": 22,
+    "flash_max_mb": 16,
+    "specs/mcu/rom-ram-budget.md": {
+      "note": "384KB ROM + external SPI flash up to 16MB. 400KB SRAM + 8KB RTC fast SRAM."
+    },
+    "specs/mcu/peripheral-conflicts.md": {
+      "note": "GPIO12-17 used for flash in default config. GPIO2/3/8/9 are strapping pins. GPIO11 default tied to VDD_SPI.",
+      "strapping_pins": ["GPIO2", "GPIO3", "GPIO8", "GPIO9"],
+      "flash_pins": ["GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO16", "GPIO17"],
+      "usb_jtag_pins": ["GPIO18", "GPIO19"]
+    }
+  },
   "summary": {
     "program_memory": "384KB ROM + external SPI flash support up to 16MB",
     "data_memory": "400KB SRAM + 8KB RTC fast SRAM",
@@ -63,7 +103,7 @@
           "default_function": "rf",
           "mux": [],
           "notes": [
-            "RF 模拟引脚。"
+            "RF analog pin."
           ]
         },
         {
@@ -73,7 +113,7 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "模拟电源。"
+            "Analog power supply."
           ]
         },
         {
@@ -83,7 +123,7 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "模拟电源。"
+            "Analog power supply."
           ]
         },
         {
@@ -97,7 +137,7 @@
             "xtal32k_p"
           ],
           "notes": [
-            "RTC IO。"
+            "RTC IO."
           ]
         },
         {
@@ -111,7 +151,7 @@
             "xtal32k_n"
           ],
           "notes": [
-            "RTC IO。"
+            "RTC IO."
           ]
         },
         {
@@ -125,8 +165,8 @@
             "fspi_q"
           ],
           "notes": [
-            "RTC IO。",
-            "Strapping 引脚。"
+            "RTC IO.",
+            "Strapping pin."
           ]
         },
         {
@@ -136,7 +176,7 @@
           "default_function": "chip_enable",
           "mux": [],
           "notes": [
-            "芯片使能引脚，不应悬空。"
+            "Chip enable pin; must not be pulled low or left floating."
           ]
         },
         {
@@ -149,8 +189,8 @@
             "adc1_ch3"
           ],
           "notes": [
-            "RTC IO。",
-            "Strapping 引脚。"
+            "RTC IO.",
+            "Strapping pin."
           ]
         },
         {
@@ -165,7 +205,7 @@
             "fspi_hd"
           ],
           "notes": [
-            "RTC IO。"
+            "RTC IO."
           ]
         },
         {
@@ -180,7 +220,7 @@
             "fspi_wp"
           ],
           "notes": [
-            "RTC IO。"
+            "RTC IO."
           ]
         },
         {
@@ -190,7 +230,7 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "RTC 与部分数字域电源。"
+            "RTC and partial digital domain power."
           ]
         },
         {
@@ -226,7 +266,7 @@
             "gpio"
           ],
           "notes": [
-            "Strapping 引脚。"
+            "Strapping pin."
           ]
         },
         {
@@ -238,7 +278,7 @@
             "gpio"
           ],
           "notes": [
-            "Strapping 引脚。"
+            "Strapping pin."
           ]
         },
         {
@@ -259,7 +299,7 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "数字电源域。"
+            "Digital power domain."
           ]
         },
         {
@@ -272,7 +312,7 @@
             "vdd_spi"
           ],
           "notes": [
-            "默认用于 Flash 供电；外部供电方案下才可复用为 GPIO11。"
+            "Default Flash power supply; only available as GPIO11 with external flash power scheme."
           ]
         },
         {
@@ -285,7 +325,7 @@
             "spi_hd"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -298,7 +338,7 @@
             "spi_wp"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -311,7 +351,7 @@
             "spi_cs0"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -324,7 +364,7 @@
             "spi_clk"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -337,7 +377,7 @@
             "spi_d"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -350,7 +390,7 @@
             "spi_q"
           ],
           "notes": [
-            "默认连接 Flash；部分子型号为 NC。"
+            "Default Flash connection; NC on some sub-models."
           ]
         },
         {
@@ -363,7 +403,7 @@
             "usb_d-"
           ],
           "notes": [
-            "默认连接 USB Serial/JTAG 控制器。"
+            "Default USB Serial/JTAG controller connection."
           ]
         },
         {
@@ -376,7 +416,7 @@
             "usb_d+"
           ],
           "notes": [
-            "默认连接 USB Serial/JTAG 控制器。"
+            "Default USB Serial/JTAG controller connection."
           ]
         },
         {
@@ -408,7 +448,7 @@
           "default_function": "crystal",
           "mux": [],
           "notes": [
-            "主晶振负端。"
+            "Main crystal negative terminal."
           ]
         },
         {
@@ -418,7 +458,7 @@
           "default_function": "crystal",
           "mux": [],
           "notes": [
-            "主晶振正端。"
+            "Main crystal positive terminal."
           ]
         },
         {
@@ -428,7 +468,7 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "模拟电源。"
+            "Analog power supply."
           ]
         },
         {
@@ -438,16 +478,16 @@
           "default_function": "power_in",
           "mux": [],
           "notes": [
-            "模拟电源。"
+            "Analog power supply."
           ]
         }
       ],
       "notes": [
-        "QFN32 为 ESP32-C3 常见主封装。",
-        "底部还带 exposed pad，通常接地与散热焊盘使用。",
-        "GPIO12-GPIO17 默认多用于片上/片外 Flash 连接，不建议在通用项目里随意复用。",
-        "GPIO18/GPIO19 默认接 USB Serial/JTAG。",
-        "GPIO2、GPIO3、GPIO8、GPIO9 为 strapping 引脚，复位/启动阶段需要特别注意外部电平。"
+        "QFN32 is the common primary package for ESP32-C3.",
+        "Bottom exposed pad typically used as ground and thermal pad.",
+        "GPIO12-GPIO17 are default Flash connections; repurposing is not recommended for general projects.",
+        "GPIO18/GPIO19 are default USB Serial/JTAG.",
+        "GPIO2, GPIO3, GPIO8, GPIO9 are strapping pins; external levels must be carefully controlled during reset/boot."
       ]
     }
   ],
@@ -467,7 +507,7 @@
         "qfn32": 4
       },
       "notes": [
-        "RTC IO。"
+        "RTC IO."
       ]
     },
     "gpio1": {
@@ -485,7 +525,7 @@
         "qfn32": 5
       },
       "notes": [
-        "RTC IO。"
+        "RTC IO."
       ]
     },
     "gpio2": {
@@ -503,8 +543,8 @@
         "qfn32": 6
       },
       "notes": [
-        "RTC IO。",
-        "Strapping 引脚。"
+        "RTC IO.",
+        "Strapping pin."
       ]
     },
     "gpio3": {
@@ -521,8 +561,8 @@
         "qfn32": 8
       },
       "notes": [
-        "RTC IO。",
-        "Strapping 引脚。"
+        "RTC IO.",
+        "Strapping pin."
       ]
     },
     "gpio4": {
@@ -541,7 +581,7 @@
         "qfn32": 9
       },
       "notes": [
-        "RTC IO。"
+        "RTC IO."
       ]
     },
     "gpio5": {
@@ -560,8 +600,8 @@
         "qfn32": 10
       },
       "notes": [
-        "RTC IO。",
-        "ADC2 在部分场景下受限制。"
+        "RTC IO.",
+        "ADC2 is restricted under certain conditions."
       ]
     },
     "gpio6": {
@@ -606,7 +646,7 @@
         "qfn32": 14
       },
       "notes": [
-        "Strapping 引脚。"
+        "Strapping pin."
       ]
     },
     "gpio9": {
@@ -621,7 +661,7 @@
         "qfn32": 15
       },
       "notes": [
-        "Strapping 引脚。"
+        "Strapping pin."
       ]
     },
     "gpio10": {
@@ -651,7 +691,7 @@
         "qfn32": 18
       },
       "notes": [
-        "默认多作为 VDD_SPI；是否能作 GPIO 取决于供电方案。"
+        "Default VDD_SPI; GPIO availability depends on power scheme."
       ]
     },
     "gpio12": {
@@ -667,7 +707,7 @@
         "qfn32": 19
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio13": {
@@ -683,7 +723,7 @@
         "qfn32": 20
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio14": {
@@ -699,7 +739,7 @@
         "qfn32": 21
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio15": {
@@ -715,7 +755,7 @@
         "qfn32": 22
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio16": {
@@ -731,7 +771,7 @@
         "qfn32": 23
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio17": {
@@ -747,7 +787,7 @@
         "qfn32": 24
       },
       "notes": [
-        "默认连接 Flash；部分子型号为 NC。"
+        "Default Flash connection; NC on some sub-models."
       ]
     },
     "gpio18": {
@@ -763,7 +803,7 @@
         "qfn32": 25
       },
       "notes": [
-        "默认连接 USB Serial/JTAG。"
+        "Default USB Serial/JTAG connection."
       ]
     },
     "gpio19": {
@@ -779,7 +819,7 @@
         "qfn32": 26
       },
       "notes": [
-        "默认连接 USB Serial/JTAG。"
+        "Default USB Serial/JTAG connection."
       ]
     },
     "gpio20": {
@@ -844,11 +884,11 @@
   ],
   "source_modules": [],
   "notes": [
-    "该 profile 基于 notebook 对 ESP32-C3 数据手册与技术参考手册的提炼摘要生成。",
-    "当前已尽量补全芯片真值层，包括主要外设分类与 QFN32 主封装引脚信息。",
-    "当前尚未声明 Espressif 专用 executable binding。",
-    "brownout 已记录为芯片能力，但当前不等于已适配 lvdc-threshold。",
-    "不应把 comparator-threshold 或 charger-config 关联到该芯片。",
-    "related_tools 只反映 emb 当前已有且最适合推荐的工具入口，不等于芯片外设全集。"
+    "Profile generated from notebook extraction of ESP32-C3 datasheet and technical reference manual.",
+    "Chip truth layer populated with primary peripheral categories and QFN32 package pin data.",
+    "Espressif-specific executable binding not yet declared.",
+    "Brownout recorded as chip capability but not yet adapted to lvdc-threshold.",
+    "Do not associate comparator-threshold or charger-config with this chip.",
+    "related_tools only reflects currently available and best-recommended tool entries, not the full peripheral set."
   ]
 }

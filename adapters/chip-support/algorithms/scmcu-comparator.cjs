@@ -88,7 +88,7 @@ module.exports = {
     if (positiveSource !== 'vr' && negativeSource !== 'vr') {
       return {
         status: 'unsupported',
-        notes: ['SC8F072 comparator-threshold 需要把内部 VR 作为正端或负端之一。']
+        notes: ['SC8F072 comparator-threshold requires internal VR as either positive or negative input.']
       };
     }
 
@@ -135,10 +135,10 @@ module.exports = {
         candidates: candidates.slice(0, 8)
       },
       notes: [
-        `${params.chip || 'target'} 比较器正输入支持: ${Object.keys(params.positive_sources || {}).join(', ')}`,
-        `负输入支持: ${Object.keys(params.negative_sources || {}).join(', ')}`,
-        '内部参考 VR 由 RBIAS_H/RBIAS_L 与 LVDS<3:0> 共同决定。',
-        '当使用 bandgap-monitor 模式时，推荐正端选择 VR、负端选择 1.2V BG。'
+        `${params.chip || 'target'} comparator positive inputs: ${Object.keys(params.positive_sources || {}).join(', ')}`,
+        `Negative inputs: ${Object.keys(params.negative_sources || {}).join(', ')}`,
+        'Internal VR reference set by RBIAS_H/RBIAS_L and LVDS<3:0>.',
+        'In bandgap-monitor mode, recommend positive=VR, negative=1.2V BG.'
       ]
     };
   }

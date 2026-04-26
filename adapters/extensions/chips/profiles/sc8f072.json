@@ -106,7 +106,7 @@
         }
       ],
       "notes": [
-        "SOT23-6 引脚表来自已入库的 SC8F072 用户手册。"
+        "SOT23-6 pinout from ingested SC8F072 user manual."
       ]
     },
     {
@@ -214,7 +214,7 @@
         }
       ],
       "notes": [
-        "SOP8 引脚表来自已入库的 SC8F072 用户手册。"
+        "SOP8 pinout from ingested SC8F072 user manual."
       ]
     },
     {
@@ -345,7 +345,7 @@
         }
       ],
       "notes": [
-        "MSOP10 引脚表来自已入库的 SC8F072 用户手册。"
+        "MSOP10 pinout from ingested SC8F072 user manual."
       ]
     },
     {
@@ -521,7 +521,7 @@
         }
       ],
       "notes": [
-        "SOP14 引脚表来自已入库的 SC8F072 用户手册。"
+        "SOP14 pinout from ingested SC8F072 user manual."
       ]
     },
     {
@@ -719,7 +719,7 @@
         }
       ],
       "notes": [
-        "SOP16 引脚表来自已入库的 SC8F072 用户手册。"
+        "SOP16 pinout from ingested SC8F072 user manual."
       ]
     },
     {
@@ -917,8 +917,8 @@
         }
       ],
       "notes": [
-        "QFN16 引脚表来自已入库的 SC8F072 用户手册。",
-        "QFN16 的 VDD/GND 物理位置与 SOP16 不同：Pin1 为 GND，Pin16 为 VDD。"
+        "QFN16 pinout from ingested SC8F072 user manual.",
+        "QFN16 VDD/GND locations differ from SOP16: Pin1=GND, Pin16=VDD."
       ]
     }
   ],
@@ -1262,7 +1262,7 @@
     {
       "id": "scmcu-sc8f072-user-manual",
       "kind": "user-manual",
-      "title": "SC8F072 用户手册",
+      "title": "SC8F072 User Manual",
       "lookup_keys": [
         "SC8F072",
         "TMR0",
@@ -1272,7 +1272,7 @@
         "ADC"
       ],
       "notes": [
-        "建议结合本地例程与 NotebookLM 已入库手册一起使用。"
+        "Use in conjunction with local examples and ingested NotebookLM manual."
       ]
     }
   ],
@@ -1284,9 +1284,9 @@
   ],
   "source_modules": [],
   "notes": [
-    "PWM 频率由 FHSI 驱动，不随系统主频分频变化而改变。",
-    "PWM0~PWM3 共享周期，PWM4 可单独设定周期。",
-    "比较器内部 VR 由 RBIAS_H/RBIAS_L 与 LVDS<3:0> 联合配置。",
-    "ADC 支持 12-bit 与截断 10-bit 两种结果解释方式。"
+    "PWM frequency is FHSI-driven; does not change with system clock divider.",
+    "PWM0~PWM3 share period; PWM4 has independent period.",
+    "Comparator internal VR configured by RBIAS_H/RBIAS_L and LVDS<3:0>.",
+    "ADC supports both 12-bit and truncated 10-bit result interpretation."
   ]
 }

@@ -190,26 +190,26 @@
         "output_pins": {
           "GPIO0": { "pin": "GPIO0" },
           "GPIO1": { "pin": "GPIO1" },
-          "GPIO2": { "pin": "GPIO2", "notes": ["GPIO2 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
-          "GPIO3": { "pin": "GPIO3", "notes": ["GPIO3 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO2": { "pin": "GPIO2", "notes": ["GPIO2 is a strapping pin; control external level during reset/boot."] },
+          "GPIO3": { "pin": "GPIO3", "notes": ["GPIO3 is a strapping pin; control external level during reset/boot."] },
           "GPIO4": { "pin": "GPIO4" },
           "GPIO5": { "pin": "GPIO5" },
           "GPIO6": { "pin": "GPIO6" },
           "GPIO7": { "pin": "GPIO7" },
-          "GPIO8": { "pin": "GPIO8", "notes": ["GPIO8 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
-          "GPIO9": { "pin": "GPIO9", "notes": ["GPIO9 是 strapping 引脚，复位/启动阶段需注意外部电平。"] },
+          "GPIO8": { "pin": "GPIO8", "notes": ["GPIO8 is a strapping pin; control external level during reset/boot."] },
+          "GPIO9": { "pin": "GPIO9", "notes": ["GPIO9 is a strapping pin; control external level during reset/boot."] },
           "GPIO10": { "pin": "GPIO10" },
-          "GPIO11": { "pin": "GPIO11", "notes": ["GPIO11 默认与 VDD_SPI 相关，只有在合适硬件方案下才适合作普通 GPIO。"] },
-          "GPIO12": { "pin": "GPIO12", "notes": ["GPIO12 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO13": { "pin": "GPIO13", "notes": ["GPIO13 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO14": { "pin": "GPIO14", "notes": ["GPIO14 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO15": { "pin": "GPIO15", "notes": ["GPIO15 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO16": { "pin": "GPIO16", "notes": ["GPIO16 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO17": { "pin": "GPIO17", "notes": ["GPIO17 常用于 Flash 连接，通用项目里不建议随意复用。"] },
-          "GPIO18": { "pin": "GPIO18", "notes": ["GPIO18 默认连接 USB Serial/JTAG。"] },
-          "GPIO19": { "pin": "GPIO19", "notes": ["GPIO19 默认连接 USB Serial/JTAG。"] },
-          "GPIO20": { "pin": "GPIO20", "notes": ["GPIO20 默认是 UART0 RX。"] },
-          "GPIO21": { "pin": "GPIO21", "notes": ["GPIO21 默认是 UART0 TX。"] }
+          "GPIO11": { "pin": "GPIO11", "notes": ["GPIO11 defaults to VDD_SPI; only suitable as GPIO with appropriate hardware scheme."] },
+          "GPIO12": { "pin": "GPIO12", "notes": ["GPIO12 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO13": { "pin": "GPIO13", "notes": ["GPIO13 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO14": { "pin": "GPIO14", "notes": ["GPIO14 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO15": { "pin": "GPIO15", "notes": ["GPIO15 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO16": { "pin": "GPIO16", "notes": ["GPIO16 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO17": { "pin": "GPIO17", "notes": ["GPIO17 is typically used for Flash; repurposing not recommended in general projects."] },
+          "GPIO18": { "pin": "GPIO18", "notes": ["GPIO18 defaults to USB Serial/JTAG."] },
+          "GPIO19": { "pin": "GPIO19", "notes": ["GPIO19 defaults to USB Serial/JTAG."] },
+          "GPIO20": { "pin": "GPIO20", "notes": ["GPIO20 defaults to UART0 RX."] },
+          "GPIO21": { "pin": "GPIO21", "notes": ["GPIO21 defaults to UART0 TX."] }
         }
       }
     },
@@ -308,31 +308,31 @@
             "name": "ADC2_CH0",
             "gpio": "GPIO5",
             "adc_unit": "ADC2",
-            "warning": "ESP32-C3 上 ADC2 不建议作为通用采样路径，部分芯片版本存在不可用限制，优先选 ADC1。"
+            "warning": "On ESP32-C3, ADC2 is not recommended for general-purpose sampling; some chip revisions have availability issues. Prefer ADC1."
           }
         }
       }
     },
     "comparator-threshold": {
       "algorithm": "unsupported",
-      "reason": "ESP32-C3 没有可供用户配置使用的独立模拟 comparator 外设。"
+      "reason": "ESP32-C3 has no user-configurable standalone analog comparator peripheral."
     },
     "lvdc-threshold": {
       "algorithm": "unsupported",
-      "reason": "ESP32-C3 虽有 brownout detector，但未提供可直接计算的用户离散阈值表；默认 brownout 阈值约为 2.7V。"
+      "reason": "ESP32-C3 has a brownout detector but no user-configurable discrete threshold table; default brownout threshold ~2.7V."
     },
     "charger-config": {
       "algorithm": "unsupported",
-      "reason": "ESP32-C3 不包含片上 charger / 充电管理模块。"
+      "reason": "ESP32-C3 does not include an on-chip charger / charge management module."
     },
     "lpwmg-calc": {
       "algorithm": "unsupported",
-      "reason": "ESP32-C3 没有 LPWMG 这类独立低功耗 PWM 外设；低功耗 PWM 场景应使用 LEDC。"
+      "reason": "ESP32-C3 has no standalone low-power PWM like LPWMG; use LEDC for low-power PWM scenarios."
     }
   },
   "notes": [
-    "当前已落地 GPTimer、LEDC PWM、SAR ADC 三条基础 executable route。",
-    "comparator-threshold、lvdc-threshold、charger-config、lpwmg-calc 已显式收口为 unsupported，避免用户遇到 route-required。",
-    "其他外设能力仍以芯片真值层和文档沉淀为主，后续再扩更多 route。"
+    "Three base executable routes are implemented: GPTimer, LEDC PWM, SAR ADC.",
+    "comparator-threshold, lvdc-threshold, charger-config, lpwmg-calc are explicitly marked unsupported to prevent route-required errors.",
+    "Other peripheral capabilities remain at chip truth and doc level; more routes will be added later."
   ]
 }

@@ -559,16 +559,16 @@
           "an15": { "name": "AN15" },
           "bg1.2": {
             "name": "Internal 1.2V BG",
-            "note": "内部固定通道"
+            "note": "Internal fixed channel"
           }
         }
       }
     }
   },
   "notes": [
-    "TMR0 为 8-bit 计时器，支持内部 FCPU、T0CKI 边沿与 32.768KHz 外部低速时钟。",
-    "10-bit PWM 为独立模块，PWM0~PWM3 共用周期，PWM4 独立周期。",
-    "比较器支持内部 VR 与 1.2V BG。",
-    "ADC 为 12-bit SAR，支持 VDD 或内部 LDO 参考。"
+    "TMR0 is an 8-bit timer supporting internal FCPU, T0CKI edge, and 32.768KHz external low-speed clock.",
+    "10-bit PWM is an independent module; PWM0~PWM3 share a period register; PWM4 has its own.",
+    "Comparator supports internal VR and 1.2V BG.",
+    "ADC is 12-bit SAR, supports VDD or internal LDO reference."
   ]
 }

@@ -130,7 +130,7 @@
         }
       ],
       "notes": [
-        "ESOP8 只引出 PA6、PA5、PA3、PA4、PA0，不包含 PA7 和 PA1。"
+        "ESOP8 only exposes PA6, PA5, PA3, PA4, PA0; PA7 and PA1 not available."
       ]
     },
     {
@@ -258,7 +258,7 @@
         }
       ],
       "notes": [
-        "ESSOP10 额外引出 PA7 与 PA1。"
+        "ESSOP10 additionally exposes PA7 and PA1."
       ]
     }
   ],
@@ -275,7 +275,7 @@
         "essop10": 1
       },
       "notes": [
-        "芯片系统工作电压范围为 1.8V~5.5V。"
+        "System operating voltage range: 1.8V~5.5V."
       ]
     },
     "vcc5": {
@@ -290,8 +290,8 @@
         "essop10": 10
       },
       "notes": [
-        "VCC5 为充电输入电源引脚，输入范围为 4.3V~6.5V。",
-        "PMB180B 已修正旧版 PMB180 的 VCC_Pin 浮空微漏电问题。"
+        "VCC5 is the charger input pin; input range: 4.3V~6.5V.",
+        "PMB180B fixes legacy PMB180 VCC_Pin floating micro-leakage issue."
       ]
     },
     "gnd": {
@@ -322,8 +322,8 @@
         "essop10": 2
       },
       "notes": [
-        "仅 ESSOP10 引出。",
-        "作为比较器模拟输入时，需关闭数字输入。"
+        "Only exposed on ESSOP10.",
+        "Disable digital input when using as comparator analog input."
       ]
     },
     "pa6": {
@@ -344,8 +344,8 @@
         "essop10": 3
       },
       "notes": [
-        "LPWMG1 可输出到 PA6。",
-        "作为比较器模拟输入时，需关闭数字输入。"
+        "LPWMG1 can output on PA6.",
+        "Disable digital input when using as comparator analog input."
       ]
     },
     "pa5": {
@@ -367,7 +367,7 @@
         "essop10": 4
       },
       "notes": [
-        "PA5 兼具硬件复位 PRSTB 功能。"
+        "PA5 also functions as hardware reset PRSTB."
       ]
     },
     "pa4": {
@@ -392,9 +392,9 @@
         "essop10": 6
       },
       "notes": [
-        "INT1 位于 PA4。",
-        "TM2 PWM 可输出到 PA4。",
-        "LPWMG1 也可输出到 PA4。"
+        "INT1 on PA4.",
+        "TM2 PWM can output on PA4.",
+        "LPWMG1 can also output on PA4."
       ]
     },
     "pa3": {
@@ -416,8 +416,8 @@
         "essop10": 5
       },
       "notes": [
-        "TM2 PWM 可输出到 PA3。",
-        "LPWMG2 也可输出到 PA3。"
+        "TM2 PWM can output on PA3.",
+        "LPWMG2 can also output on PA3."
       ]
     },
     "pa1": {
@@ -436,8 +436,8 @@
         "essop10": 7
       },
       "notes": [
-        "仅 ESSOP10 引出。",
-        "LPWMG0 可输出到 PA1。"
+        "Only exposed on ESSOP10.",
+        "LPWMG0 can output on PA1."
       ]
     },
     "pa0": {
@@ -460,9 +460,9 @@
         "essop10": 8
       },
       "notes": [
-        "INT0 位于 PA0。",
-        "比较器结果可输出到 PA0。",
-        "LPWMG0 可输出到 PA0。"
+        "INT0 on PA0.",
+        "Comparator result can output on PA0.",
+        "LPWMG0 can output on PA0."
       ]
     }
   },
@@ -481,7 +481,7 @@
         "LVDC"
       ],
       "notes": [
-        "实际项目里请配合本地 datasheet 或已入库文档使用。"
+        "Use in conjunction with local datasheet or ingested documentation in real projects."
       ]
     }
   ],
@@ -495,16 +495,16 @@
   ],
   "source_modules": [],
   "notes": [
-    "PMB180 与 PMB180B 共用同一份手册，封装和引脚排列一致。",
-    "PMB180B 相比旧版 PMB180 增加充电完成状态位，并修正 VCC_Pin 浮空微漏电问题。",
-    "Timer16、TM2 PWM、LPWMG、LVDC、充电配置、GPC comparator 已接入工具层。",
-    "LPWMG0/1/2 共享频率寄存器，适合由工具统一搜索共享周期后再落到单通道输出。",
-    "LVDC 阈值范围为 1.85V~5.0V，步进 0.05V；仅支持软件轮询，不支持中断和唤醒；充电中内部检测通常比实际电池电压高约 0.15V。",
-    "5V 输入判定不能只看 CHG_TEMP.4，必须同时满足 CHG_TEMP.4 && CHG_TEMP.3。",
-    "PMB180 老版本判满需结合 CHG_CTRL.0、V400_FG 和持续时间；4V以上延时规则按 500mAh/小时下限估算。",
-    "PMB180B 的 CHG_TEMP.1 语义按实测修正为高电平=充电中、低电平=充电完成，应广资料常写反。",
-    "充电电流当前支持 50/100/200/250/300/350/400/500mA 八档，CHG_CTRL.0 与 CHG_TEMP[4:3] 可用于状态判读。",
-    "看门狗由 ILRC 驱动，可选 8k/16k/64k/256k ILRC 周期。",
-    "当前手册未体现 ADC 资源。"
+    "PMB180 and PMB180B share the same datasheet; package and pinout are identical.",
+    "PMB180B adds charge-complete status bit vs. legacy PMB180 and fixes VCC_Pin floating micro-leakage.",
+    "Timer16, TM2 PWM, LPWMG, LVDC, charger config, GPC comparator are wired into tool layer.",
+    "LPWMG0/1/2 share frequency registers; tools should search for a shared period first, then assign per-channel output.",
+    "LVDC threshold range: 1.85V~5.0V, step 0.05V; software poll only, no interrupt/wakeup. Internal detection reads ~0.15V above actual battery during charging.",
+    "5V input detection: must check CHG_TEMP.4 && CHG_TEMP.3, not CHG_TEMP.4 alone.",
+    "PMB180 (rev 0) full-charge detection needs CHG_CTRL.0, V400_FG, and duration; 4V+ delay rule estimated at 500mAh/hour minimum.",
+    "PMB180B CHG_TEMP.1 measured semantics: high=charging, low=complete. Padauk documentation often reversed.",
+    "Charge current: 8 levels (50/100/200/250/300/350/400/500mA). CHG_CTRL.0 and CHG_TEMP[4:3] for status decoding.",
+    "Watchdog driven by ILRC; options: 8k/16k/64k/256k ILRC cycles.",
+    "Datasheet does not indicate ADC resources."
   ]
 }

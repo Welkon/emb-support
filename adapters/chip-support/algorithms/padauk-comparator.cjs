@@ -103,14 +103,14 @@ module.exports = {
         candidates: candidates.slice(0, 8)
       },
       notes: [
-        `${params.chip || 'target'} 比较器正输入支持: ${Object.keys(params.positive_sources || {}).join(', ')}`,
-        `负输入支持: ${Object.keys(params.negative_sources || {}).join(', ')}`,
+        `${params.chip || 'target'} comparator positive inputs: ${Object.keys(params.positive_sources || {}).join(', ')}`,
+        `Negative inputs: ${Object.keys(params.negative_sources || {}).join(', ')}`,
         charging && chargingBias > 0
-          ? `充电状态下内部 bandgap/参考检测值可能比实际电池电压高约 ${chargingBias}V；当前结果未自动改写阈值，只给出风险提示。`
-          : '默认未启用充电偏移提示。',
+          ? `During charging, internal bandgap/reference may read ~${chargingBias}V above actual battery voltage; result not auto-adjusted, warning only.`
+          : 'Charging offset warning not enabled by default.',
         params.bandgap_wakeup_supported === false
-          ? 'bandgap 不支持比较器唤醒。'
-          : 'bandgap 唤醒支持取决于器件配置。'
+          ? 'Bandgap does not support comparator wakeup.'
+          : 'Bandgap wakeup support depends on device configuration.'
       ]
     };
   }

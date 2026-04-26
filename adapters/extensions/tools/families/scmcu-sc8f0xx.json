@@ -23,7 +23,7 @@
     "fhsi"
   ],
   "notes": [
-    "当前第二套真实适配先覆盖 SC8F072。",
-    "TMR0 为 8-bit 定时器，10-bit PWM 为独立模块，不依附于 TMR0/TMR2。"
+    "Second real adapter initially covers SC8F072.",
+    "TMR0 is an 8-bit timer; 10-bit PWM is an independent module, not tied to TMR0/TMR2."
   ]
 }

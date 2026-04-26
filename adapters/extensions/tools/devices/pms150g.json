@@ -134,7 +134,7 @@
     },
     "adc-scale": {
       "algorithm": "unsupported",
-      "reason": "PMS150G 只有 Timer16、TM2 和 Comparator，没有 ADC。"
+      "reason": "PMS150G only has Timer16, TM2, and Comparator; no ADC."
     }
   },
   "notes": [
