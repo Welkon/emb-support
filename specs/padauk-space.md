@@ -7,7 +7,7 @@ priority: 64
 ---
 # Padauk Space
 
-Use this spec for Padauk or 应广 firmware projects that must obey Mini-C or simplified-C style constraints.
+Use this spec for Padauk firmware projects that must obey Mini-C or simplified-C style constraints.
 
 Pair it with `embedded-space` when you also want the generic ROM-first embedded rules.
 
