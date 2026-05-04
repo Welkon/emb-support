@@ -23,6 +23,17 @@
         "short_description": "Control Tek scopes and capture waveform data",
         "default_prompt": "Use $tektronix-scope to connect to a Tektronix oscilloscope, query its state, and capture a waveform to CSV."
       }
+    },
+    {
+      "name": "altium-pcb",
+      "path": "./altium-pcb",
+      "description": "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, prepare Altium MCP live-apply commands, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise.",
+      "short_description": "Operate on Altium PCB layout artifacts",
+      "interface": {
+        "display_name": "Altium PCB",
+        "short_description": "Operate on Altium PCB layout artifacts",
+        "default_prompt": "Use $altium-pcb to plan conservative PCB component placement, apply it to safe PcbDoc copies, or prepare Altium MCP live-apply commands."
+      }
     }
   ]
 }
