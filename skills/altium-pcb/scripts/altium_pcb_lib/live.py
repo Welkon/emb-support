@@ -14,7 +14,7 @@ from .common import *
 from .mcp import (
     altium_bridge_batch_position_request,
     altium_bridge_request,
-    export_altium_mcp_tool_calls,
+    export_altium_live_tool_calls,
     mcp_batch_position_call,
     mcp_jsonrpc_request,
 )
@@ -160,7 +160,7 @@ def build_live_preflight(plan: Dict[str, Any], live_data: Any, options: Dict[str
         )
         item["offset_error_mil"] = round(error, 3)
 
-    export = export_altium_mcp_tool_calls(
+    export = export_altium_live_tool_calls(
         plan,
         {
             "locked": locked_refs,
@@ -383,7 +383,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
             "ai_review_required": not allow_unreviewed,
             "allow_unreviewed_ai_review": allow_unreviewed,
             "coordinate_policy": coordinate_policy,
-            "actual_execution": "not performed by this helper; execute batch_bridge_request through the embedded Altium live backend, or use jsonrpc_requests for MCP-compatible clients",
+            "actual_execution": "not performed by this helper; execute batch_bridge_request through the embedded Altium live scripts, or use jsonrpc_requests for MCP-compatible clients",
         },
         "coordinate_transform": preflight.get("coordinate_transform"),
         "warnings": warnings,
@@ -397,7 +397,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
         "preflight_skipped": preflight_skipped,
         "next_steps": [
             "Review live_apply.tool_calls and anchor calibration one last time.",
-            "Prefer batch_bridge_request with the embedded backend set_component_positions command; otherwise execute bridge_requests sequentially.",
+            "Prefer batch_bridge_request with the embedded live set_component_positions command; otherwise execute bridge_requests sequentially.",
             "Refresh get_all_component_data after execution and compare final coordinates before routing or DRC.",
         ],
     }

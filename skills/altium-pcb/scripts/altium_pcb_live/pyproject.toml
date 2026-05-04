@@ -1,7 +1,7 @@
 [project]
-name = "altium-pcb-live-backend"
+name = "altium-pcb-live-scripts"
 version = "0.1.0"
-description = "Embedded Altium live backend for the altium-pcb skill"
+description = "Embedded Altium live scripts for the altium-pcb skill"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

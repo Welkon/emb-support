@@ -23,7 +23,7 @@ def ai_review_export_summary(review: Any) -> Dict[str, Any]:
     }
 
 
-def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+def export_altium_live_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
     locked_refs = {normalize_ref(item) for item in make_list(options.get("locked")) if normalize_ref(item)}
     include_unresolved = bool(options.get("include_unresolved"))
     include_rotation = bool(options.get("include_rotation"))
@@ -116,11 +116,15 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
         "tool_calls": tool_calls,
         "skipped": skipped,
         "next_steps": [
-            "Run the embedded live backend get_all_component_data on the live board before applying these calls.",
+            "Run the embedded live get_all_component_data command on the live board before applying these calls.",
             "Calibrate board-origin offset with fixed anchors, especially locked components and connectors.",
             "Apply set_component_position calls only after confirming locked components and unresolved collisions remain skipped.",
         ],
     }
+
+
+def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    return export_altium_live_tool_calls(plan, options)
 
 
 def mcp_jsonrpc_request(call: Dict[str, Any], request_id: int) -> Dict[str, Any]:

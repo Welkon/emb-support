@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .common import *
 from .live import build_live_apply, build_live_preflight
-from .mcp import export_altium_mcp_tool_calls
+from .mcp import export_altium_live_tool_calls
 from .pcbdoc import apply_placement_plan_to_pcbdoc
 from .planner import build_placement_plan
 
@@ -21,25 +21,24 @@ def skill_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def command_backend_info(args: argparse.Namespace) -> Dict[str, Any]:
+def command_live_info(args: argparse.Namespace) -> Dict[str, Any]:
     root = skill_root()
-    backend = root / "backends" / "altium_mcp"
-    server = backend / "server"
+    live_root = root / "scripts" / "altium_pcb_live"
+    server = live_root / "server"
     script_project = server / "AltiumScript" / "Altium_API.PrjScr"
-    start_server = backend / "start_server.py"
+    start_server = live_root / "start_server.py"
     return {
-        "command": "altium-pcb backend-info",
-        "backend": {
+        "command": "altium-pcb live-info",
+        "live": {
             "name": "altium-pcb-live",
             "absorbed_from": "altium-mcp",
-            "root": str(backend),
+            "root": str(live_root),
             "start_server": str(start_server),
             "server_main": str(server / "main.py"),
             "script_project": str(script_project),
             "script_dir": str(script_project.parent),
-            "license": str(backend / "LICENSE"),
             "exists": {
-                "backend": backend.exists(),
+                "live_root": live_root.exists(),
                 "start_server": start_server.exists(),
                 "server_main": (server / "main.py").exists(),
                 "script_project": script_project.exists(),
@@ -86,7 +85,7 @@ def command_apply(args: argparse.Namespace) -> Dict[str, Any]:
 
 def command_export_mcp(args: argparse.Namespace) -> Dict[str, Any]:
     plan = unwrap_placement_plan(read_json(Path(args.plan)))
-    exported = export_altium_mcp_tool_calls(
+    exported = export_altium_live_tool_calls(
         plan,
         {
             "locked": parse_locked(args.locked),
@@ -149,8 +148,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Conservative Altium PCB layout helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    backend_info = subparsers.add_parser("backend-info", help="show embedded Altium live backend paths")
-    backend_info.set_defaults(func=command_backend_info)
+    live_info = subparsers.add_parser("live-info", help="show embedded Altium live script paths")
+    live_info.set_defaults(func=command_live_info)
 
     plan = subparsers.add_parser("plan", help="generate a placement plan from parsed board layout JSON")
     plan.add_argument("--parsed", required=True, help="Path to analysis.board-layout.json from emb-agent ingest board")
@@ -183,7 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
         export_parser.set_defaults(func=command_export_mcp)
     preflight_live = subparsers.add_parser("preflight-live", help="calibrate embedded live placement calls against live component data")
     preflight_live.add_argument("--plan", required=True, help="Placement plan JSON path")
-    preflight_live.add_argument("--live-components", required=True, help="JSON output from embedded backend get_all_component_data")
+    preflight_live.add_argument("--live-components", required=True, help="JSON output from embedded live get_all_component_data")
     preflight_live.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
     preflight_live.add_argument("--anchor", default="", help="Comma-separated fixed designators to use as coordinate anchors")
     preflight_live.add_argument("--tolerance-mil", type=float, default=10.0, help="Maximum allowed anchor offset disagreement")

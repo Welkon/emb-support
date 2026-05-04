@@ -1,6 +1,6 @@
 ---
 name: "altium-pcb"
-description: "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, run the embedded Altium live backend, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise."
+description: "Operate on Altium PCB layout artifacts from parsed board evidence. Use when needs to plan or apply conservative PcbDoc component placement, run the embedded Altium live scripts, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise."
 metadata:
   short-description: "Operate on Altium PCB layout artifacts"
 ---
@@ -11,7 +11,7 @@ metadata:
 
 Use the bundled Python helper for Altium PCB-side layout automation. Keep emb-agent core read-only: use core board ingestion to create board evidence, then use this skill for CAD operations.
 
-The skill absorbs the live Altium bridge capability from `altium-mcp`. The embedded backend lives at `backends/altium_mcp/` and includes the Python bridge server plus the Altium DelphiScript project under `server/AltiumScript/`.
+The skill absorbs the live Altium bridge capability from `altium-mcp`. The embedded live scripts live under `scripts/altium_pcb_live/` and include the Python bridge server plus the Altium DelphiScript project under `server/AltiumScript/`.
 
 The helper is conservative by design:
 
@@ -69,15 +69,15 @@ Use `--in-place --confirm` only when the user explicitly asks to overwrite the o
 
 The deterministic score is not the final quality decision. It is a hard-gate and ranking signal for the AI review.
 
-5. Inspect the embedded live backend paths when live Altium execution is needed:
+5. Inspect the embedded live script paths when live Altium execution is needed:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py backend-info
+python3 .codex/skills/altium-pcb/scripts/altium_pcb.py live-info
 ```
 
 The returned `start_command` starts the bundled Python bridge. The returned `script_project` is the Altium script project used by the bridge.
 
-6. To prepare live Altium execution through the embedded backend, export accepted placement calls instead of applying directly:
+6. To prepare live Altium execution through the embedded scripts, export accepted placement calls instead of applying directly:
 
 ```bash
 python3 .codex/skills/altium-pcb/scripts/altium_pcb.py export-live \
@@ -99,7 +99,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py preflight-live \
   --output .emb-agent/cache/boards/placement.live-preflight.json
 ```
 
-`--live-components` must be JSON saved from the embedded backend `get_all_component_data` command. If `--anchor` is omitted, the helper uses locked and connector fixed components from the placement plan.
+`--live-components` must be JSON saved from the embedded live `get_all_component_data` command. If `--anchor` is omitted, the helper uses locked and connector fixed components from the placement plan.
 
 8. Prepare a final live apply bundle after reviewing the preflight:
 
@@ -111,7 +111,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
   --output .emb-agent/cache/boards/placement.live-apply.json
 ```
 
-`apply-live` is emit-only: it does not directly contact Altium. It refuses blocked preflights, requires `--allow-warnings` for `ready-with-warnings`, and emits both native `batch_bridge_request` / `bridge_requests` for the embedded backend and MCP-compatible JSON-RPC requests.
+`apply-live` is emit-only: it does not directly contact Altium. It refuses blocked preflights, requires `--allow-warnings` for `ready-with-warnings`, and emits both native `batch_bridge_request` / `bridge_requests` for the embedded live scripts and MCP-compatible JSON-RPC requests.
 
 ## Rules
 
@@ -121,7 +121,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
 - Do not apply a plan with unresolved collisions unless the user explicitly accepts that risk; the helper skips unresolved placements during apply.
 - Do not export or live-apply AI-review-pending placements unless the user explicitly asks for `--allow-unreviewed` experimentation.
 - AI review may reject a candidate for poor engineering intent, but it must not override hard gates: board outline, locked components, live locks, and unresolved collisions remain deterministic blockers.
-- Do not execute live output against a live Altium board until fixed anchor coordinates have been compared against embedded backend `get_all_component_data`; board-origin offsets can differ.
+- Do not execute live output against a live Altium board until fixed anchor coordinates have been compared against embedded live `get_all_component_data`; board-origin offsets can differ.
 - Do not execute live calls from `apply-live` unless the intended Altium board is open and the preflight anchor offsets match that same board.
 - Run Altium DRC and a mechanical review after any placement apply.
 - If `board.bounds` is missing from the parsed layout, treat output as advisory and avoid writing a board file unless the user accepts manual review.
@@ -155,10 +155,10 @@ Inspect a plan summary without writing:
 python3 scripts/altium_pcb.py plan --parsed analysis.board-layout.json
 ```
 
-Show embedded live backend paths:
+Show embedded live script paths:
 
 ```bash
-python3 scripts/altium_pcb.py backend-info
+python3 scripts/altium_pcb.py live-info
 ```
 
 Export a reviewed placement plan for embedded live execution:

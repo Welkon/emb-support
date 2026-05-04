@@ -47,7 +47,7 @@ REQUEST_FILE = EXCHANGE_DIR / "request.json"
 RESPONSE_FILE = EXCHANGE_DIR / "response.json"
 
 # Initialize FastMCP server
-mcp = FastMCP("AltiumPCB", description="Embedded Altium live backend for the altium-pcb skill")
+mcp = FastMCP("AltiumPCB", description="Embedded Altium live scripts for the altium-pcb skill")
 
 class AltiumConfig:
     def __init__(self):
