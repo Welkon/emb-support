@@ -83,7 +83,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
   --output .emb-agent/cache/boards/placement.live-apply.json
 ```
 
-`apply-live` is emit-only: it does not directly contact Altium. It refuses blocked preflights, requires `--allow-warnings` for `ready-with-warnings`, and emits sequential `altium-mcp` `tools/call` JSON-RPC requests for the reviewed board.
+`apply-live` is emit-only: it does not directly contact Altium. It refuses blocked preflights, requires `--allow-warnings` for `ready-with-warnings`, and emits both a `set_component_positions` batch request and sequential `set_component_position` fallback requests for the reviewed board.
 
 ## Rules
 

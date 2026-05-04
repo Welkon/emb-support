@@ -1566,6 +1566,28 @@ def mcp_jsonrpc_request(call: Dict[str, Any], request_id: int) -> Dict[str, Any]
     }
 
 
+def mcp_batch_position_call(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
+    positions = []
+    for call in calls:
+        arguments = call.get("arguments") or {}
+        positions.append(
+            {
+                "designator": arguments.get("cmp_designator", ""),
+                "x": arguments.get("x"),
+                "y": arguments.get("y"),
+                "rotation": arguments.get("rotation", -1),
+            }
+        )
+    return {
+        "tool": "set_component_positions",
+        "arguments": {
+            "positions": positions,
+            "skip_if_locked": True,
+            "stop_on_error": False,
+        },
+    }
+
+
 def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
     status = ensure_string(preflight.get("status"))
     allow_warnings = bool(options.get("allow_warnings"))
@@ -1632,6 +1654,8 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
 
     preflight_skipped = make_list(export.get("skipped"))
     jsonrpc_requests = [mcp_jsonrpc_request(call, index + 1) for index, call in enumerate(executable_calls)]
+    batch_tool_call = mcp_batch_position_call(executable_calls) if executable_calls else None
+    batch_jsonrpc_request = mcp_jsonrpc_request(batch_tool_call, 1) if batch_tool_call else None
     warnings = list(make_list(preflight.get("warnings")))
     if limited:
         warnings.append("live apply bundle was limited by --limit")
@@ -1648,6 +1672,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
             "preflight_status": status,
             "requested_tool_calls": len(requested_calls),
             "executable_tool_calls": len(executable_calls),
+            "batch_tool_calls": 1 if batch_tool_call else 0,
             "skipped_before_apply": len(preflight_skipped),
             "skipped_in_apply": len(skipped),
             "warnings": len(warnings),
@@ -1659,17 +1684,19 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
             "locked_components_fixed": True,
             "additional_locked_refs": sorted(locked_refs),
             "coordinate_policy": coordinate_policy,
-            "actual_execution": "not performed by this helper; execute jsonrpc_requests or tool_calls through the MCP client",
+            "actual_execution": "not performed by this helper; execute batch_jsonrpc_request, jsonrpc_requests, or tool_calls through the MCP client",
         },
         "coordinate_transform": preflight.get("coordinate_transform"),
         "warnings": warnings,
         "tool_calls": executable_calls,
         "jsonrpc_requests": jsonrpc_requests,
+        "batch_tool_call": batch_tool_call,
+        "batch_jsonrpc_request": batch_jsonrpc_request,
         "skipped": skipped,
         "preflight_skipped": preflight_skipped,
         "next_steps": [
             "Review live_apply.tool_calls and anchor calibration one last time.",
-            "Execute the JSON-RPC requests sequentially through an MCP client connected to the intended Altium board.",
+            "Prefer batch_jsonrpc_request when the MCP server supports set_component_positions; otherwise execute jsonrpc_requests sequentially.",
             "Refresh get_all_component_data after execution and compare final coordinates before routing or DRC.",
         ],
     }
