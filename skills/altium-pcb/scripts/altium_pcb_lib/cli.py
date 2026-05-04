@@ -53,6 +53,7 @@ def command_export_mcp(args: argparse.Namespace) -> Dict[str, Any]:
             "locked": parse_locked(args.locked),
             "include_unresolved": args.include_unresolved,
             "include_rotation": args.include_rotation,
+            "allow_unreviewed": args.allow_unreviewed,
         },
     )
     if args.output:
@@ -73,6 +74,7 @@ def command_preflight_live(args: argparse.Namespace) -> Dict[str, Any]:
             "tolerance_mil": args.tolerance_mil,
             "include_unresolved": args.include_unresolved,
             "include_rotation": args.include_rotation,
+            "allow_unreviewed": args.allow_unreviewed,
         },
     )
     if args.output:
@@ -90,6 +92,7 @@ def command_apply_live(args: argparse.Namespace) -> Dict[str, Any]:
             "allow_warnings": args.allow_warnings,
             "confirm": args.confirm,
             "limit": args.limit,
+            "allow_unreviewed": args.allow_unreviewed,
         },
     )
     if args.output:
@@ -126,6 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     export_mcp.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
     export_mcp.add_argument("--include-unresolved", action="store_true", help="Include placements with unresolved collisions")
     export_mcp.add_argument("--include-rotation", action="store_true", help="Send plan rotation instead of keeping live rotation")
+    export_mcp.add_argument("--allow-unreviewed", action="store_true", help="Export placements without accepted AI layout review")
     export_mcp.add_argument("--output", default="", help="Write altium-mcp tool-call JSON to this path")
     export_mcp.set_defaults(func=command_export_mcp)
 
@@ -137,6 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     preflight_live.add_argument("--tolerance-mil", type=float, default=10.0, help="Maximum allowed anchor offset disagreement")
     preflight_live.add_argument("--include-unresolved", action="store_true", help="Include placements with unresolved collisions")
     preflight_live.add_argument("--include-rotation", action="store_true", help="Send plan rotation instead of keeping live rotation")
+    preflight_live.add_argument("--allow-unreviewed", action="store_true", help="Preflight placements without accepted AI layout review")
     preflight_live.add_argument("--output", default="", help="Write calibrated preflight JSON to this path")
     preflight_live.set_defaults(func=command_preflight_live)
 
@@ -146,6 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_live.add_argument("--allow-warnings", action="store_true", help="Allow ready-with-warnings preflight status")
     apply_live.add_argument("--limit", type=int, default=0, help="Limit emitted tool calls; 0 means no limit")
     apply_live.add_argument("--confirm", action="store_true", help="Mark the emitted bundle as reviewed and ready to execute")
+    apply_live.add_argument("--allow-unreviewed", action="store_true", help="Emit live calls without accepted AI layout review")
     apply_live.add_argument("--output", default="", help="Write live apply bundle JSON to this path")
     apply_live.set_defaults(func=command_apply_live)
     return parser

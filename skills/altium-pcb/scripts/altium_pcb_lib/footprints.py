@@ -101,7 +101,9 @@ def layer_key(value: Any) -> str:
 def is_through_hole_like(component: Dict[str, Any]) -> bool:
     footprint = ensure_string(component.get("footprint"))
     role = component_role(component)
-    return role == "connector" or bool(re.search(r"\b(?:XH|PH|ZH|HEADER|HDR|CONN|CONNECTOR|DIP|SIP|TH|PTH|VS)\b", footprint, re.I))
+    return role == "connector" or bool(
+        re.search(r"(?:USB|TYPE[-_ ]?C|MICRO[-_ ]?USB|\bXH\b|\bPH\b|\bZH\b|\bHEADER\b|\bHDR\b|\bCONN\b|\bCONNECTOR\b|\bDIP\b|\bSIP\b|\bTH\b|\bPTH\b|\bVS\b)", footprint, re.I)
+    )
 
 
 def collision_layers(component: Dict[str, Any]) -> List[str]:

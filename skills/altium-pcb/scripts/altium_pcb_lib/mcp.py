@@ -13,10 +13,21 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from .common import *
 
 
+def ai_review_export_summary(review: Any) -> Dict[str, Any]:
+    if not isinstance(review, dict):
+        return {}
+    return {
+        key: review.get(key)
+        for key in ["required", "status", "decision", "score", "reason", "reviewed_by", "reviewed_at"]
+        if key in review
+    }
+
+
 def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
     locked_refs = {normalize_ref(item) for item in make_list(options.get("locked")) if normalize_ref(item)}
     include_unresolved = bool(options.get("include_unresolved"))
     include_rotation = bool(options.get("include_rotation"))
+    allow_unreviewed = bool(options.get("allow_unreviewed"))
     tool_calls = []
     skipped = []
 
@@ -32,6 +43,13 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
             continue
         if placement.get("collision_status") == "unresolved" and not include_unresolved:
             skipped.append({"designator": designator, "reason": "collision-unresolved"})
+            continue
+        review = placement.get("ai_review") or {}
+        if ai_review_rejected(review):
+            skipped.append({"designator": designator, "reason": "ai-review-rejected", "ai_review": ai_review_export_summary(review)})
+            continue
+        if ai_review_required(review) and not ai_review_accepted(review) and not allow_unreviewed:
+            skipped.append({"designator": designator, "reason": "ai-review-required", "ai_review": ai_review_export_summary(review)})
             continue
 
         x_mil = mm_to_mil(suggested_center.get("x_mm"))
@@ -59,6 +77,8 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
                     "delta": placement.get("delta"),
                     "collision_status": placement.get("collision_status", ""),
                     "confidence": placement.get("confidence", ""),
+                    "deterministic_score": placement.get("deterministic_score"),
+                    "ai_review": ai_review_export_summary(placement.get("ai_review")),
                 },
             }
         )
@@ -80,6 +100,8 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
             "board_outline_fixed": True,
             "locked_components_fixed": True,
             "skip_unresolved_collisions": not include_unresolved,
+            "ai_review_required": not allow_unreviewed,
+            "allow_unreviewed_ai_review": allow_unreviewed,
             "rotation_policy": "from-plan" if include_rotation else "keep-current",
         },
         "summary": {

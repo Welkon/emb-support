@@ -17,6 +17,7 @@ The helper is conservative by design:
 - It treats explicit `--locked` refs, PCB locked components, and connectors as fixed anchors by default.
 - It estimates footprint envelopes from pads, component body model names, footprint names, and role fallbacks.
 - It avoids same-side envelope overlap and clips suggestions to recognized board bounds.
+- It emits deterministic placement scores and requires AI layout-intent review before live export/apply by default.
 - It applies `.PcbDoc` edits only by equal-length `X`/`Y` field replacement in `Components6/Data`.
 - It never modifies board outline, pads, nets, or routing.
 
@@ -49,7 +50,23 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply \
 
 Use `--in-place --confirm` only when the user explicitly asks to overwrite the original `.PcbDoc`.
 
-4. To prepare live Altium execution through `altium-mcp`, export reviewed placement calls instead of applying directly:
+4. Review `placement_plan.placements[].ai_review.review_prompt`. Mark a placement accepted only after AI layout-intent review passes:
+
+```json
+{
+  "ai_review": {
+    "required": true,
+    "status": "accepted",
+    "decision": "accepted",
+    "score": 82,
+    "reason": "Functional placement is acceptable after review"
+  }
+}
+```
+
+The deterministic score is not the final quality decision. It is a hard-gate and ranking signal for the AI review.
+
+5. To prepare live Altium execution through `altium-mcp`, export accepted placement calls instead of applying directly:
 
 ```bash
 python3 .codex/skills/altium-pcb/scripts/altium_pcb.py export-mcp \
@@ -58,9 +75,9 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py export-mcp \
   --output .emb-agent/cache/boards/placement.altium-mcp.json
 ```
 
-Treat this output as a reviewed command bundle. Run live preflight against Altium before executing the calls.
+`export-mcp` skips pending/rejected AI review placements by default. Use `--allow-unreviewed` only for controlled experiments; it cannot override unresolved collisions unless `--include-unresolved` is also explicitly passed. Run live preflight against Altium before executing the calls.
 
-5. Calibrate the exported live calls against component coordinates read from the currently open Altium board:
+6. Calibrate the exported live calls against component coordinates read from the currently open Altium board:
 
 ```bash
 python3 .codex/skills/altium-pcb/scripts/altium_pcb.py preflight-live \
@@ -73,7 +90,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py preflight-live \
 
 `--live-components` must be JSON saved from `altium-mcp get_all_component_data`. If `--anchor` is omitted, the helper uses locked and connector fixed components from the placement plan.
 
-6. Prepare a final live apply bundle after reviewing the preflight:
+7. Prepare a final live apply bundle after reviewing the preflight:
 
 ```bash
 python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
@@ -91,6 +108,8 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
 - Do not move components listed in `--locked` or components marked locked in the PCB.
 - Do not change board outline, existing routing, pads, nets, tracks, vias, or text.
 - Do not apply a plan with unresolved collisions unless the user explicitly accepts that risk; the helper skips unresolved placements during apply.
+- Do not export or live-apply AI-review-pending placements unless the user explicitly asks for `--allow-unreviewed` experimentation.
+- AI review may reject a candidate for poor engineering intent, but it must not override hard gates: board outline, locked components, live locks, and unresolved collisions remain deterministic blockers.
 - Do not execute `export-mcp` output against a live Altium board until fixed anchor coordinates have been compared against `altium-mcp get_all_component_data`; board-origin offsets can differ.
 - Do not execute live calls from `apply-live` unless the intended Altium board is open and the preflight anchor offsets match that same board.
 - Run Altium DRC and a mechanical review after any placement apply.

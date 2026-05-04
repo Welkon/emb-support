@@ -66,7 +66,7 @@ def plan_point_mil(point: Optional[Dict[str, Any]]) -> Optional[Dict[str, float]
 
 
 def live_component_locked(component: Dict[str, Any]) -> bool:
-    for key in ["locked", "is_locked", "isLocked", "primitives_locked", "primitivesLocked"]:
+    for key in ["locked", "is_locked", "isLocked"]:
         if truthy_locked_value(component.get(key)):
             return True
     return False
@@ -160,6 +160,7 @@ def build_live_preflight(plan: Dict[str, Any], live_data: Any, options: Dict[str
             "locked": locked_refs,
             "include_unresolved": bool(options.get("include_unresolved")),
             "include_rotation": bool(options.get("include_rotation")),
+            "allow_unreviewed": bool(options.get("allow_unreviewed")),
         },
     )
 
@@ -259,6 +260,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
     allow_warnings = bool(options.get("allow_warnings"))
     confirmed = bool(options.get("confirm"))
     limit = int(options.get("limit") or 0)
+    allow_unreviewed = bool(options.get("allow_unreviewed"))
     locked_refs = {normalize_ref(item) for item in parse_locked(options.get("locked", ""))}
 
     if status == "blocked":
@@ -277,6 +279,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
     executable_calls = []
     skipped = []
     limited = False
+    allowed_unreviewed = 0
     for call in requested_calls:
         if not isinstance(call, dict):
             skipped.append({"designator": "", "reason": "invalid-tool-call"})
@@ -294,6 +297,15 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
         if ref in locked_refs:
             skipped.append({"designator": designator, "reason": "locked"})
             continue
+        review = ((call.get("source") or {}).get("ai_review")) or {}
+        if ai_review_rejected(review):
+            skipped.append({"designator": designator, "reason": "ai-review-rejected", "ai_review": review})
+            continue
+        if ai_review_required(review) and not ai_review_accepted(review):
+            if not allow_unreviewed:
+                skipped.append({"designator": designator, "reason": "ai-review-required", "ai_review": review})
+                continue
+            allowed_unreviewed += 1
         if not is_finite_number(arguments.get("x")) or not is_finite_number(arguments.get("y")):
             skipped.append({"designator": designator, "reason": "invalid-coordinate"})
             continue
@@ -325,13 +337,23 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
     warnings = list(make_list(preflight.get("warnings")))
     if limited:
         warnings.append("live apply bundle was limited by --limit")
+    if allowed_unreviewed:
+        warnings.append("live apply bundle includes placements without accepted AI layout review")
+    if not executable_calls:
+        warnings.append("no executable live calls emitted")
     if not confirmed:
         warnings.append("dry run only; rerun with --confirm after review to mark the bundle executable")
+
+    output_status = "dry-run"
+    if confirmed and executable_calls:
+        output_status = "ready-to-execute"
+    elif confirmed:
+        output_status = "no-executable-calls"
 
     return {
         "version": 1,
         "backend": "altium-mcp",
-        "status": "ready-to-execute" if confirmed else "dry-run",
+        "status": output_status,
         "execution_mode": "emit-only",
         "confirmed": confirmed,
         "summary": {
@@ -349,6 +371,8 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
             "board_outline_fixed": True,
             "locked_components_fixed": True,
             "additional_locked_refs": sorted(locked_refs),
+            "ai_review_required": not allow_unreviewed,
+            "allow_unreviewed_ai_review": allow_unreviewed,
             "coordinate_policy": coordinate_policy,
             "actual_execution": "not performed by this helper; execute batch_jsonrpc_request, jsonrpc_requests, or tool_calls through the MCP client",
         },

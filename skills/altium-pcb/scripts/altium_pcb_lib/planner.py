@@ -77,6 +77,130 @@ def placement_reason(role: str, anchor_weighted: List[Dict[str, Any]], neighbor_
     return "keep current position; no useful placement anchor was recognized"
 
 
+def deterministic_placement_score(
+    role: str,
+    old_center: Optional[Dict[str, Any]],
+    next_center: Optional[Dict[str, Any]],
+    resolved: Dict[str, Any],
+    envelope: Dict[str, Any],
+    anchor_weighted: List[Dict[str, Any]],
+    neighbor_weighted: List[Dict[str, Any]],
+    board_bounds: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    penalties = []
+
+    def add_penalty(name: str, value: float, reason: str) -> None:
+        if value <= 0:
+            return
+        penalties.append({"name": name, "points": round(float(value), 1), "reason": reason})
+
+    move_distance = distance(old_center, next_center) or 0.0
+    envelope_confidence = ensure_string(envelope.get("confidence")) or "unknown"
+    hard_gates = {
+        "collision_clear": not bool(resolved.get("unresolved")),
+        "board_outline_known": bool(board_bounds),
+        "locked_components_fixed": True,
+        "component_envelope_known": bool(envelope.get("width_mm") and envelope.get("height_mm")),
+    }
+
+    if resolved.get("unresolved"):
+        add_penalty("collision", 80, "candidate still overlaps an occupied footprint envelope")
+    if not board_bounds:
+        add_penalty("missing-board-outline", 15, "candidate cannot be clipped to a recognized board outline")
+    if not anchor_weighted:
+        add_penalty("no-fixed-net-anchor", 12, "no fixed connected anchor was recognized")
+    if not neighbor_weighted:
+        add_penalty("no-net-neighbor", 8, "no connected neighbor position was recognized")
+    if envelope_confidence == "low":
+        add_penalty("low-envelope-confidence", 8, "footprint envelope came from low-confidence evidence")
+    if role in {"capacitor", "clock"} and not anchor_weighted:
+        add_penalty("role-anchor-missing", 10, "role normally needs a close fixed functional anchor")
+    if move_distance > 20:
+        add_penalty("large-move", min(30, (move_distance - 20) * 0.8 + 12), "candidate is far from the current local placement")
+    elif move_distance > 8:
+        add_penalty("medium-move", min(12, (move_distance - 8) * 0.5 + 4), "candidate changes local placement noticeably")
+
+    total = max(0.0, min(100.0, 100.0 - sum(float(item["points"]) for item in penalties)))
+    if not hard_gates["collision_clear"]:
+        band = "blocked"
+    elif total >= 80:
+        band = "high"
+    elif total >= 60:
+        band = "medium"
+    else:
+        band = "low"
+
+    return {
+        "total": round(total, 1),
+        "band": band,
+        "hard_gates": hard_gates,
+        "penalties": penalties,
+        "metrics": {
+            "move_distance_mm": round_mm(move_distance),
+            "anchor_count": len(anchor_weighted),
+            "neighbor_count": len(neighbor_weighted),
+            "envelope_confidence": envelope_confidence,
+            "collision_status": "unresolved" if resolved.get("unresolved") else "clear",
+        },
+        "note": "Deterministic geometry/connectivity score only; AI layout-intent review is still required before live apply.",
+    }
+
+
+def build_ai_review_request(
+    component: Dict[str, Any],
+    role: str,
+    old_center: Optional[Dict[str, Any]],
+    next_center: Optional[Dict[str, Any]],
+    score: Dict[str, Any],
+    anchor_weighted: List[Dict[str, Any]],
+    neighbor_weighted: List[Dict[str, Any]],
+    resolved: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "required": True,
+        "status": "pending",
+        "decision": "pending",
+        "score": None,
+        "reason": "AI layout-intent review required before export or live apply",
+        "review_prompt": {
+            "task": "Review this PCB placement candidate. Accept only if the move improves functional placement and preserves mechanical/DFM intent.",
+            "accept_only_if": [
+                "collision_status is clear and all hard_gates are satisfied",
+                "the component is near the correct functional anchors or connected neighbors",
+                "the move does not create an obviously poor routing path, awkward orientation, or mechanical conflict",
+                "keeping the original local placement is not better than the suggested move",
+            ],
+            "reject_if": [
+                "candidate is only a geometric escape point",
+                "USB, connector, switch, edge, mounting, or through-hole keepout intent looks violated",
+                "critical nets would become longer or cross functional blocks unnecessarily",
+            ],
+            "context": {
+                "designator": component.get("designator"),
+                "role": role,
+                "footprint": component.get("footprint", ""),
+                "old_center": old_center,
+                "suggested_center": next_center,
+                "deterministic_score": {"total": score.get("total"), "band": score.get("band")},
+                "anchors": unique(anchor["ref"] for anchor in anchor_weighted)[:8],
+                "neighbor_refs": unique(neighbor["ref"] for neighbor in neighbor_weighted)[:12],
+                "collision_status": "unresolved" if resolved.get("unresolved") else "clear",
+                "collision": resolved.get("collision"),
+            },
+        },
+    }
+
+
+def collision_summary(item: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not item:
+        return None
+    return {
+        "designator": item.get("designator", ""),
+        "bounds": item.get("bounds"),
+        "collision_layers": make_list(item.get("collision_layers")),
+    }
+
+
 def resolve_collision(
     point: Dict[str, Any],
     envelope: Dict[str, Any],
@@ -86,18 +210,23 @@ def resolve_collision(
     edge_margin_mm: float,
 ) -> Dict[str, Any]:
     candidate = clamp_to_bounds(point, board_bounds, edge_margin_mm, envelope) or clone_point(point)
-    for attempt in range(96):
-        candidate_bounds = bounds_for_center(candidate, envelope)
+    last_collision = None
+
+    def first_collision(center: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        candidate_bounds = bounds_for_center(center, envelope)
         candidate_occupancy = {"bounds": candidate_bounds, "collision_layers": envelope.get("collision_layers", [])}
-        collision = None
         for item in occupied:
             if layers_overlap(candidate_occupancy, item) and rects_overlap(
                 expand_bounds(candidate_bounds, clearance_mm), expand_bounds(item.get("bounds"), clearance_mm)
             ):
-                collision = item
-                break
+                return item, candidate_bounds
+        return None, candidate_bounds
+
+    for attempt in range(96):
+        collision, candidate_bounds = first_collision(candidate)
         if not collision:
             return {"center": candidate, "bounds": candidate_bounds, "collision": None, "unresolved": False}
+        last_collision = collision
         angle = attempt * 0.61803398875 * math.pi * 2
         step = clearance_mm + max(float(envelope.get("aabb_width_mm") or 0), float(envelope.get("aabb_height_mm") or 0)) / 2 + (attempt + 1) * 0.65
         candidate = clamp_to_bounds(
@@ -106,7 +235,54 @@ def resolve_collision(
             edge_margin_mm,
             envelope,
         ) or candidate
-    return {"center": candidate, "bounds": bounds_for_center(candidate, envelope), "collision": "unresolved", "unresolved": True}
+
+    grid_candidates = []
+    half_width = float(envelope.get("aabb_width_mm") or envelope.get("width_mm") or 0) / 2
+    half_height = float(envelope.get("aabb_height_mm") or envelope.get("height_mm") or 0) / 2
+    step = max(0.1, min(0.5, clearance_mm / 2))
+    if board_bounds:
+        min_x = float(board_bounds["min_x_mm"]) + edge_margin_mm + half_width
+        max_x = float(board_bounds["max_x_mm"]) - edge_margin_mm - half_width
+        min_y = float(board_bounds["min_y_mm"]) + edge_margin_mm + half_height
+        max_y = float(board_bounds["max_y_mm"]) - edge_margin_mm - half_height
+        if min_x <= max_x and min_y <= max_y:
+            y = min_y
+            while y <= max_y + 1e-9:
+                x = min_x
+                while x <= max_x + 1e-9:
+                    grid_candidates.append({"x_mm": round_mm(x), "y_mm": round_mm(y)})
+                    x += step
+                y += step
+    else:
+        radius = max(float(envelope.get("aabb_width_mm") or 0), float(envelope.get("aabb_height_mm") or 0), 4.0) * 2
+        min_x = float(point["x_mm"]) - radius
+        max_x = float(point["x_mm"]) + radius
+        min_y = float(point["y_mm"]) - radius
+        max_y = float(point["y_mm"]) + radius
+        y = min_y
+        while y <= max_y + 1e-9:
+            x = min_x
+            while x <= max_x + 1e-9:
+                grid_candidates.append({"x_mm": round_mm(x), "y_mm": round_mm(y)})
+                x += step
+            y += step
+
+    grid_candidates.sort(key=lambda candidate_point: distance(candidate_point, point) or 0)
+    for candidate_point in grid_candidates:
+        collision, candidate_bounds = first_collision(candidate_point)
+        if not collision:
+            return {"center": candidate_point, "bounds": candidate_bounds, "collision": None, "unresolved": False}
+
+    collision, candidate_bounds = first_collision(candidate)
+    if not collision:
+        return {"center": candidate, "bounds": candidate_bounds, "collision": None, "unresolved": False}
+    last_collision = collision
+    return {
+        "center": candidate,
+        "bounds": candidate_bounds,
+        "collision": collision_summary(last_collision),
+        "unresolved": True,
+    }
 
 
 def classify_components(components: List[Dict[str, Any]], locked_refs: set, anchor_connectors: bool) -> List[Dict[str, Any]]:
@@ -217,11 +393,33 @@ def build_placement_plan(parsed: Dict[str, Any], options: Dict[str, Any]) -> Dic
         resolved = resolve_collision(suggested, envelope, occupied, bounds, clearance_mm, edge_margin_mm)
         old_center = clone_point(component.get("center"))
         next_center = clone_point(resolved["center"])
+        deterministic_score = deterministic_placement_score(
+            item["role"],
+            old_center,
+            next_center,
+            resolved,
+            envelope,
+            anchor_weighted,
+            neighbor_weighted,
+            bounds,
+        )
+        ai_review = build_ai_review_request(
+            component,
+            item["role"],
+            old_center,
+            next_center,
+            deterministic_score,
+            anchor_weighted,
+            neighbor_weighted,
+            resolved,
+        )
+        occupied_center = old_center if resolved["unresolved"] else next_center
+        occupied_bounds = bounds_for_center(old_center, envelope) if resolved["unresolved"] else resolved["bounds"]
         occupied.append(
             {
                 "designator": component.get("designator"),
-                "center": next_center,
-                "bounds": resolved["bounds"],
+                "center": occupied_center,
+                "bounds": occupied_bounds,
                 "collision_layers": envelope.get("collision_layers", ["F"]),
             }
         )
@@ -250,7 +448,10 @@ def build_placement_plan(parsed: Dict[str, Any], options: Dict[str, Any]) -> Dic
                     "avoid-overlap-footprint-envelope",
                 ],
                 "collision_status": "unresolved" if resolved["unresolved"] else "clear",
+                "collision": resolved.get("collision"),
                 "confidence": "low" if resolved["unresolved"] else ("medium" if anchor_weighted else "low"),
+                "deterministic_score": deterministic_score,
+                "ai_review": ai_review,
             }
         )
 
@@ -268,6 +469,7 @@ def build_placement_plan(parsed: Dict[str, Any], options: Dict[str, Any]) -> Dic
             "board_outline_fixed": True,
             "locked_components_fixed": True,
             "requires_altium_review_before_apply": True,
+            "requires_ai_review_before_live_apply": True,
         },
         "constraints": {
             "board_bounds": bounds,
@@ -288,12 +490,15 @@ def build_placement_plan(parsed: Dict[str, Any], options: Dict[str, Any]) -> Dic
             "movable_components": len(movable),
             "placements": len(placements),
             "unresolved_collisions": len([item for item in placements if item["collision_status"] == "unresolved"]),
+            "ai_review_required": len([item for item in placements if ai_review_required(item.get("ai_review"))]),
+            "ai_review_pending": len([item for item in placements if ai_review_required(item.get("ai_review")) and not ai_review_accepted(item.get("ai_review"))]),
             "warnings": len(warnings),
         },
         "placements": placements,
         "warnings": warnings,
         "next_steps": [
             "Review placement_plan.placements before applying to a PCB editor.",
+            "Populate placement.ai_review.decision=accepted only after AI layout-intent review passes.",
             "Apply only to a copy unless the user explicitly accepts --in-place --confirm.",
             "Run DRC and manual mechanical review after any placement apply.",
         ],

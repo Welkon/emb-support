@@ -93,14 +93,14 @@ def component_role(component: Dict[str, Any]) -> str:
         ]
     )
     ref = ensure_string(component.get("designator"))
-    if re.match(r"^(?:U|IC|MCU)\d*", ref, re.I) or re.search(
+    if re.match(r"^(?:J|P|CN|CON|USB)(?:\d+|$)", ref, re.I) or re.search(r"(?:connector|header|usb)", text, re.I):
+        return "connector"
+    if re.match(r"^(?:U|IC|MCU)\d+", ref, re.I) or re.search(
         r"\b(?:mcu|microcontroller|stm32|sc8|pic|attiny|atmega|esp32)\b", text, re.I
     ):
         return "ic"
     if re.match(r"^C\d+", ref, re.I) or re.search(r"\b(?:capacitor|cap|\d+(?:\.\d+)?\s*(?:pf|nf|uf))\b", text, re.I):
         return "capacitor"
-    if re.match(r"^(?:J|P|CN|CON|USB)\d*", ref, re.I) or re.search(r"\b(?:connector|header|usb)\b", text, re.I):
-        return "connector"
     if re.match(r"^(?:Y|X)\d*", ref, re.I) or re.search(r"\b(?:crystal|oscillator|resonator)\b", text, re.I):
         return "clock"
     if re.match(r"^L\d+", ref, re.I) or re.search(r"\binductor\b", text, re.I):
@@ -204,3 +204,21 @@ def parse_json_text(value: str) -> Any:
         return json.loads(text)
     except json.JSONDecodeError:
         return None
+
+
+def ai_review_decision(review: Any) -> str:
+    if not isinstance(review, dict):
+        return ""
+    return ensure_string(review.get("decision") or review.get("status")).lower()
+
+
+def ai_review_required(review: Any) -> bool:
+    return isinstance(review, dict) and bool(review.get("required"))
+
+
+def ai_review_accepted(review: Any) -> bool:
+    return ai_review_decision(review) in {"accept", "accepted", "approve", "approved", "pass", "passed"}
+
+
+def ai_review_rejected(review: Any) -> bool:
+    return ai_review_decision(review) in {"reject", "rejected", "deny", "denied", "fail", "failed"}
