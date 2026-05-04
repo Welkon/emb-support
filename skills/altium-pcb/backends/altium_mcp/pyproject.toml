@@ -1,0 +1,11 @@
+[project]
+name = "altium-pcb-live-backend"
+version = "0.1.0"
+description = "Embedded Altium live backend for the altium-pcb skill"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]==1.5.0",
+    "pillow>=11.1.0",
+    "pywin32>=310",
+]

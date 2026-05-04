@@ -85,16 +85,20 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
 
     return {
         "version": 1,
-        "backend": "altium-mcp",
-        "format": "fastmcp-tool-calls",
+        "backend": "altium-pcb-live",
+        "format": "altium-live-tool-calls",
+        "compatibility": {
+            "mcp_tool_call_compatible": True,
+            "absorbed_from": "altium-mcp",
+        },
         "units": {
             "source_plan": "mm",
-            "altium_mcp_set_component_position": "mil",
+            "altium_live_set_component_position": "mil",
         },
         "coordinate_policy": {
             "mode": "pcbdoc-mm-to-mil",
             "preflight_required": True,
-            "note": "Before live apply, compare fixed anchor coordinates from the parsed plan with altium-mcp get_all_component_data output and apply any board-origin offset.",
+            "note": "Before live apply, compare fixed anchor coordinates from the parsed plan with live get_all_component_data output and apply any board-origin offset.",
         },
         "guards": {
             "board_outline_fixed": True,
@@ -112,7 +116,7 @@ def export_altium_mcp_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) 
         "tool_calls": tool_calls,
         "skipped": skipped,
         "next_steps": [
-            "Run altium-mcp get_all_component_data on the live board before applying these calls.",
+            "Run the embedded live backend get_all_component_data on the live board before applying these calls.",
             "Calibrate board-origin offset with fixed anchors, especially locked components and connectors.",
             "Apply set_component_position calls only after confirming locked components and unresolved collisions remain skipped.",
         ],
@@ -150,4 +154,39 @@ def mcp_batch_position_call(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
             "skip_if_locked": True,
             "stop_on_error": False,
         },
+    }
+
+
+def altium_bridge_request(call: Dict[str, Any]) -> Dict[str, Any]:
+    tool = ensure_string(call.get("tool"))
+    arguments = call.get("arguments") or {}
+    if tool == "set_component_position":
+        return {
+            "command": "set_component_position",
+            "designator": ensure_string(arguments.get("cmp_designator") or arguments.get("designator")),
+            "x": arguments.get("x"),
+            "y": arguments.get("y"),
+            "rotation": arguments.get("rotation", -1),
+            "skip_if_locked": True,
+        }
+    return {"command": tool, **arguments}
+
+
+def altium_bridge_batch_position_request(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
+    positions = []
+    for call in calls:
+        arguments = call.get("arguments") or {}
+        positions.append(
+            {
+                "designator": ensure_string(arguments.get("cmp_designator") or arguments.get("designator")),
+                "x": arguments.get("x"),
+                "y": arguments.get("y"),
+                "rotation": arguments.get("rotation", -1),
+            }
+        )
+    return {
+        "command": "set_component_positions",
+        "positions": positions,
+        "skip_if_locked": True,
+        "stop_on_error": False,
     }

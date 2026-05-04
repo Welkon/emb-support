@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .common import *
-from .mcp import export_altium_mcp_tool_calls, mcp_batch_position_call, mcp_jsonrpc_request
+from .mcp import (
+    altium_bridge_batch_position_request,
+    altium_bridge_request,
+    export_altium_mcp_tool_calls,
+    mcp_batch_position_call,
+    mcp_jsonrpc_request,
+)
 
 
 def normalize_live_component_records(value: Any) -> List[Dict[str, Any]]:
@@ -228,7 +234,7 @@ def build_live_preflight(plan: Dict[str, Any], live_data: Any, options: Dict[str
 
     return {
         "version": 1,
-        "backend": "altium-mcp",
+        "backend": "altium-pcb-live",
         "status": status,
         "summary": {
             "live_components": len(live_by_ref),
@@ -247,10 +253,11 @@ def build_live_preflight(plan: Dict[str, Any], live_data: Any, options: Dict[str
         "anchors": anchors,
         "warnings": warnings,
         "mcp_export": calibrated_export,
+        "live_export": calibrated_export,
         "next_steps": [
             "Review anchors and coordinate_transform before live apply.",
             "If status is blocked, refresh live component data or pass explicit --anchor refs that are fixed in both plan and Altium.",
-            "Execute calibrated mcp_export.tool_calls only after confirming locked components remain skipped.",
+            "Execute calibrated live_export.tool_calls only after confirming locked components remain skipped.",
         ],
     }
 
@@ -334,6 +341,8 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
     jsonrpc_requests = [mcp_jsonrpc_request(call, index + 1) for index, call in enumerate(executable_calls)]
     batch_tool_call = mcp_batch_position_call(executable_calls) if executable_calls else None
     batch_jsonrpc_request = mcp_jsonrpc_request(batch_tool_call, 1) if batch_tool_call else None
+    bridge_requests = [altium_bridge_request(call) for call in executable_calls]
+    batch_bridge_request = altium_bridge_batch_position_request(executable_calls) if executable_calls else None
     warnings = list(make_list(preflight.get("warnings")))
     if limited:
         warnings.append("live apply bundle was limited by --limit")
@@ -352,7 +361,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
 
     return {
         "version": 1,
-        "backend": "altium-mcp",
+        "backend": "altium-pcb-live",
         "status": output_status,
         "execution_mode": "emit-only",
         "confirmed": confirmed,
@@ -374,11 +383,13 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
             "ai_review_required": not allow_unreviewed,
             "allow_unreviewed_ai_review": allow_unreviewed,
             "coordinate_policy": coordinate_policy,
-            "actual_execution": "not performed by this helper; execute batch_jsonrpc_request, jsonrpc_requests, or tool_calls through the MCP client",
+            "actual_execution": "not performed by this helper; execute batch_bridge_request through the embedded Altium live backend, or use jsonrpc_requests for MCP-compatible clients",
         },
         "coordinate_transform": preflight.get("coordinate_transform"),
         "warnings": warnings,
         "tool_calls": executable_calls,
+        "bridge_requests": bridge_requests,
+        "batch_bridge_request": batch_bridge_request,
         "jsonrpc_requests": jsonrpc_requests,
         "batch_tool_call": batch_tool_call,
         "batch_jsonrpc_request": batch_jsonrpc_request,
@@ -386,7 +397,7 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
         "preflight_skipped": preflight_skipped,
         "next_steps": [
             "Review live_apply.tool_calls and anchor calibration one last time.",
-            "Prefer batch_jsonrpc_request when the MCP server supports set_component_positions; otherwise execute jsonrpc_requests sequentially.",
+            "Prefer batch_bridge_request with the embedded backend set_component_positions command; otherwise execute bridge_requests sequentially.",
             "Refresh get_all_component_data after execution and compare final coordinates before routing or DRC.",
         ],
     }

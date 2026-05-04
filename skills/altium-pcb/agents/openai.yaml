@@ -1,3 +1,3 @@
 display_name: Altium PCB
 short_description: Operate on Altium PCB layout artifacts.
-default_prompt: Use $altium-pcb to plan conservative PCB component placement, apply it to safe PcbDoc copies, or prepare Altium MCP live-apply commands.
+default_prompt: Use $altium-pcb to plan conservative PCB component placement, apply it to safe PcbDoc copies, or prepare embedded Altium live-apply commands.

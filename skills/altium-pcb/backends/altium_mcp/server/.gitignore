@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+altium_mcp.log
+altium_pcb_live.log
+config.json
+request.json
+response.json
+temp_component_data.json
+screenshot_*.png

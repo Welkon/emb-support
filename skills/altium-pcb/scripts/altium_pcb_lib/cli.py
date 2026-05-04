@@ -17,6 +17,45 @@ from .pcbdoc import apply_placement_plan_to_pcbdoc
 from .planner import build_placement_plan
 
 
+def skill_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def command_backend_info(args: argparse.Namespace) -> Dict[str, Any]:
+    root = skill_root()
+    backend = root / "backends" / "altium_mcp"
+    server = backend / "server"
+    script_project = server / "AltiumScript" / "Altium_API.PrjScr"
+    start_server = backend / "start_server.py"
+    return {
+        "command": "altium-pcb backend-info",
+        "backend": {
+            "name": "altium-pcb-live",
+            "absorbed_from": "altium-mcp",
+            "root": str(backend),
+            "start_server": str(start_server),
+            "server_main": str(server / "main.py"),
+            "script_project": str(script_project),
+            "script_dir": str(script_project.parent),
+            "license": str(backend / "LICENSE"),
+            "exists": {
+                "backend": backend.exists(),
+                "start_server": start_server.exists(),
+                "server_main": (server / "main.py").exists(),
+                "script_project": script_project.exists(),
+            },
+            "start_command": ["python", str(start_server)],
+            "live_commands": [
+                "get_all_component_data",
+                "set_component_position",
+                "set_component_positions",
+                "move_components",
+                "layout_duplicator_apply",
+            ],
+        },
+    }
+
+
 def command_plan(args: argparse.Namespace) -> Dict[str, Any]:
     parsed = read_json(Path(args.parsed))
     plan = build_placement_plan(
@@ -58,8 +97,13 @@ def command_export_mcp(args: argparse.Namespace) -> Dict[str, Any]:
     )
     if args.output:
         write_json(Path(args.output), exported)
-        exported = {**exported, "artifacts": {"mcp_tool_calls": args.output}, "mcp_tool_calls_written": True}
-    return {"command": "altium-pcb export-mcp", "mcp_export": exported}
+        exported = {
+            **exported,
+            "artifacts": {"live_tool_calls": args.output, "mcp_tool_calls": args.output},
+            "live_tool_calls_written": True,
+            "mcp_tool_calls_written": True,
+        }
+    return {"command": f"altium-pcb {args.command}", "live_export": exported, "mcp_export": exported}
 
 
 def command_preflight_live(args: argparse.Namespace) -> Dict[str, Any]:
@@ -105,6 +149,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Conservative Altium PCB layout helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    backend_info = subparsers.add_parser("backend-info", help="show embedded Altium live backend paths")
+    backend_info.set_defaults(func=command_backend_info)
+
     plan = subparsers.add_parser("plan", help="generate a placement plan from parsed board layout JSON")
     plan.add_argument("--parsed", required=True, help="Path to analysis.board-layout.json from emb-agent ingest board")
     plan.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
@@ -124,18 +171,19 @@ def build_parser() -> argparse.ArgumentParser:
     apply_cmd.add_argument("--confirm", action="store_true", help="Required with --in-place")
     apply_cmd.set_defaults(func=command_apply)
 
-    export_mcp = subparsers.add_parser("export-mcp", help="export a placement plan as altium-mcp tool-call JSON")
-    export_mcp.add_argument("--plan", required=True, help="Placement plan JSON path")
-    export_mcp.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
-    export_mcp.add_argument("--include-unresolved", action="store_true", help="Include placements with unresolved collisions")
-    export_mcp.add_argument("--include-rotation", action="store_true", help="Send plan rotation instead of keeping live rotation")
-    export_mcp.add_argument("--allow-unreviewed", action="store_true", help="Export placements without accepted AI layout review")
-    export_mcp.add_argument("--output", default="", help="Write altium-mcp tool-call JSON to this path")
-    export_mcp.set_defaults(func=command_export_mcp)
-
-    preflight_live = subparsers.add_parser("preflight-live", help="calibrate altium-mcp placement calls against live component data")
+    export_mcp = subparsers.add_parser("export-mcp", help="legacy alias for export-live")
+    export_live = subparsers.add_parser("export-live", help="export a placement plan as embedded Altium live tool-call JSON")
+    for export_parser in [export_mcp, export_live]:
+        export_parser.add_argument("--plan", required=True, help="Placement plan JSON path")
+        export_parser.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
+        export_parser.add_argument("--include-unresolved", action="store_true", help="Include placements with unresolved collisions")
+        export_parser.add_argument("--include-rotation", action="store_true", help="Send plan rotation instead of keeping live rotation")
+        export_parser.add_argument("--allow-unreviewed", action="store_true", help="Export placements without accepted AI layout review")
+        export_parser.add_argument("--output", default="", help="Write live tool-call JSON to this path")
+        export_parser.set_defaults(func=command_export_mcp)
+    preflight_live = subparsers.add_parser("preflight-live", help="calibrate embedded live placement calls against live component data")
     preflight_live.add_argument("--plan", required=True, help="Placement plan JSON path")
-    preflight_live.add_argument("--live-components", required=True, help="JSON output from altium-mcp get_all_component_data")
+    preflight_live.add_argument("--live-components", required=True, help="JSON output from embedded backend get_all_component_data")
     preflight_live.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
     preflight_live.add_argument("--anchor", default="", help="Comma-separated fixed designators to use as coordinate anchors")
     preflight_live.add_argument("--tolerance-mil", type=float, default=10.0, help="Maximum allowed anchor offset disagreement")
@@ -145,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     preflight_live.add_argument("--output", default="", help="Write calibrated preflight JSON to this path")
     preflight_live.set_defaults(func=command_preflight_live)
 
-    apply_live = subparsers.add_parser("apply-live", help="prepare reviewed live altium-mcp placement execution")
+    apply_live = subparsers.add_parser("apply-live", help="prepare reviewed embedded live Altium placement execution")
     apply_live.add_argument("--preflight", required=True, help="JSON output from preflight-live")
     apply_live.add_argument("--locked", default="", help="Comma-separated designators to keep fixed")
     apply_live.add_argument("--allow-warnings", action="store_true", help="Allow ready-with-warnings preflight status")
