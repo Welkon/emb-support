@@ -4,6 +4,7 @@ title: Embedded Space
 summary: ROM-first embedded firmware rules for small MCUs: direct state, thin ISR design, hardware-truth-first execution, and controlled C interface boundaries.
 selectable: true
 priority: 58
+enforcement_scope: code-writing
 focus_areas: [rom_budget, direct_state, isr_shared_state, hardware_truth, c_interface_boundaries, board_binding]
 extra_review_axes: [map_file_budget, atomic_shared_state, register_truth, interface_cost, state_ownership, hardware_leakage]
 ---

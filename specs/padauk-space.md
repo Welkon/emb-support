@@ -4,6 +4,7 @@ title: Padauk Space
 summary: Padauk or 应广 firmware conventions: Mini-C syntax limits, naming rules, code partition order, and ISR discipline.
 selectable: true
 priority: 64
+enforcement_scope: code-writing
 ---
 # Padauk Space
 

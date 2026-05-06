@@ -17,3 +17,4 @@ Layout rule:
 - keep selectable specs as `*.md` files directly under `specs/`
 - do not wrap external sources in `.emb-agent/registry/`
 - use markdown frontmatter when a spec needs explicit `name`, `title`, `summary`, or `apply_when` metadata
+- use `enforcement_scope: code-writing` for specs that should be obeyed only while editing, generating, or refactoring source code
