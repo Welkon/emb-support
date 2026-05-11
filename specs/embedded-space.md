@@ -5,8 +5,8 @@ summary: ROM-first embedded firmware rules for small MCUs: direct state, thin IS
 selectable: true
 priority: 58
 enforcement_scope: code-writing
-focus_areas: [rom_budget, direct_state, isr_shared_state, hardware_truth, c_interface_boundaries, board_binding]
-extra_review_axes: [map_file_budget, atomic_shared_state, register_truth, interface_cost, state_ownership, hardware_leakage]
+focus_areas: [rom_budget, direct_state, isr_shared_state, time_base_slicing, hardware_truth, c_interface_boundaries, board_binding]
+extra_review_axes: [map_file_budget, atomic_shared_state, timebase_jitter, slice_budget, register_truth, interface_cost, state_ownership, hardware_leakage]
 ---
 # Embedded Space
 
@@ -32,6 +32,15 @@ Use this spec when the project needs reusable ROM-first embedded firmware rules 
 - Keep simple one-use logic inline unless extracting it reduces total cost or removes real duplication.
 - Prefer a direct function, `switch`, or small `if` when there is only one implementation or the hot path must stay smaller.
 - Do not put long policy logic behind an ops call when a table-driven or direct state update would be smaller and clearer.
+
+## Low-ROM Time Base And Slicing
+
+- Under tight or unknown ROM budget, prefer one hardware timer interrupt as the shared time base before adding schedulers, delay loops, extra timer channels, or per-feature timing frameworks.
+- Keep the timer ISR tiny: update a tick counter or phase flag, latch only the minimum timing state, clear the interrupt source, and exit.
+- Split periodic work in the main loop with fixed time slices or phase counters, for example scan/debounce/output work assigned to explicit tick slots.
+- Each slice must have a small bounded job, owned state, and stated period; avoid dynamic queues, callback registries, or cooperative scheduler layers unless measured smaller.
+- When a task needs a different cadence, derive it from the shared tick with counters or bit masks instead of introducing another timing mechanism by default.
+- Before relying on the time base, verify timer reload/prescaler truth, ISR jitter tolerance, and worst-case slice runtime against the product timing requirements.
 
 ## Helper Function Gate
 
