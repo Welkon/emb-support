@@ -7,12 +7,14 @@ These specs are selected the same way as installable skills: the user chooses wh
 This directory should only contain reusable external rule packs such as:
 
 - generic embedded firmware rules
+- resource-constraint profiles such as low-ROM/low-RAM firmware rules
 - vendor-specific syntax or toolchain conventions
 - special MCU-family guidance
 
 Layering rule:
 
 - keep `embedded-space` generic and vendor-neutral
+- put resource-budget behavior in constraint specs such as `low-rom-space`
 - put vendor/compiler/IDE conventions in vendor specs such as `scmcu-space` or `padauk-space`
 - put concrete chip/package/board facts in project truth or project-local specs
 

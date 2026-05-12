@@ -7,7 +7,7 @@ Standalone companion repository for optional emb-agent assets.
 This repository only carries reusable external assets that should stay installable and versionable outside the core runtime.
 
 - `specs/`
-  External rule packs selected during install or project bootstrap. Keep syntax rules, vendor-specific conventions, and special project guidance here. Current reusable specs include `embedded-space`, `padauk-space`, and `scmcu-space`.
+  External rule packs selected during install or project bootstrap. Keep syntax rules, vendor-specific conventions, and special project guidance here. Current reusable specs include `embedded-space`, `low-rom-space`, `padauk-space`, and `scmcu-space`.
 - `skills/`
   Installable skill bundle source. The installer can preview and select individual skills from this directory.
 - `adapters/`
