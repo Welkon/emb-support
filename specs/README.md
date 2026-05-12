@@ -6,15 +6,14 @@ These specs are selected the same way as installable skills: the user chooses wh
 
 This directory should only contain reusable external rule packs such as:
 
-- generic embedded firmware rules
-- resource-constraint profiles such as low-ROM/low-RAM firmware rules
 - vendor-specific syntax or toolchain conventions
 - special MCU-family guidance
+- optional domain specs that are not part of emb-agent's core MCU baseline
 
 Layering rule:
 
-- keep `embedded-space` generic and vendor-neutral
-- put resource-budget behavior in constraint specs such as `low-rom-space`
+- keep generic MCU rules such as `embedded-space` in emb-agent core
+- keep resource-pressure behavior such as `low-rom-space` in emb-agent core so it can auto-trigger from build evidence
 - put vendor/compiler/IDE conventions in vendor specs such as `scmcu-space` or `padauk-space`
 - put concrete chip/package/board facts in project truth or project-local specs
 
