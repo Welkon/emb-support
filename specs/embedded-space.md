@@ -12,6 +12,14 @@ extra_review_axes: [map_file_budget, atomic_shared_state, timebase_jitter, slice
 
 Use this spec when the project needs reusable ROM-first embedded firmware rules for small MCUs and C firmware that may need stable interfaces across hardware variants, repeated device instances, board-specific binding, or driver-like modules.
 
+## Scope And Layering
+
+- Keep this spec vendor-neutral and MCU-family-neutral.
+- Do not add compiler dialect, IDE project-file, SFR header, absolute-address syntax, package pinout, or vendor library rules here.
+- Put vendor/toolchain rules in a selectable vendor spec such as `scmcu-space` or `padauk-space`.
+- Put concrete chip/package/board facts in project truth (`hw.yaml`, `req.yaml`) or project-local specs, not in this generic spec.
+- When multiple specs apply, use this order: hardware truth and measured build output first, then project-local/chip/vendor specs, then this generic embedded-space guidance.
+
 ## Core Stance
 
 - Prioritize correct product behavior first.

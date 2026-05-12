@@ -10,6 +10,12 @@ This directory should only contain reusable external rule packs such as:
 - vendor-specific syntax or toolchain conventions
 - special MCU-family guidance
 
+Layering rule:
+
+- keep `embedded-space` generic and vendor-neutral
+- put vendor/compiler/IDE conventions in vendor specs such as `scmcu-space` or `padauk-space`
+- put concrete chip/package/board facts in project truth or project-local specs
+
 It should not duplicate emb-agent core runtime protocols or internal workflow behavior.
 
 Layout rule:
