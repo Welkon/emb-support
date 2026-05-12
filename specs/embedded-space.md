@@ -1,166 +1,89 @@
 ---
 name: embedded-space
 title: Embedded Space
-summary: ROM-first embedded firmware rules for small MCUs: direct state, thin ISR design, hardware-truth-first execution, and controlled C interface boundaries.
+summary: Generic MCU firmware rules: hardware truth, explicit ownership, bounded timing, thin ISR design, safe state, and measured verification.
 selectable: true
 priority: 58
 enforcement_scope: code-writing
-focus_areas: [rom_budget, direct_state, isr_shared_state, time_base_slicing, hardware_truth, c_interface_boundaries, board_binding]
-extra_review_axes: [map_file_budget, atomic_shared_state, timebase_jitter, slice_budget, register_truth, interface_cost, state_ownership, hardware_leakage]
+focus_areas: [hardware_truth, state_ownership, isr_shared_state, time_base, c_interface_boundaries, board_binding, verification]
+extra_review_axes: [register_truth, atomic_shared_state, timebase_jitter, state_ownership, hardware_leakage, integration_boundaries]
 ---
 # Embedded Space
 
-Use this spec when the project needs reusable ROM-first embedded firmware rules for small MCUs and C firmware that may need stable interfaces across hardware variants, repeated device instances, board-specific binding, or driver-like modules.
+Use this spec for vendor-neutral MCU firmware. It defines general embedded rules that apply across 8-bit, 16-bit, and 32-bit MCU projects.
+
+Pair it with vendor, chip-family, or project-local specs for compiler dialects, IDE behavior, memory budgets, package pinout, peripheral formulas, and board-specific constraints.
 
 ## Scope And Layering
 
 - Keep this spec vendor-neutral and MCU-family-neutral.
-- Do not add compiler dialect, IDE project-file, SFR header, absolute-address syntax, package pinout, or vendor library rules here.
-- Put vendor/toolchain rules in a selectable vendor spec such as `scmcu-space` or `padauk-space`.
-- Put concrete chip/package/board facts in project truth (`hw.yaml`, `req.yaml`) or project-local specs, not in this generic spec.
-- When multiple specs apply, use this order: hardware truth and measured build output first, then project-local/chip/vendor specs, then this generic embedded-space guidance.
+- Do not add compiler dialect, IDE project-file, SFR header, absolute-address syntax, package pinout, memory-size threshold, vendor library, or chip-specific peripheral rules here.
+- Put vendor/toolchain rules in selectable vendor specs such as `scmcu-space` or `padauk-space`.
+- Put concrete chip/package/board facts in project truth (`hw.yaml`, `req.yaml`) or project-local specs.
+- When multiple specs apply, use this order: hardware truth and measured behavior first, then project-local/chip/vendor specs, then this generic embedded-space guidance.
 
 ## Core Stance
 
-- Prioritize correct product behavior first.
-- When two solutions are both correct, choose the smaller, shallower, and more direct one.
-- Prefer deleting logic over layering more protection code.
-- Prefer direct state representation instead of encode/decode or normalize/re-encode chains.
-- Start C interface design from data ownership and hardware variation, not class vocabulary.
-- Use object-like C patterns only when they reduce duplicate behavior, isolate real variation, or keep application code independent from board wiring.
-- Treat every function pointer, wrapper, registration table, and handle indirection as a cost that must buy a real maintenance or ROM win.
+- Prioritize correct product behavior and hardware safety before code shape.
+- Start design from real hardware ownership, timing, and failure modes, not abstract architecture vocabulary.
+- Prefer simple, reviewable control flow when it satisfies the product requirement.
+- Add abstraction only when it isolates real hardware variation, removes real duplication, protects a clear invariant, or improves verification.
+- Treat register writes, power-state transitions, sleep entry, wake recovery, and output enable paths as safety-relevant operations.
 
-## Implementation Rules
+## Hardware Truth And Ownership
 
-- Keep the main loop visually short and flat.
-- Prefer `Scan -> Handle -> Output` style control flow.
-- Keep ISR work minimal: sample, latch time, set flags, clear the interrupt source, and exit.
-- Prefer fixed-width integer logic, direct register writes, and file-local static state when that reduces total cost.
-- Do not add helper functions or helper layers by default.
-- Keep simple one-use logic inline unless extracting it reduces total cost or removes real duplication.
-- Prefer a direct function, `switch`, or small `if` when there is only one implementation or the hot path must stay smaller.
-- Do not put long policy logic behind an ops call when a table-driven or direct state update would be smaller and clearer.
+- Confirm the exact MCU, package, board net, active level, and peripheral mux before changing hardware behavior.
+- One module should own each physical output, peripheral, and shared hardware resource at a time.
+- Application logic should consume semantic state and call hardware/platform APIs; it should not scatter board pin or register decisions across unrelated modules.
+- Board/platform code may know concrete pins, channels, and registers. Generic application modules should not.
+- Before enabling an output or changing a mux, define the reset/default state, fault state, and owner for every affected pin.
 
-## Low-ROM Time Base And Slicing
+## Time Base And Main Loop
 
-- Under tight or unknown ROM budget, prefer one hardware timer interrupt as the shared time base before adding schedulers, delay loops, extra timer channels, or per-feature timing frameworks.
-- Keep the timer ISR tiny: update a tick counter or phase flag, latch only the minimum timing state, clear the interrupt source, and exit.
-- Split periodic work in the main loop with fixed time slices or phase counters, for example scan/debounce/output work assigned to explicit tick slots.
-- Each slice must have a small bounded job, owned state, and stated period; avoid dynamic queues, callback registries, or cooperative scheduler layers unless measured smaller.
-- When a task needs a different cadence, derive it from the shared tick with counters or bit masks instead of introducing another timing mechanism by default.
-- Before relying on the time base, verify timer reload/prescaler truth, ISR jitter tolerance, and worst-case slice runtime against the product timing requirements.
+- Use an explicit time base for debounce, filtering, display refresh, control loops, timeouts, and watchdog policy.
+- Keep periodic work bounded. Each slice should have a stated cadence, owner, and worst-case expectation.
+- Avoid blocking waits in the main loop unless the product timing and watchdog policy explicitly allow them.
+- When multiple cadences are derived from one tick, keep dividers/counters direct and reviewable.
+- Before relying on a time base, verify clock source, prescaler/reload settings, interrupt cadence, jitter tolerance, and sleep/wake interaction.
 
-## Helper Function Gate
+## ISR And Shared State
 
-- Helper functions are not the default way to make code look cleaner.
-- Add a helper only when it removes repeated logic, isolates a verified hardware operation, shortens a hot path, reduces ROM/RAM, or gives one testable responsibility a clear name.
-- Do not add a helper that is only a renamed single call, a pass-through wrapper, or a place to hide temporary variables.
-- Do not add a helper if it increases call depth in ISR, scan loops, debounce paths, timing-critical output paths, or tiny MCU hot code without measured benefit.
-- Keep approved helpers file-local `static` by default.
-- Before keeping a new helper, be able to answer: what state does it own, what invariant does it protect, which duplication does it remove, or what hardware boundary does it isolate?
+- Keep ISR work minimal: identify the source, clear/latch the interrupt condition, update the minimum shared state, and return.
+- Do not put debounce policy, long ADC conversions, display policy, control state machines, blocking waits, logging, or watchdog feeding in an ISR unless a project-specific rule explicitly justifies it.
+- Mark ISR-shared variables with the project's required volatile/atomic mechanism.
+- Protect multi-byte or non-atomic shared state when it is accessed from both ISR and main context.
+- Define what happens when interrupts are disabled, missed, nested, or delayed.
 
-## Module Split Suggestions
+## State, Faults, And Outputs
 
-- The agent may suggest module splits, but should not split code automatically just because a file is long.
-- Suggest a split when one file contains distinct hardware roles, timing domains, state owners, or product features that can be verified independently.
-- Suggest a split when application logic directly touches board pins, chip registers, bus transactions, or concrete driver types that should live behind board/platform or driver boundaries.
-- Suggest a split when duplicated code would become one small instance-based module with clear per-instance state.
-- Suggest a split when ISR sampling, debounce/filtering, state transitions, and output driving are mixed tightly enough that review or timing analysis is harder.
-- Prefer in-file sections over new translation units when the code is tiny, the compiler has weak cross-file optimization, or the proposed split only creates pass-through helpers.
-- A split proposal must name the new responsibility boundary, owned state, public API, affected callers, expected ROM/RAM impact, and verification path.
-- Reject splits that only mirror abstract architecture names, increase public writable state, create circular includes, or move hardware details into application code.
+- Model unknown, fault, startup, and safe/off states explicitly.
+- Unknown or invalid inputs should not silently map to an active output state.
+- Output enable decisions should be centralized enough that safety review can find every path that can turn hardware on.
+- On startup, before sleep, after wake, and on fault, drive or release pins into documented safe states.
+- Separate input sampling/filtering from product action decisions when that improves reviewability.
 
-## ROM Budget Gates
+## C Interfaces And Module Boundaries
 
-- This spec must stay chip-agnostic. Do not encode MCU-family, chip-model, or absolute flash/RAM-size thresholds here.
-- Do not decide abstraction level from chip model, nominal flash size, or intuition. Use `build_summary.json`, `cmscerr.err`, `.map`, or an equivalent size report when available.
-- If ROM/RAM usage is unknown, stay in conservative ROM-first mode until a build proves the budget.
-- Treat total ROM as a ceiling, not a permission slip. The main gate is measured headroom against the current project budget and required reserve.
-- Project-local specs, MCU-family specs, or `req/hw` truth may define absolute reserves or stricter gates. Use those over this generic policy.
-- Strict mode: use flat, direct C by default when any required budget is unknown, project reserve is not declared, program ROM is `>= 80%` of its budget, data RAM is `>= 75%` of its budget, or the declared reserve would be crossed.
-- Balanced mode: allow thin module boundaries, handles, and small lookup tables when program ROM is `< 70%` of its budget, data RAM is below its warning gate, and declared reserve remains intact. Helper functions still need the helper gate above.
-- Interface mode: allow ops tables, base handles, board/platform indirection, and opaque structs when program ROM is `< 60%` of its budget, data RAM is below its warning gate, declared reserve remains intact after expected growth, and the variation is real.
-- Relaxed mode is not granted by this generic spec. It requires a project-local or chip-family rule that explicitly states the available headroom, reserve, and acceptable abstraction cost.
-- For every new abstraction that changes call shape, dispatch, or module boundaries, compare before/after build size when practical and record the ROM/RAM delta.
-- If the abstraction adds `> 2%` program ROM, `> 1%` data RAM, or affects ISR/hot-loop timing, require a concrete product or maintenance reason instead of "cleaner architecture".
+- Headers should expose the smallest stable surface: public types, handles, constants, and function declarations needed by callers.
+- Keep writable module state private where practical.
+- A module split should reflect real ownership: hardware resource, timing domain, state owner, protocol boundary, or independently verified behavior.
+- Do not split code only because a file is long, and do not merge distinct hardware owners only to reduce file count.
+- If using handles, callbacks, ops tables, or registration, document the real variation they represent and how failures/null operations are handled.
+- Application code should not call through internal dispatch fields directly; public wrappers own validation and dispatch.
 
-## C State And Visibility
+## Verification Discipline
 
-- Put per-instance state in a struct and pass a pointer such as `me`, `self`, or a domain handle through the API.
-- Move module-shared writable state to file-local `static` variables. Do not expose writable globals through headers.
-- Use `static const` for file-local constants when the compiler supports it; prefer it over macro constants when type and scope matter.
-- Headers should expose the smallest stable surface: public types, handles, and function declarations only.
-- If a helper function passes the helper gate, keep it `static` unless another translation unit has a proven need to call it.
-- If a struct layout is private, keep the concrete definition in the `.c` file and expose only an opaque handle.
-- If static allocation forces a struct layout into a header, document which fields are private and keep application code from touching them directly.
+- Verify with the toolchain, IDE, or build flow that will be used for the target artifact.
+- Inspect compiler warnings, memory/resource usage, map/listing output where available, and generated artifacts relevant to startup and interrupts.
+- For timing-sensitive work, verify tick cadence, ISR latency, sleep/wake recovery, and worst-case main-loop execution.
+- For hardware outputs, verify reset behavior, enable/disable transitions, fault injection, and no unintended pulses.
+- Record bench gaps and assumptions close to the task or project truth, not only in conversation.
 
-## Construction And Board Binding
+## Avoid Without Project-Specific Justification
 
-- Every object-like struct needs one init function that fills all required fields before use.
-- Pass hardware resources into init functions. Do not bake board pins, channels, bus addresses, or active levels into generic driver logic.
-- Board binding belongs in a board or platform init file. That file may know concrete hardware types; application code should not.
-- Application code should depend on stable handles and interface functions, not concrete names such as GPIO LED, PWM LED, I2C LED, or a chip-specific register driver.
-- For multiple instances, allocate one struct per real device and initialize each with its own resources instead of cloning code.
-
-## Ops Tables And Handles
-
-- Use an ops table only when there are multiple real implementations, a stable interface, or a callback decision that must be delayed.
-- When a function takes three or more behavior callbacks, package them into a named `struct <domain>_ops` with clear typedefs for each function pointer type.
-- Ops tables should normally be `static const`; object structs should hold a `const struct <domain>_ops *ops`.
-- Public wrappers such as `led_on(handle)` should own dispatch. Application code should not call `obj->ops->on()` directly.
-- Required ops are contract items: validate them during init or in the wrapper with the project's normal assert/error policy.
-- Optional ops are capability items: document the fallback and null-check before dispatch.
-- Use a base struct or opaque interface handle when application code must operate on mixed implementations through one API.
-- If C-style inheritance is used, the base member should normally be the first member of the derived struct so upcast is mechanically obvious.
-- Downcast only inside the implementation that owns the derived type.
-- Prefer a `container_of` style helper based on `offsetof` when the compiler and headers support it. Do not hard-code member offsets.
-- Do not let application code downcast handles to concrete hardware types.
-
-## Layering
-
-- Keep the normal dependency direction: application -> interface/base -> concrete driver -> platform or board binding -> registers/peripherals.
-- The application layer asks for product behavior. It should not know how the hardware produces that behavior.
-- The concrete driver may know its own peripheral mechanism, but should call a platform/board API when chip-specific register access must be isolated.
-- Platform APIs should be functionally named, such as write pin, read pin, transfer I2C, set PWM, or send UART, not named after one chip's register layout.
-- Add a layer only when it turns multiplicative work into additive work, for example N drivers x M chips becoming N drivers + M platform ports.
-
-## Search And Truth Discipline
-
-- Do not guess code behavior from memory. Locate the implementation first.
-- Before changing hardware behavior, confirm register boundaries, IO mapping, and package truth.
-- For timing or jitter issues, inspect ISR-to-main-loop shared state first.
-- For ROM or RAM pressure, inspect the map file or equivalent size report before speculating.
-- For interface changes, inspect every caller and implementation before changing a public handle, ops struct, or board binding.
-
-## Registration
-
-- On small bare-metal MCUs, prefer explicit board lists, fixed arrays, or direct init calls unless automatic registration is proven smaller and supported.
-- Linker-section auto-registration is allowed only when the compiler attribute, linker script symbols, startup traversal, link order, and map output have all been verified.
-- Do not introduce auto-registration just to avoid adding one line to board init.
-- If initialization order matters, encode the order explicitly and review it against hardware dependencies.
-
-## Avoid By Default
-
-- Recursive control flow
-- Event buses, ownership frameworks, or generic callback dispatch on tiny MCUs unless measured smaller
-- `printf` or `sprintf` style formatting in production firmware unless the ROM cost is accepted explicitly
-- Round-trip conversion layers from hardware values into semantic models and back again
-- Function pointer dispatch when direct calls, `switch`, or fixed tables are smaller and equally clear
-- Helper functions that only rename one expression, wrap one call, or make the code look layered
-- Public writable globals, public concrete hardware structs, or application-layer downcasts
-- Automatic registration without linker script, startup, and map evidence
-
-## Delivery Checks
-
-- Shared ISR state has the right `volatile` and atomicity story.
-- Register-backed behavior is tied to real hardware notes.
-- Unknown or unverified limits are marked as gaps instead of facts.
-- Public C interfaces isolate a real hardware or implementation variation.
-- Application code can use the public handle/API without concrete hardware names.
-- Per-instance fields are initialized before first use.
-- Module internals are hidden with `static` or an opaque layout.
-- Required ops are checked and optional ops are safely handled.
-- Every function pointer or dispatch layer is justified against ROM, RAM, stack, timing, and readability.
-- Every new helper function is justified by duplication removal, hardware isolation, invariant protection, testability, or measured size/timing improvement.
-- Board-specific resource binding is confined to board/platform code.
-- Any automatic registration is backed by linker/startup evidence and map inspection.
+- Hidden ownership of pins or peripherals.
+- Unbounded blocking in main-loop firmware.
+- ISR paths that perform product policy or long work.
+- Enabling outputs from unknown, invalid, or partially initialized state.
+- Hardware behavior inferred from chip family name instead of package/board truth.
+- Toolchain-specific syntax or memory-placement rules in generic modules.
