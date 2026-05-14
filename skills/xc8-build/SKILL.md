@@ -52,15 +52,23 @@ python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName <build-name> -Pr
 If an agent or user needs to override project metadata explicitly, use:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName <build-name> -Chip <chip> -SourceFile <file1> -SourceFile <file2>
+python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName <build-name> -Chip <chip> -IncludeDir <include-dir> -Define <name=value> -SourceFile <file1> -SourceFile <file2>
 ```
 
 Optional override behavior:
 
-- `-Chip` overrides `Device=...`
+- `-Chip` overrides `Device=...` for command-line verification only
 - `-SourceFile` replaces the project-file source list
 - `-AppendSourceFile` appends extra files after the project-file source list
+- `-IncludeDir` appends project-local include directories
+- `-Define` appends C preprocessor defines, with or without the `-D` prefix
 - `-ImagePrefix` overrides the default output prefix
+
+SCMCU IDE caution:
+
+- Do not assume a `-Chip` override means the `.scw` device must be changed. Some projects intentionally keep a debug/erasable `.scw` device while command-line verification targets the production-compatible part. `build_summary.json` reports `chip_relation`; known SCMCU debug substitutes include `SC8P062BD` / `SC8F072` when the project has recorded that board truth.
+- Do not assume the command-line HEX is what the user flashes. If the user burns from SCMCU IDE, report source and project setting changes; use the build output as verification evidence.
+- Inspect `build_summary.json` `scw_config`, `hex_config`, and `config_words_emitted` when WDT, reset-pin mode, LVR, or sleep behavior depends on configuration bits.
 
 3. If working from Windows PowerShell instead, use:
 
@@ -93,6 +101,7 @@ If the user asks for a shell or CI sample, point them to `references/toolchain.e
 - `build/xc8/<build-name>/cmscerr.err`
 - `build/xc8/<build-name>/<project-stem>_<build-name>.map`
 - `build/xc8/<build-name>/build_summary.json`
+- configuration-bit fields in `build_summary.json` when sleep/wake/reset behavior is under review
 
 5. Report at least:
 - build succeeded or failed

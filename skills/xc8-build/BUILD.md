@@ -57,18 +57,23 @@ The script reads project metadata from a SCMCU `.scw` file:
 
 - `Device=...`
 - `SourceFile=...`
+- `IncludeDir=...`
+- `Define=...`
 - `OptValue=...`
 - `RuntimeValue=...`
 - `WarningValue=...`
+- `config=...`
 
 If the repo root contains exactly one `.scw` file, it is discovered automatically.
 If there are multiple `.scw` files, pass `-ProjectFile`.
 
 Agent or user overrides are also supported:
 
-- `-Chip` overrides `Device=...`
+- `-Chip` overrides `Device=...` for command-line verification
 - `-SourceFile` replaces the project-file source list
 - `-AppendSourceFile` appends extra source files
+- `-IncludeDir` appends project-local include directories
+- `-Define` appends C preprocessor defines
 - `-ImagePrefix` overrides the default output prefix
 
 Project metadata priority:
@@ -178,9 +183,10 @@ Each build directory contains the full compiler output set, for example:
 
 Primary files to inspect after a build:
 
-- `build_summary.json`: parsed build result, warning/error counts, ROM/RAM summary, top function estimates
+- `build_summary.json`: parsed build result, warning/error counts, ROM/RAM summary, top function estimates, `.scw` config string, and config words emitted into the command-line HEX when present
 - `cmscerr.err`: warnings, errors, memory summary
 - `<project-stem>_<build-name>.map`: section placement, symbol table, estimated function sizes
+- `<project-stem>_<build-name>.hex`: useful for CI/build artifacts, but not necessarily the image a user flashes when their workflow is official SCMCU IDE burning
 
 ## Invocation Shape
 
@@ -218,10 +224,12 @@ xc8.exe
 - If you need to compare ROM usage across experiments, use a new `-BuildName` each time so the output directories stay isolated.
 - If you want to rebuild the same experiment, rerun the same `-BuildName`. The script will reuse that directory.
 - If you update the build flow, edit `scripts/build_xc8.py`.
-- If you need to change chip, source files, or output prefix, update the SCMCU project file instead of editing the Python script.
-- If an agent needs a temporary or synthetic build that does not belong in the SCMCU project file, pass `-Chip`, `-SourceFile`, `-AppendSourceFile`, or `-ImagePrefix` on the command line.
-- After each build, the script parses `cmscerr.err` and `.map` and writes `build_summary.json`.
+- If you need to change chip, source files, include paths, defines, or output prefix, update the SCMCU project file instead of editing the Python script.
+- If an agent needs a temporary or synthetic build that does not belong in the SCMCU project file, pass `-Chip`, `-SourceFile`, `-AppendSourceFile`, `-IncludeDir`, `-Define`, or `-ImagePrefix` on the command line.
+- After each build, the script parses `cmscerr.err`, `.map`, and HEX config records when present, then writes `build_summary.json`.
 - The build summary also records which toolchain path was used and whether it came from explicit config or autodetect.
+- Device substitutions are not automatically errors. Some SCMCU projects intentionally use an erasable/debug-compatible `.scw` device while command-line verification targets the OTP production-compatible chip; record that as project-local truth. The summary reports `chip_relation`; the known SCMCU debug substitute pair `SC8P062BD` / `SC8F072` is flagged for review instead of treated as an automatic mismatch.
+- Configuration-bit verification is separate from C compilation. If `scw_config` is non-empty but `config_words_emitted` is false, command-line output did not emit config words; use the official IDE/programmer settings as the configuration source of truth.
 - The current function-size data is estimated from symbol start/end addresses in the map file. Treat it as a useful heuristic, not an exact linker-reported size table.
 - For team reuse, prefer machine-level, shell-level, or CI-level environment variables instead of a repo `.env` file. This is host-specific toolchain configuration, not project data.
 - If users only know the IDE install root, use `SCMCU_IDE_ROOT`.

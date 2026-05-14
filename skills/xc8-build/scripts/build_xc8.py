@@ -8,6 +8,14 @@ import sys
 from pathlib import Path
 
 
+KNOWN_DEBUG_CHIP_SUBSTITUTES = {
+    frozenset(("SC8P062BD", "SC8F072")): (
+        "SC8F072 erasable/debug device can substitute for SC8P062BD "
+        "when recorded as project-local board truth"
+    ),
+}
+
+
 def default_project_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
@@ -25,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--chip", "-Chip", dest="chip", default="")
     parser.add_argument("--source-file", "-SourceFile", dest="source_files", action="append", default=[])
+    parser.add_argument("--include-dir", "-IncludeDir", dest="include_dirs", action="append", default=[])
+    parser.add_argument("--define", "-Define", dest="defines", action="append", default=[])
     parser.add_argument(
         "--append-source-file",
         "-AppendSourceFile",
@@ -156,6 +166,16 @@ def normalize_source_file(path: str) -> str:
     return path.replace("/", "\\")
 
 
+def normalize_include_dir(path: str) -> str:
+    return path.replace("/", "\\")
+
+
+def normalize_define(value: str) -> str:
+    if value.startswith("-D"):
+        return value
+    return f"-D{value}"
+
+
 def dedupe_keep_order(values: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -171,7 +191,10 @@ def read_project_file(project_file: Path) -> dict[str, object]:
     opt_value = "-local,-asmfile,+asm,-speed,+space,-debug"
     runtime_value = ""
     warning_value = "-9"
+    config_value = ""
     sources: list[str] = []
+    include_dirs: list[str] = []
+    defines: list[str] = []
 
     for raw_line in project_file.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = raw_line.strip()
@@ -185,10 +208,20 @@ def read_project_file(project_file: Path) -> dict[str, object]:
             runtime_value = line.split("=", 1)[1].strip()
         elif line.startswith("WarningValue="):
             warning_value = line.split("=", 1)[1].strip()
+        elif line.startswith("config="):
+            config_value = line.split("=", 1)[1].strip()
         elif line.startswith("SourceFile="):
             source = line.split("=", 1)[1].strip()
             if source:
                 sources.append(normalize_source_file(source))
+        elif line.startswith("IncludeDir="):
+            include_dir = line.split("=", 1)[1].strip()
+            if include_dir:
+                include_dirs.append(normalize_include_dir(include_dir))
+        elif line.startswith("Define="):
+            define = line.split("=", 1)[1].strip()
+            if define:
+                defines.append(normalize_define(define))
 
     if not chip:
         raise RuntimeError(f"Device not found in project file: {project_file}")
@@ -197,10 +230,14 @@ def read_project_file(project_file: Path) -> dict[str, object]:
 
     return {
         "chip": chip,
+        "scw_chip": chip,
         "opt_value": opt_value,
         "runtime_value": runtime_value,
         "warning_value": warning_value,
+        "config_value": config_value,
         "sources": sources,
+        "include_dirs": include_dirs,
+        "defines": defines,
         "image_prefix": project_file.stem,
     }
 
@@ -218,7 +255,11 @@ def merge_project_config(
             "opt_value": "-local,-asmfile,+asm,-speed,+space,-debug",
             "runtime_value": "",
             "warning_value": "-9",
+            "config_value": "",
             "sources": [],
+            "include_dirs": [],
+            "defines": [],
+            "scw_chip": "",
             "image_prefix": project_root.name,
         }
 
@@ -229,6 +270,12 @@ def merge_project_config(
     if args.append_source_files:
         project["sources"].extend(normalize_source_file(path) for path in args.append_source_files)
     project["sources"] = dedupe_keep_order(project["sources"])
+    if args.include_dirs:
+        project["include_dirs"].extend(normalize_include_dir(path) for path in args.include_dirs)
+    project["include_dirs"] = dedupe_keep_order(project["include_dirs"])
+    if args.defines:
+        project["defines"].extend(normalize_define(value) for value in args.defines)
+    project["defines"] = dedupe_keep_order(project["defines"])
     if args.image_prefix:
         project["image_prefix"] = args.image_prefix
 
@@ -260,6 +307,7 @@ def build_args(build_name: str, include_dir: str, project: dict[str, object]) ->
         f"--opt={project['opt_value']}",
         f"-E+{out_prefix}\\cmscerr.err",
         "-D__DEBUG=1",
+        *project["defines"],
         "-g",
         "--asmlist",
         f"--warn={project['warning_value']}",
@@ -267,8 +315,10 @@ def build_args(build_name: str, include_dir: str, project: dict[str, object]) ->
         "--addrqual=request",
         "--mode=pro",
         "-I.",
-        f"-I{include_dir}",
     ])
+    for project_include in project["include_dirs"]:
+        args.append(f"-I{project_include}")
+    args.append(f"-I{include_dir}")
     return args
 
 
@@ -369,6 +419,72 @@ def parse_map(map_path: Path) -> dict[str, object]:
     return {"exists": True, "top_functions": functions[:8]}
 
 
+def parse_hex_config_words(hex_path: Path) -> dict[str, object]:
+    """Extract non-0xFFFF config words from Intel HEX output when present.
+
+    SCMCU/PIC14 HEX files encode word address 0x2007 as byte address 0x400E.
+    Command-line XC8 builds may omit config words even when `.scw` has config=.
+    """
+    if not hex_path.exists():
+        return {"exists": False, "words": {}}
+
+    extended_linear = 0
+    bytes_by_addr: dict[int, int] = {}
+
+    for raw_line in hex_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line.startswith(":") or len(line) < 11:
+            continue
+        try:
+            count = int(line[1:3], 16)
+            addr = int(line[3:7], 16)
+            rectype = int(line[7:9], 16)
+            data = bytes.fromhex(line[9:9 + count * 2])
+        except ValueError:
+            continue
+
+        if rectype == 0x00:
+            base = (extended_linear << 16) + addr
+            for offset, value in enumerate(data):
+                bytes_by_addr[base + offset] = value
+        elif rectype == 0x04 and len(data) == 2:
+            extended_linear = (data[0] << 8) | data[1]
+
+    words: dict[str, str] = {}
+    for byte_addr in range(0x4000, 0x4020, 2):
+        low = bytes_by_addr.get(byte_addr)
+        high = bytes_by_addr.get(byte_addr + 1)
+        if low is None or high is None:
+            continue
+        word = low | (high << 8)
+        if word != 0xFFFF:
+            words[f"{byte_addr // 2:04X}"] = f"{word:04X}"
+
+    return {"exists": True, "words": words}
+
+
+def summarize_chip_relation(project: dict[str, object]) -> dict[str, object]:
+    scw_chip = str(project.get("scw_chip", ""))
+    effective_chip = str(project.get("chip", ""))
+    same = bool(scw_chip and scw_chip == effective_chip)
+    overridden = bool(scw_chip and effective_chip and scw_chip != effective_chip)
+    reason = ""
+    known_debug_substitute = False
+
+    if overridden:
+        reason = KNOWN_DEBUG_CHIP_SUBSTITUTES.get(frozenset((scw_chip, effective_chip)), "")
+        known_debug_substitute = bool(reason)
+
+    return {
+        "scw_chip": scw_chip,
+        "effective_chip": effective_chip,
+        "same": same,
+        "overridden": overridden,
+        "known_debug_substitute": known_debug_substitute,
+        "reason": reason,
+    }
+
+
 def build_summary(
     build_name: str,
     project_file: Path | None,
@@ -376,12 +492,15 @@ def build_summary(
     output_dir: Path,
     map_path: Path,
     err_path: Path,
+    hex_path: Path,
     toolchain_source: str,
     xc8_exe: str,
     returncode: int,
 ) -> dict[str, object]:
     cmscerr = parse_cmscerr(err_path)
     map_info = parse_map(map_path)
+    hex_config = parse_hex_config_words(hex_path)
+    chip_relation = summarize_chip_relation(project)
     warnings_count = int(cmscerr["warnings"]["count"])
     errors_count = int(cmscerr["errors"]["count"])
     success = returncode == 0
@@ -393,12 +512,21 @@ def build_summary(
         "verification_ok": success and warnings_count == 0 and errors_count == 0,
         "project_file": None if project_file is None else str(project_file),
         "chip": project["chip"],
+        "scw_chip": project.get("scw_chip", ""),
+        "chip_overridden": chip_relation["overridden"],
+        "chip_relation": chip_relation,
         "toolchain_source": toolchain_source,
         "xc8_exe": xc8_exe,
         "image_prefix": project["image_prefix"],
         "source_files": project["sources"],
+        "include_dirs": project["include_dirs"],
+        "defines": project["defines"],
+        "scw_config": project.get("config_value", ""),
+        "hex_config": hex_config,
+        "config_words_emitted": bool(hex_config.get("words")),
         "output_dir": str(output_dir),
         "map_file": str(map_path),
+        "hex_file": str(hex_path),
         "error_log": str(err_path),
         "warnings": cmscerr["warnings"],
         "errors": cmscerr["errors"],
@@ -421,6 +549,28 @@ def print_summary(summary: dict[str, object], summary_path: Path) -> None:
         print(f"Project file: {summary['project_file']}")
     print(f"Toolchain source: {summary['toolchain_source']}")
     print(f"XC8 exe: {summary['xc8_exe']}")
+    chip_relation = summary.get("chip_relation", {})
+    if summary.get("scw_chip") and summary.get("chip_overridden"):
+        if chip_relation.get("known_debug_substitute"):
+            print(
+                f"SCW device: {summary['scw_chip']} -> effective chip: {summary['chip']} "
+                "(known debug substitute; verify project truth)"
+            )
+        else:
+            print(
+                f"SCW device: {summary['scw_chip']} -> effective chip: {summary['chip']} "
+                "(override; verify compatibility)"
+            )
+    else:
+        print(f"Chip: {summary['chip']}")
+    if summary.get("scw_config"):
+        print(f"SCW config: {summary['scw_config']}")
+    hex_words = summary.get("hex_config", {}).get("words", {})
+    if hex_words:
+        rendered_words = ", ".join(f"{addr}={value}" for addr, value in hex_words.items())
+        print(f"HEX config words: {rendered_words}")
+    elif summary.get("scw_config"):
+        print("HEX config words: <not emitted by this command-line build>")
     print(f"Build output: {summary['output_dir']}")
     print(f"Map file: {summary['map_file']}")
     print(f"Error log: {summary['error_log']}")
@@ -468,6 +618,7 @@ def main() -> int:
     output_dir = project_root / "build" / "xc8" / build_name
     image_base = f"{project['image_prefix']}_{build_name}"
     map_path = output_dir / (image_base + ".map")
+    hex_path = output_dir / (image_base + ".hex")
     err_path = output_dir / "cmscerr.err"
     summary_path = output_dir / "build_summary.json"
 
@@ -490,6 +641,7 @@ def main() -> int:
         output_dir=output_dir,
         map_path=map_path,
         err_path=err_path,
+        hex_path=hex_path,
         toolchain_source=toolchain_source,
         xc8_exe=xc8_exe,
         returncode=returncode,
