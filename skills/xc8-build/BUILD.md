@@ -183,7 +183,7 @@ Each build directory contains the full compiler output set, for example:
 
 Primary files to inspect after a build:
 
-- `build_summary.json`: parsed build result, warning/error counts, ROM/RAM summary, top function estimates, `.scw` config string, and config words emitted into the command-line HEX when present
+- `build_summary.json`: parsed build result, warning/error counts, ROM/RAM summary, top function estimates, `.scw` config string, decoded SCMCU config settings when available, project flash flow, chip substitute relation, and config words emitted into the command-line HEX when present
 - `cmscerr.err`: warnings, errors, memory summary
 - `<project-stem>_<build-name>.map`: section placement, symbol table, estimated function sizes
 - `<project-stem>_<build-name>.hex`: useful for CI/build artifacts, but not necessarily the image a user flashes when their workflow is official SCMCU IDE burning
@@ -228,8 +228,9 @@ xc8.exe
 - If an agent needs a temporary or synthetic build that does not belong in the SCMCU project file, pass `-Chip`, `-SourceFile`, `-AppendSourceFile`, `-IncludeDir`, `-Define`, or `-ImagePrefix` on the command line.
 - After each build, the script parses `cmscerr.err`, `.map`, and HEX config records when present, then writes `build_summary.json`.
 - The build summary also records which toolchain path was used and whether it came from explicit config or autodetect.
-- Device substitutions are not automatically errors. Some SCMCU projects intentionally use an erasable/debug-compatible `.scw` device while command-line verification targets the OTP production-compatible chip; record that as project-local truth. The summary reports `chip_relation`; the known SCMCU debug substitute pair `SC8P062BD` / `SC8F072` is flagged for review instead of treated as an automatic mismatch.
-- Configuration-bit verification is separate from C compilation. If `scw_config` is non-empty but `config_words_emitted` is false, command-line output did not emit config words; use the official IDE/programmer settings as the configuration source of truth.
+- Device substitutions are not automatically errors. Some SCMCU projects intentionally use an erasable/debug-compatible `.scw` device while command-line verification targets the OTP production-compatible chip; record that as project-local truth. The summary reports `chip_relation`; project-level `.emb-agent/project.json` `chip_substitutes` entries are preferred, and the built-in `SC8P062BD` / `SC8F072` pair is flagged for review instead of treated as an automatic mismatch.
+- Projects can set `.emb-agent/project.json` `flash_flow` to `official_ide_only` when the user burns from SCMCU IDE; command-line HEX should then be treated as verification evidence, not the recommended flash artifact.
+- Configuration-bit verification is separate from C compilation. If `scw_config` is non-empty but `config_words_emitted` is false, command-line output did not emit config words; use the official IDE/programmer settings as the configuration source of truth. When the SCMCU IDE `.cfg` definition exists, `scw_config_decode.critical` reports fields such as `WDT=DISABLE` and `EXT_RESET=DISABLE` directly.
 - The current function-size data is estimated from symbol start/end addresses in the map file. Treat it as a useful heuristic, not an exact linker-reported size table.
 - For team reuse, prefer machine-level, shell-level, or CI-level environment variables instead of a repo `.env` file. This is host-specific toolchain configuration, not project data.
 - If users only know the IDE install root, use `SCMCU_IDE_ROOT`.

@@ -5,7 +5,7 @@ Shared chip-support catalog assets live here.
 This directory now carries the migrated adapter payload that previously lived in the standalone `emb-agent-adapters` repository:
 
 - `chip-support/`
-  Reusable tool routes, algorithms, and shared helpers.
+  Reusable tool routes, algorithms, shared helpers, and reviewed chip/family implementation patterns.
 - `extensions/`
   Family, device, and chip profiles used by the runtime.
 - `docs/sources/`

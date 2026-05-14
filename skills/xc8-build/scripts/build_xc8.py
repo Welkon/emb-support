@@ -162,6 +162,38 @@ def discover_project_file(project_root: Path, project_file: str) -> Path | None:
     return path
 
 
+def load_emb_agent_project_config(project_root: Path) -> dict[str, object]:
+    config_path = project_root / ".emb-agent" / "project.json"
+    if not config_path.exists():
+        return {}
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"_load_error": str(config_path)}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def normalize_chip_substitutes(project_config: dict[str, object]) -> list[dict[str, str]]:
+    raw_items = project_config.get("chip_substitutes", []) if isinstance(project_config, dict) else []
+    if not isinstance(raw_items, list):
+        return []
+
+    normalized: list[dict[str, str]] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        target = str(item.get("target", "")).strip()
+        substitute = str(
+            item.get("substitute", "") or item.get("debug_device", "") or item.get("alias", "")
+        ).strip()
+        reason = str(item.get("reason", "")).strip()
+        if target and substitute:
+            normalized.append({"target": target, "substitute": substitute, "reason": reason})
+    return normalized
+
+
 def normalize_source_file(path: str) -> str:
     return path.replace("/", "\\")
 
@@ -247,6 +279,8 @@ def merge_project_config(
     project_root: Path,
     project_file: Path | None,
 ) -> dict[str, object]:
+    emb_project_config = load_emb_agent_project_config(project_root)
+
     if project_file is not None:
         project = read_project_file(project_file)
     else:
@@ -278,6 +312,9 @@ def merge_project_config(
     project["defines"] = dedupe_keep_order(project["defines"])
     if args.image_prefix:
         project["image_prefix"] = args.image_prefix
+
+    project["chip_substitutes"] = normalize_chip_substitutes(emb_project_config)
+    project["flash_flow"] = str(emb_project_config.get("flash_flow", "")).strip() if isinstance(emb_project_config, dict) else ""
 
     if not project["chip"]:
         raise RuntimeError("Chip not set. Pass -Chip or provide Device= in the SCMCU project file.")
@@ -463,16 +500,158 @@ def parse_hex_config_words(hex_path: Path) -> dict[str, object]:
     return {"exists": True, "words": words}
 
 
+def parse_scw_config_words(config_value: str) -> list[int]:
+    words: list[int] = []
+    for raw in str(config_value or "").split(","):
+        value = raw.strip()
+        if not value:
+            continue
+        try:
+            words.append(int(value, 16))
+        except ValueError:
+            return []
+    return words
+
+
+def scmcu_toolchain_root_from_xc8(xc8_exe: str) -> Path | None:
+    path = Path(xc8_exe)
+    # SCMCU IDE layout: <root>/data/bin/xc8.exe
+    if len(path.parents) >= 3 and path.parent.name.lower() == "bin" and path.parent.parent.name.lower() == "data":
+        return path.parent.parent.parent
+    return None
+
+
+def parse_scmcu_cfg_options(cfg_path: Path) -> dict[str, dict[str, list[tuple[int, int, int]]]]:
+    sections: dict[str, dict[str, list[tuple[int, int, int]]]] = {}
+    current = ""
+    if not cfg_path.exists():
+        return sections
+
+    for raw_line in cfg_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or line.startswith(";"):
+            continue
+        section_match = re.match(r"^\[([^\]]+)\]$", line)
+        if section_match:
+            current = section_match.group(1).strip()
+            sections.setdefault(current, {})
+            continue
+        if not current or "=" not in line:
+            continue
+        name, spec_text = line.split("=", 1)
+        name = name.strip()
+        if name == "DISPMODE":
+            continue
+        specs: list[tuple[int, int, int]] = []
+        for raw_spec in spec_text.split(":"):
+            parts = [part.strip() for part in raw_spec.split(",")]
+            if len(parts) != 3:
+                continue
+            try:
+                specs.append((int(parts[0]), int(parts[1]), int(parts[2])))
+            except ValueError:
+                specs = []
+                break
+        if specs:
+            sections.setdefault(current, {})[name] = specs
+
+    return sections
+
+
+def decode_scmcu_config(config_value: str, project: dict[str, object], xc8_exe: str) -> dict[str, object]:
+    words = parse_scw_config_words(config_value)
+    decode_chip = str(project.get("scw_chip") or project.get("chip") or "").strip()
+    if not config_value:
+        return {"available": False, "reason": "no scw config value", "words": []}
+    if not words:
+        return {"available": False, "reason": "config value is not parseable hex words", "words": []}
+    if not decode_chip:
+        return {"available": False, "reason": "chip is unknown", "words": [f"{word:04X}" for word in words]}
+
+    toolchain_root = scmcu_toolchain_root_from_xc8(xc8_exe)
+    if toolchain_root is None:
+        return {
+            "available": False,
+            "reason": "toolchain root could not be derived from xc8 path",
+            "chip": decode_chip,
+            "words": [f"{word:04X}" for word in words],
+        }
+
+    cfg_path = toolchain_root / "mcu" / "config" / f"{decode_chip}.cfg"
+    sections = parse_scmcu_cfg_options(cfg_path)
+    if not sections:
+        return {
+            "available": False,
+            "reason": "SCMCU config definition not found or empty",
+            "chip": decode_chip,
+            "definition_file": str(cfg_path),
+            "words": [f"{word:04X}" for word in words],
+        }
+
+    settings: dict[str, str] = {}
+    unmatched: list[str] = []
+    for section, options in sections.items():
+        matched_options: list[str] = []
+        for option_name, specs in options.items():
+            ok = True
+            for word_index, bit_index, expected in specs:
+                if word_index >= len(words):
+                    ok = False
+                    break
+                bit_value = (words[word_index] >> bit_index) & 1
+                if bit_value != expected:
+                    ok = False
+                    break
+            if ok:
+                matched_options.append(option_name)
+        if len(matched_options) == 1:
+            settings[section] = matched_options[0]
+        elif len(matched_options) > 1:
+            settings[section] = "/".join(matched_options)
+        else:
+            unmatched.append(section)
+
+    critical_names = ("WDT", "EXT_RESET", "LVR_SEL", "ICSPPORT_SEL")
+    return {
+        "available": True,
+        "chip": decode_chip,
+        "definition_file": str(cfg_path),
+        "words": [f"{word:04X}" for word in words],
+        "settings": settings,
+        "critical": {name: settings.get(name, "") for name in critical_names if name in settings},
+        "unmatched": unmatched,
+    }
+
+
+def find_project_chip_substitute_reason(project: dict[str, object], scw_chip: str, effective_chip: str) -> str:
+    for item in project.get("chip_substitutes", []):
+        if not isinstance(item, dict):
+            continue
+        target = str(item.get("target", "")).strip()
+        substitute = str(item.get("substitute", "")).strip()
+        reason = str(item.get("reason", "")).strip()
+        if {target, substitute} == {scw_chip, effective_chip}:
+            return reason or "project-local chip substitute"
+    return ""
+
+
 def summarize_chip_relation(project: dict[str, object]) -> dict[str, object]:
     scw_chip = str(project.get("scw_chip", ""))
     effective_chip = str(project.get("chip", ""))
     same = bool(scw_chip and scw_chip == effective_chip)
     overridden = bool(scw_chip and effective_chip and scw_chip != effective_chip)
     reason = ""
+    source = ""
     known_debug_substitute = False
 
     if overridden:
-        reason = KNOWN_DEBUG_CHIP_SUBSTITUTES.get(frozenset((scw_chip, effective_chip)), "")
+        reason = find_project_chip_substitute_reason(project, scw_chip, effective_chip)
+        if reason:
+            source = "project"
+        else:
+            reason = KNOWN_DEBUG_CHIP_SUBSTITUTES.get(frozenset((scw_chip, effective_chip)), "")
+            if reason:
+                source = "built-in"
         known_debug_substitute = bool(reason)
 
     return {
@@ -481,6 +660,7 @@ def summarize_chip_relation(project: dict[str, object]) -> dict[str, object]:
         "same": same,
         "overridden": overridden,
         "known_debug_substitute": known_debug_substitute,
+        "source": source,
         "reason": reason,
     }
 
@@ -500,6 +680,7 @@ def build_summary(
     cmscerr = parse_cmscerr(err_path)
     map_info = parse_map(map_path)
     hex_config = parse_hex_config_words(hex_path)
+    scw_config_decode = decode_scmcu_config(str(project.get("config_value", "")), project, xc8_exe)
     chip_relation = summarize_chip_relation(project)
     warnings_count = int(cmscerr["warnings"]["count"])
     errors_count = int(cmscerr["errors"]["count"])
@@ -521,7 +702,10 @@ def build_summary(
         "source_files": project["sources"],
         "include_dirs": project["include_dirs"],
         "defines": project["defines"],
+        "chip_substitutes": project.get("chip_substitutes", []),
+        "flash_flow": project.get("flash_flow", ""),
         "scw_config": project.get("config_value", ""),
+        "scw_config_decode": scw_config_decode,
         "hex_config": hex_config,
         "config_words_emitted": bool(hex_config.get("words")),
         "output_dir": str(output_dir),
@@ -563,8 +747,15 @@ def print_summary(summary: dict[str, object], summary_path: Path) -> None:
             )
     else:
         print(f"Chip: {summary['chip']}")
+    if summary.get("flash_flow"):
+        print(f"Flash flow: {summary['flash_flow']}")
     if summary.get("scw_config"):
         print(f"SCW config: {summary['scw_config']}")
+    config_decode = summary.get("scw_config_decode", {})
+    critical_config = config_decode.get("critical", {}) if isinstance(config_decode, dict) else {}
+    if critical_config:
+        rendered_config = ", ".join(f"{name}={value}" for name, value in critical_config.items())
+        print(f"SCW config decode: {rendered_config}")
     hex_words = summary.get("hex_config", {}).get("words", {})
     if hex_words:
         rendered_words = ", ".join(f"{addr}={value}" for addr, value in hex_words.items())

@@ -66,9 +66,9 @@ Optional override behavior:
 
 SCMCU IDE caution:
 
-- Do not assume a `-Chip` override means the `.scw` device must be changed. Some projects intentionally keep a debug/erasable `.scw` device while command-line verification targets the production-compatible part. `build_summary.json` reports `chip_relation`; known SCMCU debug substitutes include `SC8P062BD` / `SC8F072` when the project has recorded that board truth.
-- Do not assume the command-line HEX is what the user flashes. If the user burns from SCMCU IDE, report source and project setting changes; use the build output as verification evidence.
-- Inspect `build_summary.json` `scw_config`, `hex_config`, and `config_words_emitted` when WDT, reset-pin mode, LVR, or sleep behavior depends on configuration bits.
+- Do not assume a `-Chip` override means the `.scw` device must be changed. Some projects intentionally keep a debug/erasable `.scw` device while command-line verification targets the production-compatible part. `build_summary.json` reports `chip_relation`; project-level `.emb-agent/project.json` `chip_substitutes` entries override built-in known SCMCU debug substitutes such as `SC8P062BD` / `SC8F072`.
+- Do not assume the command-line HEX is what the user flashes. If `.emb-agent/project.json` sets `flash_flow: official_ide_only`, report source/project setting changes; use the build output as verification evidence.
+- Inspect `build_summary.json` `scw_config`, `scw_config_decode`, `hex_config`, and `config_words_emitted` when WDT, reset-pin mode, LVR, or sleep behavior depends on configuration bits. For SCMCU `.cfg` files that are present under the IDE root, the summary decodes critical fields such as `WDT` and `EXT_RESET`.
 
 3. If working from Windows PowerShell instead, use:
 

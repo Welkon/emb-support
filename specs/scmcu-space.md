@@ -16,12 +16,12 @@ Pair it with `embedded-space` for generic ROM-first embedded rules.
 
 ## IDE and `.scw` project behavior
 
-- Treat `.scw` as the source of device and source-file metadata when the project uses SCMCU IDE, but do not assume the `.scw` device string is always the production package. Some SCMCU projects deliberately use an erasable/debug-compatible device (for example an `SC8F` part) while source and review target an `SC8P` OTP part. Record such substitutions as project-local hardware truth instead of flagging them as automatic blockers. Known board-truth example: `SC8P062BD` production-target reviews may intentionally use `SC8F072` as a repeatedly erasable/debug substitute.
+- Treat `.scw` as the source of device and source-file metadata when the project uses SCMCU IDE, but do not assume the `.scw` device string is always the production package. Some SCMCU projects deliberately use an erasable/debug-compatible device (for example an `SC8F` part) while source and review target an `SC8P` OTP part. Record such substitutions as project-local hardware truth instead of flagging them as automatic blockers; prefer project config such as `.emb-agent/project.json` `chip_substitutes` when available. Known board-truth example: `SC8P062BD` production-target reviews may intentionally use `SC8F072` as a repeatedly erasable/debug substitute.
 - `.scw` `HeadFile=` entries are IDE browsing metadata. They are not sufficient proof that the compiler receives an include path.
 - If a project must compile both from SCMCU IDE and command-line tooling, either prove the IDE passes the include directory or include project headers from source files with a path that is valid relative to the source, for example `../include/foo.h`.
 - Keep the `.scw` source list aligned with the real target source set. Remove generated/template `main.c` files from the IDE project instead of adding compatibility code for them.
 - Build outputs from SCMCU IDE often go to `output/`; command-line verification should keep its own artifacts under a project-specific build directory such as `build/xc8/<build-name>/`.
-- Ask how the user flashes the board. If they burn from the official SCMCU IDE, command-line build artifacts are verification evidence only; report source/project settings to change rather than asking them to flash a generated HEX.
+- Ask how the user flashes the board. If they burn from the official SCMCU IDE, command-line build artifacts are verification evidence only; report source/project settings to change rather than asking them to flash a generated HEX. Record that workflow as project config such as `.emb-agent/project.json` `flash_flow: official_ide_only` when emb-agent is active.
 
 ## Device headers and SFR ownership
 
@@ -78,6 +78,6 @@ Pair it with `embedded-space` for generic ROM-first embedded rules.
 
 - After each firmware slice, build with the same SCMCU/XC8 toolchain used by the project and inspect `cmscerr.err`, the map file, ROM/RAM percentages, warning count, and top functions.
 - Treat warnings as budget and correctness signals, not noise. SCMCU/XC8 warnings around SFR boolean conversions, narrowing, unused functions, or unreachable branches should be resolved or documented.
-- Review configuration-bit evidence separately from C compile success. A command-line build can succeed while the official IDE/project configuration used for burning still controls WDT, reset-pin mode, LVR, or debug-device substitution.
+- Review configuration-bit evidence separately from C compile success. A command-line build can succeed while the official IDE/project configuration used for burning still controls WDT, reset-pin mode, LVR, or debug-device substitution. Prefer decoded SCMCU config evidence (`WDT`, `EXT_RESET`, `LVR_SEL`, `ICSPPORT_SEL`) over raw hex words when the IDE `.cfg` definition is available.
 - When ROM/RAM pressure appears, inspect the map/listing/call graph before refactoring. Recheck table-vs-logic and helper-vs-inline choices with measured output.
 - If a SCMCU C guide rule conflicts with project hardware truth or measured compiler output, keep hardware truth and measured output authoritative, then record the exception in the project-local spec.

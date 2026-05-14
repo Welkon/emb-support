@@ -2,7 +2,9 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const childProcess = require('child_process');
 
 const ADAPTERS_DIR = path.resolve(__dirname, '..', 'adapters');
 const ALGORITHMS_DIR = path.join(ADAPTERS_DIR, 'chip-support', 'algorithms');
@@ -98,6 +100,82 @@ function runTest(algorithmName, algorithmPath, vectorRaw) {
   }
 }
 
+function runXc8BuildScriptTests() {
+  const scriptPath = path.resolve(__dirname, '..', 'skills', 'xc8-build', 'scripts', 'build_xc8.py');
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-support-xc8-test-'));
+  const fakeToolchain = path.join(tempRoot, 'SCMCU_IDE');
+  const cfgDir = path.join(fakeToolchain, 'mcu', 'config');
+  const binDir = path.join(fakeToolchain, 'data', 'bin');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(path.join(binDir, 'xc8.exe'), '', 'utf8');
+  fs.writeFileSync(
+    path.join(cfgDir, 'SC8P062BD.cfg'),
+    [
+      '[WDT]',
+      'DISPMODE=0',
+      'DISABLE=1,11,1:1,10,0:1,9,1:1,8,0',
+      'ENABLE=1,11,1:1,10,1:1,9,1:1,8,1',
+      '',
+      '[EXT_RESET]',
+      'DISPMODE=0',
+      'DISABLE=0,13,1',
+      'ENABLE=0,13,0',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+
+  const pythonCode = `
+import importlib.util
+import json
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('build_xc8', ${JSON.stringify(scriptPath)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+project = {
+  'chip': 'SC8P062BD',
+  'scw_chip': 'SC8F072',
+  'chip_substitutes': [{'target': 'SC8P062BD', 'substitute': 'SC8F072', 'reason': 'debug substitute'}],
+}
+relation = mod.summarize_chip_relation(project)
+decode = mod.decode_scmcu_config('FFFF,FAEF,FFFF,', {'chip': 'SC8P062BD', 'scw_chip': 'SC8P062BD'}, ${JSON.stringify(path.join(binDir, 'xc8.exe'))})
+print(json.dumps({'relation': relation, 'decode': decode}, sort_keys=True))
+`;
+
+  const result = childProcess.spawnSync('python3', ['-c', pythonCode], { encoding: 'utf8' });
+  if (result.error && result.error.code === 'ENOENT') {
+    logResult('xc8-build script helpers', 'skip', 'python3 not found');
+    skipped++;
+    return;
+  }
+  if (result.status !== 0) {
+    logResult('xc8-build script helpers', 'fail', result.stderr || result.stdout || 'python failed');
+    failed++;
+    return;
+  }
+
+  try {
+    const output = JSON.parse(result.stdout.trim());
+    if (output.relation.source !== 'project' || output.relation.known_debug_substitute !== true) {
+      logResult('xc8-build chip relation', 'fail', 'project chip substitute was not recognized');
+      failed++;
+      return;
+    }
+    if (output.decode.critical.WDT !== 'DISABLE' || output.decode.critical.EXT_RESET !== 'DISABLE') {
+      logResult('xc8-build config decode', 'fail', 'critical config fields were not decoded');
+      failed++;
+      return;
+    }
+    passed += 2;
+    logResult('xc8-build chip relation', 'pass');
+    logResult('xc8-build config decode', 'pass');
+  } catch (err) {
+    logResult('xc8-build script helpers', 'fail', err.message);
+    failed++;
+  }
+}
+
 function runAllTests() {
   console.log('emb-support algorithm verification\n');
 
@@ -124,6 +202,9 @@ function runAllTests() {
       logResult(vector, result.status, result.detail);
     }
   }
+
+  console.log('\nxc8-build:');
+  runXc8BuildScriptTests();
 
   console.log(`\n---`);
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);
