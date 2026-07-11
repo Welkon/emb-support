@@ -103,6 +103,8 @@ If the user asks for a shell or CI sample, point them to `references/toolchain.e
 - `build/xc8/<build-name>/build_summary.json`
 - configuration-bit fields in `build_summary.json` when sleep/wake/reset behavior is under review
 
+The script clears only the previous command-line `cmscerr.err` / map / HEX for this exact build name before retrying, then treats post-cleanup existence as freshness proof (wall-clock mtime is diagnostic only because WSL filesystems can be skewed). `success` requires zero recognized compiler errors as well as the fresh artifacts, and summary failure produces a non-zero script exit. Read `flash_readiness`: `ide_config_required` means the command-line HEX omitted `.scw` configuration words and must not be presented as the final flash image.
+
 5. Report at least:
 - build succeeded or failed
 - any compiler errors, or the most relevant warnings

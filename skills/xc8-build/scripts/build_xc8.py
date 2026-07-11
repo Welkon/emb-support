@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -383,7 +384,7 @@ def parse_cmscerr(err_path: Path) -> dict[str, object]:
         line = raw_line.rstrip()
         if "(warning)" in line:
             warnings.append(line)
-        if "(error)" in line:
+        if is_compiler_error_line(line):
             errors.append(line)
         match = space_re.match(line)
         if match:
@@ -405,6 +406,19 @@ def parse_cmscerr(err_path: Path) -> dict[str, object]:
         "errors": {"count": len(errors), "samples": errors[:8]},
         "memory": memory,
     }
+
+
+def is_compiler_error_line(line: str) -> bool:
+    """Recognize both XC8 `(error)` and SCMCU `Error[141]` spellings.
+
+    The packaged SCMCU compiler frequently emits the latter. Treating only the
+    lowercase parenthesized spelling as an error caused summaries to report
+    zero source errors for a failed IDE-compatible build.
+    """
+    lower = line.lower()
+    if "0 error" in lower or "no error" in lower:
+        return False
+    return bool(re.search(r"\b(?:error(?:\[\d+\])?|fatal)\b", line, re.IGNORECASE))
 
 
 def parse_map(map_path: Path) -> dict[str, object]:
@@ -676,6 +690,9 @@ def build_summary(
     toolchain_source: str,
     xc8_exe: str,
     returncode: int,
+    started_at_ns: int,
+    execution_error: str,
+    compiler_output: str,
 ) -> dict[str, object]:
     cmscerr = parse_cmscerr(err_path)
     map_info = parse_map(map_path)
@@ -684,13 +701,37 @@ def build_summary(
     chip_relation = summarize_chip_relation(project)
     warnings_count = int(cmscerr["warnings"]["count"])
     errors_count = int(cmscerr["errors"]["count"])
-    success = returncode == 0
+    artifacts = artifact_freshness(
+        {
+            "error_log": err_path,
+            "map": map_path,
+            "hex": hex_path,
+        },
+        started_at_ns,
+    )
+    compile_ok = (
+        returncode == 0
+        and not execution_error
+        and errors_count == 0
+        and artifacts["error_log"]["fresh"]
+        and artifacts["map"]["fresh"]
+        and artifacts["hex"]["fresh"]
+    )
+    config_words_emitted = bool(hex_config.get("words"))
+    flash_readiness = (
+        "ready"
+        if compile_ok and (not project.get("config_value") or config_words_emitted)
+        else "ide_config_required"
+        if compile_ok and project.get("config_value")
+        else "not_ready"
+    )
 
     return {
         "build_name": build_name,
-        "success": success,
+        "success": compile_ok,
+        "compiler_returncode": returncode,
         "returncode": returncode,
-        "verification_ok": success and warnings_count == 0 and errors_count == 0,
+        "verification_ok": compile_ok and warnings_count == 0 and errors_count == 0,
         "project_file": None if project_file is None else str(project_file),
         "chip": project["chip"],
         "scw_chip": project.get("scw_chip", ""),
@@ -707,7 +748,13 @@ def build_summary(
         "scw_config": project.get("config_value", ""),
         "scw_config_decode": scw_config_decode,
         "hex_config": hex_config,
-        "config_words_emitted": bool(hex_config.get("words")),
+        "config_words_emitted": config_words_emitted,
+        "flash_readiness": flash_readiness,
+        "artifacts": artifacts,
+        "execution": {
+            "error": execution_error,
+            "wsl_interop_blocked": "UtilBindVsockAnyPort" in compiler_output,
+        },
         "output_dir": str(output_dir),
         "map_file": str(map_path),
         "hex_file": str(hex_path),
@@ -719,11 +766,58 @@ def build_summary(
     }
 
 
+def artifact_freshness(paths: dict[str, Path], started_at_ns: int) -> dict[str, dict[str, object]]:
+    """Describe artifacts created after the mandatory pre-build cleanup.
+
+    `main` removes every path before starting the compiler and aborts if that
+    cleanup fails. Existence after that successful cleanup is therefore the
+    freshness proof. Keep the wall-clock comparison as diagnostics only:
+    WSL/9p/tmpfs clocks can differ by several milliseconds, so using
+    `mtime_ns >= time.time_ns()` as the gate creates false stale results for
+    files created immediately after process launch.
+    """
+    result: dict[str, dict[str, object]] = {}
+    for name, path in paths.items():
+        exists = path.exists()
+        mtime_ns = path.stat().st_mtime_ns if exists else 0
+        result[name] = {
+            "path": str(path),
+            "exists": exists,
+            "fresh": exists,
+            "freshness_basis": "post-cleanup-existence",
+            "mtime_after_start": exists and mtime_ns >= started_at_ns,
+            "clock_delta_ns": mtime_ns - started_at_ns if exists else None,
+            "mtime_ns": mtime_ns if exists else None,
+        }
+    return result
+
+
+def remove_previous_build_evidence(paths: list[Path]) -> None:
+    """Remove only this command-line build's summary artifacts.
+
+    XC8 appends to `cmscerr.err` when invoked with `-E+`; leaving the previous
+    file in place made a successful retry inherit stale errors and warnings.
+    Never touch the IDE's legacy `output/` directory here.
+    """
+    for path in paths:
+        try:
+            if path.is_file() or path.is_symlink():
+                path.unlink()
+        except OSError as exc:
+            raise RuntimeError(f"Cannot clear stale build artifact {path}: {exc}") from exc
+
+
 def write_summary_file(summary_path: Path, summary: dict[str, object]) -> None:
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def summary_exit_code(summary: dict[str, object], compiler_returncode: int) -> int:
+    if bool(summary.get("success")):
+        return 0
+    return compiler_returncode if compiler_returncode != 0 else 1
 
 
 def print_summary(summary: dict[str, object], summary_path: Path) -> None:
@@ -779,7 +873,13 @@ def print_summary(summary: dict[str, object], summary_path: Path) -> None:
 
     print(f"Warnings: {summary['warnings']['count']}")
     print(f"Errors: {summary['errors']['count']}")
+    print(f"Compile ok: {summary['success']}")
     print(f"Verification ok: {summary['verification_ok']}")
+    print(f"Flash readiness: {summary['flash_readiness']}")
+    if summary["execution"].get("wsl_interop_blocked"):
+        print("Environment diagnosis: WSL-to-Windows compiler interop is blocked (UtilBindVsockAnyPort); retry outside the sandbox or from Windows.")
+    if summary["execution"].get("error"):
+        print(f"Execution error: {summary['execution']['error']}")
 
     top_functions = summary["map"].get("top_functions", [])
     if top_functions:
@@ -813,17 +913,39 @@ def main() -> int:
     err_path = output_dir / "cmscerr.err"
     summary_path = output_dir / "build_summary.json"
 
-    xc8_exe, include_dir, toolchain_source = choose_toolchain(args)
     output_dir.mkdir(parents=True, exist_ok=True)
+    remove_previous_build_evidence([err_path, map_path, hex_path, summary_path])
+    xc8_exe, include_dir, toolchain_source = choose_toolchain(args)
 
     cmd = [xc8_exe]
     cmd.extend(build_args(build_name, include_dir, project))
 
-    returncode = 0
+    started_at_ns = time.time_ns()
+    returncode = 1
+    execution_error = ""
+    compiler_output = ""
     try:
-        subprocess.run(cmd, cwd=str(project_root), check=True)
+        completed = subprocess.run(
+            cmd,
+            cwd=str(project_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=180,
+            check=False,
+        )
+        compiler_output = completed.stdout or ""
+        if compiler_output:
+            print(compiler_output, end="" if compiler_output.endswith("\n") else "\n")
+        returncode = completed.returncode
     except subprocess.CalledProcessError as exc:
         returncode = exc.returncode
+    except subprocess.TimeoutExpired as exc:
+        compiler_output = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
+        execution_error = "compiler timed out after 180 seconds"
+    except OSError as exc:
+        execution_error = str(exc)
 
     summary = build_summary(
         build_name=build_name,
@@ -836,10 +958,13 @@ def main() -> int:
         toolchain_source=toolchain_source,
         xc8_exe=xc8_exe,
         returncode=returncode,
+        started_at_ns=started_at_ns,
+        execution_error=execution_error,
+        compiler_output=compiler_output,
     )
     write_summary_file(summary_path, summary)
     print_summary(summary, summary_path)
-    return returncode
+    return summary_exit_code(summary, returncode)
 
 
 if __name__ == "__main__":
