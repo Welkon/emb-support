@@ -34,6 +34,17 @@
         "short_description": "Operate on Altium PCB layout artifacts",
         "default_prompt": "Use $altium-pcb to plan conservative PCB component placement, apply it to safe PcbDoc copies, or prepare Altium MCP live-apply commands."
       }
+    },
+    {
+      "name": "cachip",
+      "path": "./cachip",
+      "description": "CACHIP MCU 烧录器工具链 — 通过 TFT 仿真下载器(STM32F103, USB HID VID 0xFFCA/PID 0x0125)烧录 CA51M550S1B 等触摸 MCU、触摸调试(TK3 实时数据/门限标定)、Writer/软件槽管理、下载器固件升级与定制、AI 自动调参。Use when the user asks to burn a target MCU, calibrate touch channels, manage firmware slots, or update/customize the CACHIP downloader firmware.",
+      "short_description": "CACHIP MCU 烧录/触摸调试/固件管理工具链",
+      "interface": {
+        "display_name": "CACHIP Toolchain",
+        "short_description": "CACHIP MCU 烧录/触摸调试/固件管理工具链",
+        "default_prompt": "Use $cachip to burn target firmware with the CACHIP downloader, calibrate touch channels, manage Writer firmware slots, or update the downloader firmware."
+      }
     }
   ]
 }
