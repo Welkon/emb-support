@@ -6,6 +6,23 @@
       "name": "xc8-build",
       "path": "./xc8-build",
       "description": "Build firmware with the repo-local Python XC8 build script. The script stays generic by defaulting to SCMCU project-file metadata, while still allowing explicit overrides for chip, source files, and image prefix when an agent or user needs to drive a custom build. Keep artifacts under build/xc8/<build-name>/ and inspect cmscerr.err plus map output for ROM/RAM usage, warnings, and function sizes. Use when the user asks to compile, rebuild, verify code size, inspect map output, or produce a named build output set.",
+      "detect": {
+        "mcu_family": [
+          "PIC10",
+          "PIC12",
+          "PIC16",
+          "PIC18",
+          "PIC24",
+          "dsPIC"
+        ],
+        "project_files": [
+          "*.scw"
+        ],
+        "tools": [
+          "xc8-cc",
+          "xc8"
+        ]
+      },
       "short_description": "Build firmware and inspect ROM/RAM/map output",
       "interface": {
         "display_name": "XC8 Build",
@@ -17,6 +34,12 @@
       "name": "tektronix-scope",
       "path": "./tektronix-scope",
       "description": "Remote-control Tektronix oscilloscopes over VISA/SCPI and capture live waveform data to local files for debugging. Use when Codex needs to discover a Tek scope, connect by USB or TCPIP resource string, run direct SCPI queries or writes, inspect instrument state non-invasively, or export waveform samples to CSV and JSON for AI-assisted analysis.",
+      "detect": {
+        "project_files": [
+          "*.wfm",
+          "*.isf"
+        ]
+      },
       "short_description": "Control Tek scopes and capture waveform data",
       "interface": {
         "display_name": "Tektronix Scope",
@@ -28,6 +51,13 @@
       "name": "altium-pcb",
       "path": "./altium-pcb",
       "description": "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, prepare Altium MCP live-apply commands, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise.",
+      "detect": {
+        "project_files": [
+          "*.PcbDoc",
+          "*.SchDoc",
+          "*.PrjPcb"
+        ]
+      },
       "short_description": "Operate on Altium PCB layout artifacts",
       "interface": {
         "display_name": "Altium PCB",
@@ -39,6 +69,11 @@
       "name": "cachip",
       "path": "./cachip",
       "description": "CACHIP MCU 烧录器工具链 — 通过 TFT 仿真下载器(STM32F103, USB HID VID 0xFFCA/PID 0x0125)烧录 CA51M550S1B 等触摸 MCU、触摸调试(TK3 实时数据/门限标定)、Writer/软件槽管理、下载器固件升级与定制、AI 自动调参。Use when the user asks to burn a target MCU, calibrate touch channels, manage firmware slots, or update/customize the CACHIP downloader firmware.",
+      "detect": {
+        "mcu_family": [
+          "CA51"
+        ]
+      },
       "short_description": "CACHIP MCU 烧录/触摸调试/固件管理工具链",
       "interface": {
         "display_name": "CACHIP Toolchain",

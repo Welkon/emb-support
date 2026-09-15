@@ -5,6 +5,7 @@
   "skills": [
     "./xc8-build/SKILL.md",
     "./tektronix-scope/SKILL.md",
-    "./altium-pcb/SKILL.md"
+    "./altium-pcb/SKILL.md",
+    "./cachip/SKILL.md"
   ]
 }
