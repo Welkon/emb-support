@@ -1284,6 +1284,62 @@ begin
     end;
 end;
 
+// Set rotation/locked attributes of a single component without moving it
+function SetComponentAttributes(Designator: String; Rotation: Float; ApplyRotation: Boolean; Locked: Boolean; SkipIfLocked: Boolean = True): String;
+var
+    Board: IPCB_Board;
+    Component: IPCB_Component;
+    ResultProps: TStringList;
+begin
+    Board := PCBServer.GetCurrentPCBBoard;
+    if (Board = nil) then
+    begin
+        Result := '{"success": false, "error": "No PCB document is currently active"}';
+        Exit;
+    end;
+
+    Component := Board.GetPcbComponentByRefDes(Designator);
+    if (Component = nil) then
+    begin
+        Result := 'ERROR: Component not found: ' + Designator;
+        Exit;
+    end;
+
+    ResultProps := TStringList.Create;
+    try
+        if SkipIfLocked and (not Component.Moveable) then
+        begin
+            AddJSONProperty(ResultProps, 'designator', Designator);
+            AddJSONBoolean(ResultProps, 'skipped', True);
+            AddJSONBoolean(ResultProps, 'locked', True);
+            AddJSONProperty(ResultProps, 'reason', 'component-locked');
+            AddJSONNumber(ResultProps, 'rotation', Component.Rotation);
+            Result := '{"success": true, "result": ' + BuildJSONObject(ResultProps) + '}';
+            Exit;
+        end;
+
+        PCBServer.PreProcess;
+        PCBServer.SendMessageToRobots(Component.I_ObjectAddress, c_Broadcast, PCBM_BeginModify, c_NoEventData);
+
+        if ApplyRotation then
+            Component.Rotation := Rotation;
+        Component.Moveable := not Locked;
+
+        PCBServer.SendMessageToRobots(Component.I_ObjectAddress, c_Broadcast, PCBM_EndModify, c_NoEventData);
+        PCBServer.PostProcess;
+
+        Client.SendMessage('PCB:Zoom', 'Action=Redraw', 255, Client.CurrentView);
+
+        AddJSONProperty(ResultProps, 'designator', Designator);
+        AddJSONBoolean(ResultProps, 'skipped', False);
+        AddJSONNumber(ResultProps, 'rotation', Component.Rotation);
+        AddJSONBoolean(ResultProps, 'moveable', Component.Moveable);
+        Result := '{"success": true, "result": ' + BuildJSONObject(ResultProps) + '}';
+    finally
+        ResultProps.Free;
+    end;
+end;
+
 // Set absolute positions of multiple components in a single transaction
 function SetComponentPositions(PositionsList: TStringList; SkipIfLocked: Boolean = True; StopOnError: Boolean = False): String;
 var

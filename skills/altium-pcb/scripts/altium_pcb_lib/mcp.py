@@ -23,6 +23,24 @@ def ai_review_export_summary(review: Any) -> Dict[str, Any]:
     }
 
 
+def live_attribute_arguments(placement: Dict[str, Any]) -> Dict[str, Any]:
+    """Rotation/locked attribute changes requested by one placement.
+
+    Emitted as a `set_component_attributes` live call so a component can change
+    attributes without being moved. Only explicit `attribute_patches` are used.
+    """
+    patches = placement.get("attribute_patches")
+    if not isinstance(patches, dict):
+        return {}
+    arguments: Dict[str, Any] = {}
+    rotation = patches.get("rotation")
+    if is_finite_number(rotation) and float(rotation) >= 0:
+        arguments["rotation"] = round(float(rotation), 3)
+    if isinstance(patches.get("locked"), bool):
+        arguments["locked"] = bool(patches["locked"])
+    return arguments
+
+
 def export_altium_live_tool_calls(plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
     locked_refs = {normalize_ref(item) for item in make_list(options.get("locked")) if normalize_ref(item)}
     include_unresolved = bool(options.get("include_unresolved"))
@@ -82,6 +100,22 @@ def export_altium_live_tool_calls(plan: Dict[str, Any], options: Dict[str, Any])
                 },
             }
         )
+
+        # Non-movement attribute edits travel as a separate live operation so a plan
+        # can keep a component in place while changing rotation/locked.
+        attributes = live_attribute_arguments(placement)
+        if attributes:
+            tool_calls.append(
+                {
+                    "tool": "set_component_attributes",
+                    "arguments": {"cmp_designator": designator, **attributes},
+                    "source": {
+                        "requested_attributes": attributes,
+                        "old_center": placement.get("old_center"),
+                        "ai_review": ai_review_export_summary(placement.get("ai_review")),
+                    },
+                }
+            )
 
     return {
         "version": 1,

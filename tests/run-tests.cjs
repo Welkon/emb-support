@@ -176,6 +176,34 @@ print(json.dumps({'relation': relation, 'decode': decode}, sort_keys=True))
   }
 }
 
+function runAltiumSkillTests() {
+  const root = path.resolve(__dirname, '..');
+  const testsDir = path.join(root, 'skills', 'altium-pcb', 'tests');
+  if (!fs.existsSync(testsDir)) {
+    logResult('altium-pcb skill tests', 'skip', 'tests directory missing');
+    skipped++;
+    return;
+  }
+  const result = childProcess.spawnSync(
+    'python3',
+    ['-m', 'unittest', 'discover', '-s', testsDir, '-p', 'test_*.py'],
+    { encoding: 'utf8', cwd: root }
+  );
+  if (result.error && result.error.code === 'ENOENT') {
+    logResult('altium-pcb skill tests', 'skip', 'python3 not found');
+    skipped++;
+    return;
+  }
+  const summary = ((result.stderr || result.stdout || '').trim().split('\n').pop()) || '';
+  if (result.status === 0) {
+    logResult('altium-pcb skill tests', 'pass', summary);
+    passed++;
+  } else {
+    logResult('altium-pcb skill tests', 'fail', summary || 'python failed');
+    failed++;
+  }
+}
+
 function runAllTests() {
   console.log('emb-support algorithm verification\n');
 
@@ -205,6 +233,9 @@ function runAllTests() {
 
   console.log('\nxc8-build:');
   runXc8BuildScriptTests();
+
+  console.log('\naltium-pcb:');
+  runAltiumSkillTests();
 
   console.log(`\n---`);
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);

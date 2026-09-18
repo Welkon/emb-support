@@ -15,13 +15,14 @@ The skill absorbs the live Altium bridge capability from `altium-mcp`. The embed
 
 The helper is conservative by design:
 
-- It reads parsed board layout JSON from `ingest board`.
+- It reads parsed board layout JSON (`analysis.board-layout.json`) from `emb-agent ingest board` and validates its schema before planning.
 - It treats explicit `--locked` refs, PCB locked components, and connectors as fixed anchors by default.
 - It estimates footprint envelopes from pads, component body model names, footprint names, and role fallbacks.
 - It avoids same-side envelope overlap and clips suggestions to recognized board bounds.
 - It emits deterministic placement scores and requires AI layout-intent review before live export/apply by default.
-- It bundles the live bridge commands needed to read current Altium component data and move components in batch.
-- It applies `.PcbDoc` edits only by equal-length `X`/`Y` field replacement in `Components6/Data`.
+- It bundles the live bridge commands needed to read current Altium component data, move components in batch, and change component attributes (rotation/locked) via `set_component_attributes`.
+- It applies `.PcbDoc` edits only by equal-length field replacement in `Components6/Data`: `X`/`Y` from the placement, plus named `ROTATION`/`LAYER`/`LOCKED`/text fields supplied through `field_patches`/`suggested_*`.
+- It only ever patches fields the plan names; any length mismatch is skipped and reported, never written.
 - It never modifies board outline, pads, nets, or routing.
 
 ## Default Workflow

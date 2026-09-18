@@ -295,6 +295,26 @@ def build_live_apply(preflight: Dict[str, Any], options: Dict[str, Any]) -> Dict
         arguments = call.get("arguments") or {}
         designator = ensure_string(arguments.get("cmp_designator"))
         ref = normalize_ref(designator)
+        if tool == "set_component_attributes":
+            if not designator:
+                skipped.append({"designator": "", "reason": "missing-designator"})
+                continue
+            if ref in locked_refs:
+                skipped.append({"designator": designator, "reason": "locked"})
+                continue
+            normalized_attributes: Dict[str, Any] = {"cmp_designator": designator}
+            if is_finite_number(arguments.get("rotation")):
+                normalized_attributes["rotation"] = round(float(arguments["rotation"]), 3)
+            if isinstance(arguments.get("locked"), bool):
+                normalized_attributes["locked"] = bool(arguments["locked"])
+            if len(normalized_attributes) == 1:
+                skipped.append({"designator": designator, "reason": "no-attributes"})
+                continue
+            normalized_call = {"sequence": len(executable_calls) + 1, "tool": tool, "arguments": normalized_attributes}
+            if call.get("source"):
+                normalized_call["source"] = call.get("source")
+            executable_calls.append(normalized_call)
+            continue
         if tool != "set_component_position":
             skipped.append({"designator": designator, "reason": "unsupported-tool", "tool": tool})
             continue

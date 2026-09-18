@@ -222,3 +222,57 @@ def ai_review_accepted(review: Any) -> bool:
 
 def ai_review_rejected(review: Any) -> bool:
     return ai_review_decision(review) in {"reject", "rejected", "deny", "denied", "fail", "failed"}
+
+
+# Analysis artifacts are produced by emb-agent (`ingest board`); this helper only
+# rejects shapes the planner cannot trust. Parsing stays owned by emb-agent.
+LAYOUT_BOUND_KEYS = ("min_x_mm", "min_y_mm", "max_x_mm", "max_y_mm")
+LAYOUT_COVERAGE_KEYS = ("components", "tracks", "vias", "nets")
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def validate_layout(parsed: Any) -> Dict[str, Any]:
+    """Validate `analysis.board-layout.json` before planning against it.
+
+    Returns the parsed object unchanged; raises `ValueError` with a stable
+    message when the artifact cannot be planned against.
+    """
+    if not isinstance(parsed, dict):
+        raise ValueError("board layout must be a JSON object")
+
+    coverage = parsed.get("coverage")
+    if coverage is not None:
+        if not isinstance(coverage, dict):
+            raise ValueError("board layout coverage must be an object")
+        for key in LAYOUT_COVERAGE_KEYS:
+            value = coverage.get(key)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                raise ValueError("board layout coverage.%s must be an integer" % key)
+
+    components = parsed.get("components")
+    if components is not None and not isinstance(components, list):
+        raise ValueError("board layout components must be a list")
+    pads = parsed.get("pads")
+    if pads is not None and not isinstance(pads, list):
+        raise ValueError("board layout pads must be a list")
+    component_bodies = parsed.get("component_bodies")
+    if component_bodies is not None and not isinstance(component_bodies, list):
+        raise ValueError("board layout component_bodies must be a list")
+
+    board = parsed.get("board")
+    if board is not None:
+        if not isinstance(board, dict):
+            raise ValueError("board layout board must be an object")
+        bounds = board.get("bounds")
+        if bounds is not None:
+            if not isinstance(bounds, dict):
+                raise ValueError("board layout board.bounds must be an object")
+            for key in LAYOUT_BOUND_KEYS:
+                if key not in bounds:
+                    raise ValueError("board layout board.bounds.%s is required" % key)
+                if not _is_number(bounds.get(key)):
+                    raise ValueError("board layout board.bounds.%s must be a number" % key)
+    return parsed

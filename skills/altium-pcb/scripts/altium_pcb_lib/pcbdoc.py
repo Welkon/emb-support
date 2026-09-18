@@ -320,6 +320,31 @@ def resolve_output_path(input_path: Path, output: Optional[str], in_place: bool)
     return input_path.with_name(f"{input_path.stem}.placed{suffix}")
 
 
+def placement_field_patches(placement: Dict[str, Any]) -> Dict[str, str]:
+    """Equal-length field replacements requested by one placement.
+
+    Convenience keys (`suggested_rotation`, `suggested_layer`,
+    `suggested_locked`) plus a generic `field_patches` map. Values are the exact
+    replacement text; the writer only patches a field when its byte length
+    matches the existing field, so stream size never changes.
+    """
+    patches: Dict[str, str] = {}
+    for key, field in (("suggested_rotation", "ROTATION"), ("suggested_layer", "LAYER")):
+        value = placement.get(key)
+        if value is not None and str(value) != "":
+            # Keep the caller's exact bytes: fields such as ROTATION are leading-space
+            # padded and must match the original width.
+            patches[field] = str(value)
+    locked = placement.get("suggested_locked")
+    if isinstance(locked, bool):
+        patches["LOCKED"] = "TRUE" if locked else "FALSE"
+    for field, value in (placement.get("field_patches") or {}).items():
+        field_name = str(field).strip()
+        if field_name and value is not None:
+            patches[field_name] = str(value)
+    return patches
+
+
 def apply_placement_plan_to_pcbdoc(input_path: Path, plan: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
     in_place = bool(options.get("in_place"))
     if in_place and options.get("confirm") is not True:
@@ -339,7 +364,7 @@ def apply_placement_plan_to_pcbdoc(input_path: Path, plan: Dict[str, Any], optio
     for record in records:
         fields = parse_record_fields(record["text"])
         placement = planned_placement_for_record(record, fields, by_record, by_ref)
-        if not placement or not placement.get("suggested_center"):
+        if not placement:
             continue
         if placement.get("collision_status") == "unresolved":
             skipped.append({"designator": placement.get("designator", ""), "source_record": record["index"], "reason": "collision-unresolved"})
@@ -347,37 +372,60 @@ def apply_placement_plan_to_pcbdoc(input_path: Path, plan: Dict[str, Any], optio
         if should_skip_locked(fields, locked_refs, placement):
             skipped.append({"designator": placement.get("designator", ""), "source_record": record["index"], "reason": "locked"})
             continue
-        x_field = locate_field_value(record["text"], "X")
-        y_field = locate_field_value(record["text"], "Y")
-        if not x_field or not y_field:
-            skipped.append({"designator": placement.get("designator", ""), "source_record": record["index"], "reason": "missing-x-y-fields"})
-            continue
-        suggested_center = placement["suggested_center"]
-        next_x = format_mil_for_original_length(suggested_center.get("x_mm"), x_field["value"])
-        next_y = format_mil_for_original_length(suggested_center.get("y_mm"), y_field["value"])
-        if not next_x or not next_y or len(next_x) != len(x_field["value"]) or len(next_y) != len(y_field["value"]):
-            skipped.append(
-                {
-                    "designator": placement.get("designator", ""),
-                    "source_record": record["index"],
-                    "reason": "coordinate-field-length-not-patchable",
-                    "current": {"x": x_field["value"], "y": y_field["value"]},
-                    "suggested_center": suggested_center,
-                }
-            )
-            continue
-        write_stream_bytes(file_data, ranges, record["start"] + x_field["start"], next_x.encode("latin1"))
-        write_stream_bytes(file_data, ranges, record["start"] + y_field["start"], next_y.encode("latin1"))
-        patched.append(
-            {
-                "designator": placement.get("designator", ""),
-                "source_record": record["index"],
-                "old_center": placement.get("old_center"),
-                "suggested_center": suggested_center,
-                "x": {"from": x_field["value"], "to": next_x.strip()},
-                "y": {"from": y_field["value"], "to": next_y.strip()},
-            }
-        )
+
+        applied = {"designator": placement.get("designator", ""), "source_record": record["index"]}
+        suggested_center = placement.get("suggested_center")
+        if suggested_center:
+            x_field = locate_field_value(record["text"], "X")
+            y_field = locate_field_value(record["text"], "Y")
+            if not x_field or not y_field:
+                skipped.append({"designator": placement.get("designator", ""), "source_record": record["index"], "reason": "missing-x-y-fields"})
+            else:
+                next_x = format_mil_for_original_length(suggested_center.get("x_mm"), x_field["value"])
+                next_y = format_mil_for_original_length(suggested_center.get("y_mm"), y_field["value"])
+                if not next_x or not next_y or len(next_x) != len(x_field["value"]) or len(next_y) != len(y_field["value"]):
+                    skipped.append(
+                        {
+                            "designator": placement.get("designator", ""),
+                            "source_record": record["index"],
+                            "reason": "coordinate-field-length-not-patchable",
+                            "current": {"x": x_field["value"], "y": y_field["value"]},
+                            "suggested_center": suggested_center,
+                        }
+                    )
+                else:
+                    write_stream_bytes(file_data, ranges, record["start"] + x_field["start"], next_x.encode("latin1"))
+                    write_stream_bytes(file_data, ranges, record["start"] + y_field["start"], next_y.encode("latin1"))
+                    applied["old_center"] = placement.get("old_center")
+                    applied["suggested_center"] = suggested_center
+                    applied["x"] = {"from": x_field["value"], "to": next_x.strip()}
+                    applied["y"] = {"from": y_field["value"], "to": next_y.strip()}
+
+        # Equal-length patches for rotation/layer/locked/text. Only fields the plan
+        # names are touched; a length mismatch is reported and skipped.
+        applied_fields: Dict[str, Any] = {}
+        for field, value in placement_field_patches(placement).items():
+            located = locate_field_value(record["text"], field)
+            if not located:
+                skipped.append({"designator": placement.get("designator", ""), "source_record": record["index"], "reason": "field-not-found", "field": field})
+                continue
+            if len(value) != len(located["value"]):
+                skipped.append(
+                    {
+                        "designator": placement.get("designator", ""),
+                        "source_record": record["index"],
+                        "reason": "field-length-not-patchable",
+                        "field": field,
+                        "current": located["value"],
+                    }
+                )
+                continue
+            write_stream_bytes(file_data, ranges, record["start"] + located["start"], value.encode("latin1"))
+            applied_fields[field] = {"from": located["value"], "to": value}
+        if applied_fields:
+            applied["fields"] = applied_fields
+        if "x" in applied or "y" in applied or applied_fields:
+            patched.append(applied)
 
     output_path = resolve_output_path(input_path, options.get("output"), in_place)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -392,7 +440,7 @@ def apply_placement_plan_to_pcbdoc(input_path: Path, plan: Dict[str, Any], optio
         "skipped": skipped,
         "guarantees": {
             "patched_stream": "Root Entry/Components6/Data",
-            "patch_mode": "in-place equal-length X/Y field replacement",
+            "patch_mode": "in-place equal-length field replacement (X/Y plus named rotation/layer/locked/text fields)",
             "board_outline_modified": False,
             "routing_modified": False,
             "pads_modified": False,

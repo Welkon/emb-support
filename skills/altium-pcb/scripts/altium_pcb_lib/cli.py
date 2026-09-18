@@ -48,6 +48,7 @@ def command_live_info(args: argparse.Namespace) -> Dict[str, Any]:
                 "get_all_component_data",
                 "set_component_position",
                 "set_component_positions",
+                "set_component_attributes",
                 "move_components",
                 "layout_duplicator_apply",
             ],
@@ -56,7 +57,7 @@ def command_live_info(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def command_plan(args: argparse.Namespace) -> Dict[str, Any]:
-    parsed = read_json(Path(args.parsed))
+    parsed = validate_layout(read_json(Path(args.parsed)))
     plan = build_placement_plan(
         parsed,
         {

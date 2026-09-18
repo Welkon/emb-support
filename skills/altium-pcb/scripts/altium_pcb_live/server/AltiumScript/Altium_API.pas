@@ -403,6 +403,65 @@ begin
     end;
 end;
 
+// Extract the set component attributes logic
+function ExecuteSetComponentAttributes(RequestData: TStringList): String;
+var
+    ParamValue: String;
+    i, ValueStart: Integer;
+    Designator: String;
+    Rotation: Float;
+    ApplyRotation: Boolean;
+    LockedValue: Boolean;
+    SkipIfLocked: Boolean;
+begin
+    Designator := '';
+    Rotation := 0;
+    ApplyRotation := False;
+    LockedValue := False;
+    SkipIfLocked := True;
+
+    try
+        for i := 0 to RequestData.Count - 1 do
+        begin
+            if (Pos('"designator"', RequestData[i]) > 0) then
+            begin
+                ValueStart := Pos(':', RequestData[i]) + 1;
+                ParamValue := Copy(RequestData[i], ValueStart, Length(RequestData[i]) - ValueStart + 1);
+                ParamValue := TrimJSON(ParamValue);
+                ParamValue := StringReplace(ParamValue, '"', '', REPLACEALL);
+                Designator := Trim(ParamValue);
+            end
+            else if (Pos('"rotation"', RequestData[i]) > 0) then
+            begin
+                ValueStart := Pos(':', RequestData[i]) + 1;
+                ParamValue := Copy(RequestData[i], ValueStart, Length(RequestData[i]) - ValueStart + 1);
+                ParamValue := TrimJSON(ParamValue);
+                Rotation := SafeStrToFloat(ParamValue);
+                ApplyRotation := True;
+            end
+            else if (Pos('"locked"', RequestData[i]) > 0) then
+            begin
+                LockedValue := ParseJSONBooleanValue(GetJSONLineValue(RequestData[i]), False);
+            end
+            else if (Pos('"skip_if_locked"', RequestData[i]) > 0) then
+            begin
+                SkipIfLocked := ParseJSONBooleanValue(GetJSONLineValue(RequestData[i]), True);
+            end;
+        end;
+
+        if Designator <> '' then
+        begin
+            Result := SetComponentAttributes(Designator, Rotation, ApplyRotation, LockedValue, SkipIfLocked);
+        end
+        else
+        begin
+            ShowMessage('Error: No designator found for set_component_attributes');
+            Result := '';
+        end;
+    finally
+    end;
+end;
+
 // Extract the set component positions logic
 function ExecuteSetComponentPositions(RequestData: TStringList): String;
 var
@@ -871,6 +930,8 @@ begin
             Result := GetSelectedComponentsCoordinates(ROOT_DIR); 
 		'set_component_position':
 			Result := ExecuteSetComponentPosition(RequestData);
+		'set_component_attributes':
+			Result := ExecuteSetComponentAttributes(RequestData);
         'set_component_positions':
             Result := ExecuteSetComponentPositions(RequestData);
         'move_components':
