@@ -19,3 +19,15 @@ Typical split:
 - Put reusable external rules in `emb-support/specs`
 - Put optional installable skills in `emb-support/skills`
 - Put reusable chip-support assets in `emb-support/adapters`
+
+## Contributing
+
+Adapters, specs and skills are the point of this repository, so additions from outside the maintainers are welcome: a chip family's register rules, a vendor toolchain spec, or a skill a firmware team keeps rewriting. Each directory carries its own guidance (`adapters/ADDING-ADAPTERS.md`, `adapters/REPO-CONTRACT.md`); run what `tests/` covers before opening a pull request.
+
+By opening a pull request you license your contribution under Apache-2.0, the terms below.
+
+## License
+
+Apache-2.0 — the full text is in [LICENSE](LICENSE).
+
+Everything here is written to be copied and adapted, including commercially, so this catalog is permissive on purpose: a chip vendor or a firmware team has to be able to take an adapter into its own tree without asking anyone. `emb-agent` is a separate component under AGPL-3.0-or-later, and contributing here does not change the terms of the core runtime.
