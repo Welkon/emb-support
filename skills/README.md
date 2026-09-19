@@ -32,6 +32,16 @@ opt-in step.
 Matches are reported with the reason, for example
 `declared MCU PIC18F47Q10 matches family PIC18; xc8-cc found on PATH`.
 
+## Not in this catalog: KiCad CAD operations
+
+KiCad placement, routing and design-rule work is delegated to
+[Konnect](https://github.com/mixelpixx/Konnect), an MCP server and KiCad plugin, and is
+deliberately absent from `index.json`: entries here point at a bundle directory in this
+repository (`path`), while Konnect is an installed external service rather than a bundle.
+See [docs/kicad-cad-delegation.md](../docs/kicad-cad-delegation.md) for the licence
+position — this repository is Apache-2.0 and Konnect is AGPL-3.0, so it is a reference
+and not a copy — and for what emb-agent publishes on the reading side.
+
 ## Adding a skill
 
 1. Create `skills/<name>/SKILL.md` (frontmatter needs `name` and `description`).
