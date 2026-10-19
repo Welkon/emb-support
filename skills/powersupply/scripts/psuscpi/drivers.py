@@ -226,10 +226,26 @@ class Dp100Device(Device):
         except Exception:
             pass
 
+    def _read_report(self) -> bytes:
+        """Read one 64-byte HID report, with a finite timeout when supported."""
+        for kwargs in ({"timeout_ms": 1000}, {"timeout": 1000}):
+            try:
+                return bytes(self.dev.read(64, **kwargs))
+            except TypeError:
+                continue
+        return bytes(self.dev.read(64))
+
     def _exchange(self, opcode, data=b""):
         self.dev.write(_dp_frame(opcode, data))
         time.sleep(0.05)
-        raw = bytes(self.dev.read(64))
+        try:
+            raw = self._read_report()
+        except OSError as e:
+            raise RuntimeError(f"DP100 HID read failed: {e}") from e
+        if not raw:
+            raise RuntimeError(
+                "DP100 did not respond (HID read timeout). Check the cable, "
+                "hidraw permissions, and that no other program holds the device.")
         op, payload = _dp_parse(raw)
         if op != opcode:
             raise RuntimeError(f"unexpected DP100 opcode 0x{op:02x}, expected 0x{opcode:02x}")

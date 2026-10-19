@@ -19,6 +19,9 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="0b21", MODE="0660", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2184", MODE="0660", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="0493", MODE="0660", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="5345", MODE="0660", GROUP="plugdev"
+# ALIENTEK DP100 (USB HID)
+SUBSYSTEM=="usb", ATTR{idVendor}=="2e3c", ATTR{idProduct}=="af01", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2e3c", ATTRS{idProduct}=="af01", MODE="0666", GROUP="plugdev"
 RULES
 
 sudo install -m 0644 "$TMP" "$RULE"
