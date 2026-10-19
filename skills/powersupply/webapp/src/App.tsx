@@ -644,24 +644,20 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
-    <Card className={cn("relative flex h-full flex-col transition-colors duration-500", outputOn && "border-success/45")}>
+    <Card className="relative flex h-full flex-col">
       {outputOn && (
-        <>
-          <motion.div aria-hidden
-            className="pointer-events-none absolute -inset-1 rounded-2xl"
-            style={{ boxShadow: "0 0 22px 3px rgb(var(--glow-rgb) / var(--glow-alpha))" }}
-            animate={{ opacity: [0.22, 0.55, 0.22] }}
-            transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
-          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.015]" />
-        </>
+        <motion.div aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-lg"
+          style={{ boxShadow: "inset 0 0 26px 2px rgb(var(--glow-rgb) / 0.7)" }}
+          animate={{ opacity: [0.12, 0.62, 0.12] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
       )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">{t.control}
           {outputOn && (
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-            </span>
+            <motion.span className="h-1.5 w-1.5 rounded-full bg-success"
+              animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1.15, 0.9] }}
+              transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
           )}
         </CardTitle>
         {(data?.channels.length ?? 1) > 1 && (
