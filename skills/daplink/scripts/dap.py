@@ -181,10 +181,10 @@ def common_session_opts(a) -> list[str]:
 
 # ------------------------------------------------------------------- sessions
 
-def _session(a, halt: bool = True):
+def _open_session(a, halt: bool = True):
     from pyocd.core.helpers import ConnectHelper
     mode = getattr(a, "connect", None) or ("halt" if halt else "attach")
-    session = ConnectHelper.session_with_chosen_probe(
+    return ConnectHelper.session_with_chosen_probe(
         unique_id=getattr(a, "probe", None),
         target_override=getattr(a, "target", None),
         frequency=getattr(a, "frequency", None),
@@ -193,8 +193,52 @@ def _session(a, halt: bool = True):
         return_first=True,
         connect_mode=mode,
     )
+
+
+def wsl_auto_enabled(a) -> bool:
+    if getattr(a, "wsl_auto_attach", True) is False:
+        return False
+    if os.environ.get("DAP_WSL_AUTO_ATTACH", "1") == "0":
+        return False
+    return load_config().get("wsl_auto_attach") is not False
+
+
+def wsl_auto_attach(verbose: bool = True) -> list[str]:
+    """Attach already-shared Windows probes to WSL. Returns attached busids."""
+    exe = usbipd_exe()
+    if not exe:
+        return []
+    attached: list[str] = []
+    for d in usbipd_devices():
+        if not d["probe"] or d["state"].lower() == "attached":
+            continue
+        if d["state"].lower() != "shared":
+            if verbose:
+                print(f"[wsl] {d['busid']} {d['probe']} is '{d['state']}'; "
+                      f"run elevated once: usbipd bind --busid {d['busid']}", file=sys.stderr)
+            continue
+        if verbose:
+            print(f"[wsl] attaching {d['busid']} {d['probe']} to WSL", file=sys.stderr)
+        rc, out, err = run([exe, "attach", "--wsl", "--busid", d["busid"]], 60)
+        if rc == 0:
+            attached.append(d["busid"])
+        elif verbose:
+            print(f"[wsl] attach {d['busid']} failed: {(err or out).strip()[:200]}", file=sys.stderr)
+    return attached
+
+
+def _session(a, halt: bool = True):
+    session = _open_session(a, halt)
+    if session is None and is_wsl() and wsl_auto_enabled(a):
+        attached = wsl_auto_attach()
+        for _ in range(10 if attached else 0):
+            time.sleep(0.5)
+            session = _open_session(a, halt)
+            if session is not None:
+                break
     if session is None:
-        die("No usable probe (or it is busy). Run dap.py doctor")
+        hint = wsl_probe_hint()
+        die("No usable probe (or it is busy). Run dap.py doctor" + (f"\n{hint}" if hint else ""))
     return session
 
 
@@ -438,8 +482,11 @@ def wsl_probe_hint() -> str:
     if not pending:
         return ""
     d = pending[0]
+    if d["state"].lower() == "shared":
+        return (f"Windows sees {d['probe']} at busid {d['busid']} ({d['state']}); "
+                f"auto-attach will try on the next connect (or run: dap.py wsl attach --busid {d['busid']})")
     return (f"Windows sees {d['probe']} at busid {d['busid']} ({d['state']}); "
-            f"run: dap.py wsl attach --busid {d['busid']}")
+            f"run elevated once: usbipd bind --busid {d['busid']}, then retry")
 
 
 def cmd_wsl(a) -> None:
@@ -3510,6 +3557,8 @@ def main() -> None:
         p.add_argument("--engine", choices=["auto", "pyocd", "probe-rs"])
         p.add_argument("--chip", help="probe-rs chip name (e.g. STM32F103RC)")
         p.add_argument("--core", help="core index or name for multi-core targets")
+        p.add_argument("--no-wsl-auto-attach", dest="wsl_auto_attach", action="store_false",
+                       default=True, help="do not auto-attach Windows probes when running under WSL")
         p.add_argument("--elf", help="ELF for symbol resolution")
         p.add_argument("--connect", choices=["halt", "pre-reset", "under-reset", "attach"])
         p.add_argument("--timeout", type=int, default=timeout)

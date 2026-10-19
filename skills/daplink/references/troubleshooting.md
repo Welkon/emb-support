@@ -12,7 +12,7 @@
    ```
    没有设备 → 线、供电、USB 口问题。DAPLink 通常会被目标板供电或 USB 自供电，两种都要试。
 2. **WSL**（`doctor` 里 `wsl: true`）
-   USB 不会自动进 WSL。skill 会自动调用 Windows 侧的 `usbipd.exe` 探测设备：
+   USB 不会自动进 WSL。skill 会在连接失败时自动调用 Windows 侧的 `usbipd.exe` 探测并挂载已 shared 的已知探针（`--no-wsl-auto-attach` / `DAP_WSL_AUTO_ATTACH=0` 可关闭）：
    ```bash
    dap.py wsl status                 # Windows 侧设备 + 已知探针 + busid/状态
    dap.py wsl attach --busid 2-3     # 挂到 WSL（未 shared 会提示先 bind）

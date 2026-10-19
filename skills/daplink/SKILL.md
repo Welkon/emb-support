@@ -36,8 +36,10 @@ python3 scripts/dap.py doctor
 `doctor` 输出 JSON，重点看四个字段：
 
 - `probes`：空数组 = 探针不可见。先别改代码，按 `references/troubleshooting.md#探针不可见` 排查。
-- `wsl: true`：WSL 里 USB 探针必须先挂到 Linux 侧。`doctor` 会自动读 Windows 的 `usbipd list`，
-  在 `windows.probes` 里列出 DAPLink/ST-Link/J-Link 等已知探针及其 busid/状态，并给出可直接执行的命令。
+- `wsl: true`：WSL 里 USB 探针必须先挂到 Linux 侧。**任何需要探针的命令在连接失败时都会自动检测 Windows 侧**：
+  读取 `usbipd list`，若存在已 shared 的已知探针（DAPLink/ST-Link/J-Link 等）会自动 `usbipd attach --wsl`，
+  然后重试连接。可用 `--no-wsl-auto-attach` 或 `DAP_WSL_AUTO_ATTACH=0` 关闭。
+  `doctor` 会在 `windows.probes` 列出状态并给出可直接执行的命令。
   - `dap.py wsl status`：只查看 Windows 侧设备
   - `dap.py wsl attach --busid 2-1`：挂载（设备未 shared 时提示先以管理员运行 `usbipd bind --busid 2-1`）
   - `dap.py doctor --attach`：自动挂载第一个未挂载的已知探针

@@ -24,7 +24,7 @@ def test_parse_usbipd(dap, monkeypatch):
 
 
 def test_wsl_hint(dap, monkeypatch):
-    fake_usbipd(dap, monkeypatch)
+    fake_usbipd(dap, monkeypatch, output=SAMPLE.replace("Not shared", "Shared     "))
     hint = dap.wsl_probe_hint()
     assert "2-1" in hint and "wsl attach" in hint
 
@@ -56,3 +56,44 @@ def test_wsl_attach_dry_run_when_shared(dap, monkeypatch):
     dap.cmd_wsl(SimpleNamespace(action="attach", busid="2-1", dry_run=True))
     assert calls[0]["dry_run"] is True
     assert calls[0]["command"][-2:] == ["--busid", "2-1"]
+
+
+SHARED = SAMPLE.replace("Not shared", "Shared     ")
+
+
+def test_auto_attach_shared_probe(dap, monkeypatch):
+    calls = []
+    monkeypatch.setattr(dap, "usbipd_exe", lambda: "/fake/usbipd.exe")
+
+    def fake_run(args, timeout=0):
+        calls.append(args)
+        if args[1:] == ["list"]:
+            return 0, SHARED, ""
+        return 0, "", ""
+
+    monkeypatch.setattr(dap, "run", fake_run)
+    assert dap.wsl_auto_attach(verbose=False) == ["2-1"]
+    assert any(a[1] == "attach" and a[-1] == "2-1" for a in calls)
+
+
+def test_auto_attach_skips_not_shared(dap, monkeypatch):
+    calls = []
+    monkeypatch.setattr(dap, "usbipd_exe", lambda: "/fake/usbipd.exe")
+
+    def fake_run(args, timeout=0):
+        calls.append(args)
+        return 0, SAMPLE, ""
+
+    monkeypatch.setattr(dap, "run", fake_run)
+    assert dap.wsl_auto_attach(verbose=False) == []
+    assert not any(a[1] == "attach" for a in calls)
+
+
+def test_auto_attach_can_be_disabled(dap, monkeypatch):
+    monkeypatch.setenv("DAP_WSL_AUTO_ATTACH", "0")
+    assert dap.wsl_auto_enabled(SimpleNamespace(wsl_auto_attach=True)) is False
+
+
+def test_hint_requires_bind_for_unshared(dap, monkeypatch):
+    fake_usbipd(dap, monkeypatch)
+    assert "usbipd bind" in dap.wsl_probe_hint()
