@@ -54,7 +54,8 @@ def test_itech_commands(module):
     assert d.set_voltage(2, 5) == ":VOLTage 5"
     assert d.output(2, True) == ":OUTPut ON"
     assert d.measure_power(2) == ":MEASure:POWer?"
-    assert d.ovp(2, 6) == ":VOLTage:PROTection 6"
+    assert d.ovp(2, 6) == ":VOLTage:PROTection 6;:VOLTage:PROTection:STATe ON"
+    assert d.ocp(2, 1.5) is None
 
 
 def test_limits_are_model_independent(module):

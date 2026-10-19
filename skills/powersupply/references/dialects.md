@@ -149,8 +149,7 @@ OUT<n>          # 1 = on, 0 = off
 :VOLTage / :CURRent
 :OUTPut ON|OFF
 :MEASure:VOLTage? / :CURRent? / :POWer?
-:VOLTage:PROTection <v>
-:CURRent:PROTection <a>
+:VOLTage:PROTection <v>;:VOLTage:PROTection:STATe ON
 ```
 
 通道 1–3；IT6900 系列命令族相同。

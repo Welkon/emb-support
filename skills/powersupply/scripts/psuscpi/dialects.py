@@ -22,8 +22,9 @@ class Dialect:
     def measure_power(self, n): return ":MEASure:POWEr?"
     def output(self, n, on): return f":OUTPut {'ON' if on else 'OFF'}"
     def output_state(self, n): return ":OUTPut?"
-    def ovp(self, n, v): return f":VOLTage:PROTection {fnum(v)}"
-    def ocp(self, n, a): return f":CURRent:PROTection {fnum(a)}"
+    def ovp(self, n, v):
+        return f":VOLTage:PROTection {fnum(v)};:VOLTage:PROTection:STATe ON"
+    def ocp(self, n, a): return None  # not in the IT6300 SCPI guide
 
 
 class RigolDp800(Dialect):
@@ -143,8 +144,9 @@ class Itech(Dialect):
     def measure_power(self, n): return ":MEASure:POWer?"
     def output(self, n, on): return f":OUTPut {'ON' if on else 'OFF'}"
     def output_state(self, n): return ":OUTPut?"
-    def ovp(self, n, v): return f":VOLTage:PROTection {fnum(v)}"
-    def ocp(self, n, a): return f":CURRent:PROTection {fnum(a)}"
+    def ovp(self, n, v):
+        return f":VOLTage:PROTection {fnum(v)};:VOLTage:PROTection:STATe ON"
+    def ocp(self, n, a): return None  # not in the IT6300 SCPI guide
 
 
 class AimTti(Dialect):
