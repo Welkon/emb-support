@@ -121,10 +121,23 @@ scripts/psu.py sequence seq.json --host <ip> --ch 1 --yes
 | `ramp` | 软件斜坡 | `--to`、`--start`、`--step`、`--delay`、`--yes` |
 | `sequence` | JSON 序列 | 文件、`--yes` |
 | `log` | V/I/P 记录 | `--duration`、`--interval`、`--out` |
+| `web` | 本地网页 UI + 实时曲线 | `--bind`、`--web-port`、`--open` |
 | `scpi` / `query` / `write` | 原始 SCPI（非 SCPI 设备会拒绝） | `--query` |
 | `config` | 默认值与上限 | `host/resource/serial/max_voltage/max_current/safe_off` |
 
 通用连接参数：`--host`、`--port 5025`、`--resource`、`--serial`、`--baud`、`--backend`、`--family`、`--timeout`、`--max-voltage`、`--max-current`。
+
+## 5.5 网页 UI（独立使用）
+
+```bash
+scripts/psu.py web --hid dp100 --open
+scripts/psu.py web --host 192.168.1.60 --bind 127.0.0.1 --web-port 8765
+```
+
+- 默认只绑定 `127.0.0.1`，不对外网开放；`--bind 0.0.0.0` 会暴露到局域网（无鉴权，谨慎）。
+- 页面提供：通道选择、设压设流、输出 ON/OFF（ON 需要浏览器确认 + API `confirm`）、ALL OFF、OVP/OCP、实时 V/I/P 读数和曲线、CSV 下载。
+- 服务端同样执行电压/电流上限检查；网页不是绕过安全层的通道。
+- 曲线只保存在浏览器内存，刷新页面会清空；需要长期记录用 `log`。
 
 ## 6. 安全边界
 

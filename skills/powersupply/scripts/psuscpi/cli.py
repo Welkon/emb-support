@@ -18,6 +18,7 @@ from .common import (
     die, emit, load_config, save_config,
 )
 from .dialects import FAMILIES, detect_family
+from .web import run as run_web
 from .drivers import (
     DP100_PID, DP100_VID, Bk168xDevice, Device, Dp100Device, Dps150Device,
     ScpiDevice, find_dp100, open_device,
@@ -416,6 +417,10 @@ def cmd_scpi(a) -> None:
         dev.close()
 
 
+def cmd_web(a) -> None:
+    run_web(a)
+
+
 def add_conn(p):
     p.add_argument("--host", help="LAN address (raw socket)")
     p.add_argument("--port", type=int, default=None, help="SCPI port (default 5025)")
@@ -528,6 +533,13 @@ def main() -> None:
     p.add_argument("--interval", type=float, default=0.5)
     p.add_argument("--out", default="psu-log.csv")
     p.set_defaults(fn=cmd_log)
+
+    p = sub.add_parser("web", help="local web UI with live V/I chart")
+    add_conn(p)
+    p.add_argument("--bind", default="127.0.0.1", help="HTTP bind address (default localhost)")
+    p.add_argument("--web-port", type=int, default=8765)
+    p.add_argument("--open", action="store_true", help="open the browser")
+    p.set_defaults(fn=cmd_web)
 
     p = sub.add_parser("scpi", help="raw SCPI write or query")
     add_conn(p)
