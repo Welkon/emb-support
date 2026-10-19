@@ -57,19 +57,13 @@
   body {
     @apply bg-background text-foreground antialiased font-sans;
     background-image:
-      linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px),
       radial-gradient(900px 460px at 12% -12%, hsl(18 55% 60% / 0.08), transparent 70%);
-    background-size: 36px 36px, 36px 36px, auto;
     background-attachment: fixed;
     transition: background-color .2s ease, color .2s ease;
   }
   html.dark body {
     background-image:
-      linear-gradient(hsl(var(--border) / 0.45) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.45) 1px, transparent 1px),
       radial-gradient(900px 480px at 15% -10%, hsl(18 60% 50% / 0.08), transparent 70%);
-    background-size: 36px 36px, 36px 36px, auto;
   }
   ::selection { @apply bg-primary/25; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
