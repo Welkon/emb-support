@@ -116,6 +116,7 @@ export default function App() {
   const [history, setHistory] = useState<Point[]>([]);
   const [channel, setChannel] = useState(1);
   const [metric, setMetric] = useState<Metric>("voltage");
+  const [windowMs, setWindowMs] = useState(10_000);
   const [vset, setVset] = useState("");
   const [iset, setIset] = useState("");
   const [ovp, setOvp] = useState("");
@@ -272,6 +273,16 @@ export default function App() {
                     {caps?.power && <TabsTrigger value="power">W</TabsTrigger>}
                   </TabsList>
                 </Tabs>
+                <select
+                  value={windowMs}
+                  onChange={(e) => setWindowMs(Number(e.target.value))}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
+                  aria-label="time window"
+                >
+                  <option value={10000}>10s</option>
+                  <option value={30000}>30s</option>
+                  <option value={60000}>60s</option>
+                </select>
               </div>
             </CardHeader>
             <CardContent>
@@ -283,6 +294,7 @@ export default function App() {
                 digits={activeMetric === "power" ? 2 : 3}
                 dark={dark}
                 height={260}
+                windowMs={windowMs}
               />
               <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                 <span>{fill(t.samples, { n: history.length })}</span>

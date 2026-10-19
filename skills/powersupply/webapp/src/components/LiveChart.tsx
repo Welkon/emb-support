@@ -5,11 +5,9 @@ export type ChartPoint = { t: number; v: number | null; i: number | null; p: num
 type Metric = "voltage" | "current" | "power";
 
 const KEY: Record<Metric, keyof ChartPoint> = { voltage: "v", current: "i", power: "p" };
-const WINDOW_MS = 60_000;
-
-export function LiveChart({ points, metric, color, unit, digits, dark, height = 260 }: {
+export function LiveChart({ points, metric, color, unit, digits, dark, height = 260, windowMs = 10_000 }: {
   points: ChartPoint[]; metric: Metric; color: string; unit: string;
-  digits: number; dark: boolean; height?: number;
+  digits: number; dark: boolean; height?: number; windowMs?: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dataRef = useRef(points);
@@ -23,6 +21,7 @@ export function LiveChart({ points, metric, color, unit, digits, dark, height = 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
+    const yr: { v: [number, number] | null } = { v: null };
     let raf = 0;
     let last = 0;
     let w = 0, h = 0;
@@ -72,27 +71,45 @@ export function LiveChart({ points, metric, color, unit, digits, dark, height = 
         ctx.fillText("waiting for samples…", L + 6, T + 18);
         return;
       }
-      const [lo, hi] = range(vals);
+      const target = range(vals);
+      if (!yr.v) yr.v = target;
+      else yr.v = [yr.v[0] + (target[0] - yr.v[0]) * 0.12, yr.v[1] + (target[1] - yr.v[1]) * 0.12];
+      const [lo, hi] = yr.v;
       const lastT = data[data.length - 1].t;
-      const firstT = data[0].t;
-      const span = Math.max(10_000, Math.min(WINDOW_MS, lastT - firstT + 1000));
       const now = Date.now();
-      const x = (t: number) => L + plotW * (1 - (now - t) / span);
+      const x = (t: number) => L + plotW * (1 - (now - t) / windowMs);
       const y = (v: number) => T + plotH * (1 - (v - lo) / (hi - lo));
 
       ctx.save();
       ctx.beginPath(); ctx.rect(L, T, plotW, plotH); ctx.clip();
 
-      ctx.beginPath();
-      let started = false;
+      const pts: Array<[number, number]> = [];
       for (const p of data) {
         const val = p[KEY[metric]];
         if (val == null) continue;
         const px = x(p.t), py = y(val);
         if (px < L - 2) continue;
-        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+        pts.push([px, py]);
       }
-      if (started) {
+      ctx.beginPath();
+      if (pts.length === 1) {
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        ctx.lineTo(pts[0][0], pts[0][1]);
+      } else if (pts.length > 1) {
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i - 1] ?? pts[i];
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          const p3 = pts[i + 2] ?? p2;
+          ctx.bezierCurveTo(
+            p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6,
+            p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6,
+            p2[0], p2[1],
+          );
+        }
+      }
+      if (pts.length) {
         ctx.lineWidth = 2;
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
@@ -100,8 +117,8 @@ export function LiveChart({ points, metric, color, unit, digits, dark, height = 
         ctx.stroke();
       }
 
-      ctx.lineTo(x(lastT), T + plotH);
-      ctx.lineTo(Math.max(L, x(data[0].t)), T + plotH);
+      ctx.lineTo(pts.length ? pts[pts.length - 1][0] : x(lastT), T + plotH);
+      ctx.lineTo(pts.length ? pts[0][0] : Math.max(L, x(data[0].t)), T + plotH);
       ctx.closePath();
       const grad = ctx.createLinearGradient(0, T, 0, T + plotH);
       grad.addColorStop(0, color + "4d");
@@ -138,7 +155,7 @@ export function LiveChart({ points, metric, color, unit, digits, dark, height = 
       ro.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [color, unit, metric, digits]);
+  }, [color, unit, metric, digits, windowMs]);
 
   return <canvas ref={ref} style={{ width: "100%", height }} aria-label="live chart" />;
 }
