@@ -366,7 +366,13 @@ export default function App() {
                   {connected ? t.connected : data ? t.disconnected : t.connecting}
                 </Badge>
                 <Badge variant={on ? "success" : "outline"} className="gap-1.5 px-3">
-                  <Power className="h-3 w-3" /> {data?.output ? `${t.output} ${data.output}` : `${t.output} —`}
+                  {on ? (
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-foreground/70" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-success-foreground" />
+                    </span>
+                  ) : <Power className="h-3 w-3" />}
+                  {data?.output ? `${t.output} ${data.output}` : `${t.output} —`}
                 </Badge>
               </div>
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{data?.idn ?? t.noDevice}</p>
@@ -579,12 +585,20 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   onProtect: () => void; onConfirmOn: () => void;
   presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
+  const outputOn = (data?.output || "").toUpperCase() === "ON";
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
-    <Card className="flex h-full flex-col">
+    <Card className={cn("flex h-full flex-col transition-colors duration-500", outputOn && "output-on border-success/50")}>
       <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>{t.control}</CardTitle>
+        <CardTitle className="flex items-center gap-2">{t.control}
+          {outputOn && (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+            </span>
+          )}
+        </CardTitle>
         {(data?.channels.length ?? 1) > 1 && (
           <Tabs value={String(channel)} onValueChange={(v) => setChannel(Number(v))}>
             <TabsList>{data!.channels.map((c) => <TabsTrigger key={c} value={String(c)}>CH{c}</TabsTrigger>)}</TabsList>
