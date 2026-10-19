@@ -4,7 +4,6 @@
   "description": "Installable skill bundle source for emb-agent external support assets.",
   "skills": [
     "./xc8-build/SKILL.md",
-    "./tektronix-scope/SKILL.md",
     "./altium-pcb/SKILL.md",
     "./cachip/SKILL.md",
     "./daplink/SKILL.md"

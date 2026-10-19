@@ -31,23 +31,6 @@
       }
     },
     {
-      "name": "tektronix-scope",
-      "path": "./tektronix-scope",
-      "description": "Remote-control Tektronix oscilloscopes over VISA/SCPI and capture live waveform data to local files for debugging. Use when Codex needs to discover a Tek scope, connect by USB or TCPIP resource string, run direct SCPI queries or writes, inspect instrument state non-invasively, or export waveform samples to CSV and JSON for AI-assisted analysis.",
-      "detect": {
-        "project_files": [
-          "*.wfm",
-          "*.isf"
-        ]
-      },
-      "short_description": "Control Tek scopes and capture waveform data",
-      "interface": {
-        "display_name": "Tektronix Scope",
-        "short_description": "Control Tek scopes and capture waveform data",
-        "default_prompt": "Use $tektronix-scope to connect to a Tektronix oscilloscope, query its state, and capture a waveform to CSV."
-      }
-    },
-    {
       "name": "altium-pcb",
       "path": "./altium-pcb",
       "description": "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, prepare Altium MCP live-apply commands, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise.",
