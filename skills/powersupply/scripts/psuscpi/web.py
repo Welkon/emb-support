@@ -34,7 +34,15 @@ input{width:100%}button{cursor:pointer}button:hover{border-color:#3b4454}
 button.primary{background:#1d3a5c;border-color:#2c5a8a}button.danger{background:#3a1b1e;border-color:#6b2b30}
 button.on{background:#173a26;border-color:#2b6b45}button.off{background:#2a1b1b;border-color:#5c2a2a}
 .row{display:flex;gap:8px;margin-top:10px}.row>*{flex:1}
-.big{font-size:26px;font-weight:600}.unit{font-size:12px;color:var(--dim)}
+.big{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+.unit{font-size:12px;color:var(--dim)}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;
+border:1px solid var(--line);margin-left:10px;vertical-align:middle}
+.pill.on{color:#7ff0b0;border-color:#2b6b45;background:#12261b}
+.pill.off{color:var(--dim);background:#12151b}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{font-size:11px;color:var(--dim);border:1px solid var(--line);
+border-radius:99px;padding:2px 9px;background:#12151b}
 .readings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .readings div{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:10px}
 #msg{color:var(--red);font-size:12px;min-height:16px;margin-top:8px}
@@ -44,7 +52,7 @@ canvas{width:100%;height:230px;display:block;background:#12151b;border-radius:8p
 @media(max-width:760px){.grid{grid-template-columns:1fr}.readings{grid-template-columns:1fr}}
 </style>
 <div class="wrap">
-<h1>Power Supply <span id="state" class="sub"></span></h1>
+<h1>Power Supply <span id="state" class="pill off">OUTPUT ?</span></h1>
 <div class="sub" id="idn">connecting...</div>
 <div class="grid">
   <div class="card">
@@ -56,8 +64,8 @@ canvas{width:100%;height:230px;display:block;background:#12151b;border-radius:8p
     <div class="row"><button class="on" onclick="setOut(true)">Output ON</button>
       <button class="off" onclick="setOut(false)">Output OFF</button></div>
     <div class="row"><button class="danger" onclick="allOff()">ALL OFF</button></div>
-    <div class="row"><div><label>OVP (V)</label><input id="ovp" type="number" step="0.01"></div>
-      <div><label>OCP (A)</label><input id="ocp" type="number" step="0.001"></div></div>
+    <div class="row"><div><label>OVP (V)</label><input id="ovp" type="number" step="0.01" placeholder="e.g. 6.0"></div>
+      <div><label>OCP (A)</label><input id="ocp" type="number" step="0.001" placeholder="e.g. 1.0"></div></div>
     <div class="row"><button onclick="protect()">Set protection</button></div>
     <div id="msg"></div>
   </div>
@@ -68,12 +76,13 @@ canvas{width:100%;height:230px;display:block;background:#12151b;border-radius:8p
       <div><div class="unit">Current</div><div class="big" id="mi">-</div><div class="unit">A</div></div>
       <div><div class="unit">Power</div><div class="big" id="mp">-</div><div class="unit">W</div></div>
     </div>
-    <div class="legend"><i style="background:var(--blue)"></i>Voltage<i style="background:var(--orange)"></i>Current</div>
+    <div class="legend" id="legend"><i style="background:var(--blue)"></i>Voltage<i style="background:var(--orange)"></i>Current</div>
     <canvas id="chart" width="900" height="230"></canvas>
     <div class="row"><button onclick="download()">Download CSV</button></div>
   </div>
 </div>
-<div class="sub" id="limits"></div>
+<div class="chips" id="limits"></div>
+<div class="sub" id="updated"></div>
 </div>
 <script>
 const S={history:[],ch:1,limits:null,timer:null};
@@ -87,10 +96,22 @@ async function api(path,body){
 function fmt(x,n=3){return (x===null||x===undefined)?'-':Number(x).toFixed(n)}
 function render(s){
   S.limits=s.limits; $('idn').textContent=s.idn+'  ['+s.family+']';
-  $('state').textContent=s.output?('output '+s.output):'';
+  const on=(s.output||'').toUpperCase()==='ON';
+  $('state').textContent='OUTPUT '+(s.output||'?'); $('state').className='pill '+(on?'on':'off');
   $('mv').textContent=fmt(s.measurement.voltage); $('mi').textContent=fmt(s.measurement.current); $('mp').textContent=fmt(s.measurement.power);
   $('v').value=fmt(s.setpoint.voltage,3); $('i').value=fmt(s.setpoint.current,3);
-  if(s.limits) $('limits').textContent='limits: '+JSON.stringify(s.limits);
+  if(s.limits){
+    const L=s.limits, chips=[];
+    if(L.max_voltage!=null) chips.push('0–'+L.max_voltage+' V');
+    if(L.max_current!=null) chips.push('0–'+L.max_current+' A');
+    if(L.max_ovp!=null) chips.push('OVP ≤'+L.max_ovp+' V');
+    if(L.max_ocp!=null) chips.push('OCP ≤'+L.max_ocp+' A');
+    if(L.max_power!=null) chips.push('≤'+L.max_power+' W');
+    $('limits').innerHTML=chips.map(c=>'<span class="chip">'+c+'</span>').join('');
+  }
+  $('legend').innerHTML='<i style="background:var(--blue)"></i>Voltage '+fmt(s.measurement.voltage,3)+' V'+
+    '<i style="background:var(--orange)"></i>Current '+fmt(s.measurement.current,3)+' A';
+  $('updated').textContent='updated '+new Date().toLocaleTimeString();
   S.history.push({t:Date.now(),v:s.measurement.voltage,i:s.measurement.current});
   if(S.history.length>600) S.history.shift(); draw();
 }
@@ -112,17 +133,29 @@ async function protect(){
   try{await api('/api/protect',{ch:S.ch,ovp:parseFloat($('ovp').value),ocp:parseFloat($('ocp').value)}); msg('');}
   catch(e){msg(e.message)}
 }
+function bounds(a){
+  let lo=Math.min(...a), hi=Math.max(...a);
+  if(hi-lo<1e-9){ hi+=0.5; lo-=0.5; }
+  else { const p=(hi-lo)*0.12; hi+=p; lo-=p; }
+  return [lo,hi];
+}
 function draw(){
   const c=$('chart'),g=c.getContext('2d'),W=c.width,H=c.height;
+  const L=46,R=10,T=16,B=20;
   g.clearRect(0,0,W,H); g.strokeStyle='#262b36'; g.lineWidth=1;
-  for(let k=1;k<5;k++){g.beginPath();g.moveTo(0,H*k/5);g.lineTo(W,H*k/5);g.stroke();}
-  const h=S.history; if(h.length<2) return;
+  for(let k=0;k<=4;k++){const y=T+(H-T-B)*k/4;g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();}
+  const h=S.history;
+  if(h.length<1){g.fillStyle='#8b93a7';g.font='11px monospace';g.fillText('waiting for samples…',L+8,T+20);return;}
   const vs=h.map(p=>p.v).filter(x=>x!=null), is=h.map(p=>p.i).filter(x=>x!=null);
-  const vmin=Math.min(...vs), vmax=Math.max(...vs), imin=Math.min(...is), imax=Math.max(...is);
-  const vy=x=>H-10-(x-vmin)/Math.max(1e-9,vmax-vmin)*(H-20);
-  const iy=x=>H-10-(x-imin)/Math.max(1e-9,imax-imin)*(H-20);
-  const line=(arr,fy,color)=>{g.beginPath();arr.forEach((p,k)=>{const x=k/(h.length-1)*W;const y=fy(p);k?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle=color;g.lineWidth=2;g.stroke();};
-  line(h.map(p=>p.v),vy,'#5da9ff'); line(h.map(p=>p.i),iy,'#ffb454');
+  const [vlo,vhi]=bounds(vs.length?vs:[0]), [ilo,ihi]=bounds(is.length?is:[0]);
+  const x=k=>L+(W-L-R)*(h.length===1?0.5:k/(h.length-1));
+  const y=(v,lo,hi)=>T+(H-T-B)*(1-(v-lo)/(hi-lo));
+  const line=(arr,lo,hi,color,dash)=>{g.beginPath();g.setLineDash(dash||[]);arr.forEach((v,k)=>{const px=x(k),py=y(v,lo,hi);k?g.lineTo(px,py):g.moveTo(px,py)});g.strokeStyle=color;g.lineWidth=2;g.stroke();g.setLineDash([]);};
+  line(h.map(p=>p.v),vlo,vhi,'#5da9ff'); line(h.map(p=>p.i),ilo,ihi,'#ffb454',[6,4]);
+  g.fillStyle='#8b93a7'; g.font='10px monospace';
+  g.fillText(vhi.toFixed(2),4,T+4); g.fillText(vlo.toFixed(2),4,H-B);
+  g.textAlign='right'; g.fillText(ihi.toFixed(3),W-4,T+4); g.fillText(ilo.toFixed(3),W-4,H-B); g.textAlign='left';
+  g.fillStyle='#5da9ff'; g.fillText('V',4,T+16); g.fillStyle='#ffb454'; g.textAlign='right'; g.fillText('A',W-4,T+16); g.textAlign='left';
 }
 function download(){
   let out='time,voltage,current\\n';
@@ -171,7 +204,8 @@ class PsuWebServer:
                             "current": self.device.measure_current(ch),
                             "power": self.device.measure_power(ch)
                             if self.device.supports_power else None},
-            "limits": {"max_voltage": self.max_voltage, "max_current": self.max_current},
+            "limits": {**{"max_voltage": self.max_voltage, "max_current": self.max_current},
+                        **(getattr(self.device, "limits", None) or {})},
         }
 
     def _handler(self):
