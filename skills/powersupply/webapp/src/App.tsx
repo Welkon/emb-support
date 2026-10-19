@@ -644,14 +644,16 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
-    <Card className="relative flex h-full flex-col">
+    <div className="relative h-full">
+      {outputOn && (
+        <motion.div aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-lg bg-success/30 blur-[34px]"
+          animate={{ opacity: [0.2, 0.9, 0.2] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
+      )}
+      <Card className="relative flex h-full flex-col">
       {outputOn && (
         <>
-          <motion.div aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-lg"
-            style={{ boxShadow: "0 0 52px 0 rgb(var(--glow-rgb) / var(--glow-shadow))" }}
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
           <motion.div aria-hidden
             className="pointer-events-none absolute inset-0 rounded-lg"
             style={{ backgroundColor: "rgb(var(--glow-rgb) / 0.07)" }}
@@ -765,7 +767,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         </p>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
