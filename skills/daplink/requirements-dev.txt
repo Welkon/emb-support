@@ -1,0 +1,3 @@
+# Runtime is installed by `scripts/dap.py setup` (pyOCD is pinned there).
+pytest>=8,<10
+ruff>=0.9,<1
