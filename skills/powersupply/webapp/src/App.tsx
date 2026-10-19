@@ -188,6 +188,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("psu-lang") as Lang) || (navigator.language.startsWith("zh") ? "zh" : "en"));
   const [dark, setDark] = useState<boolean>(() => document.documentElement.classList.contains("dark"));
   const editing = useRef<string | null>(null);
+  const lastAlertRef = useRef("");
   const t = STR[lang];
   const locale = lang === "zh" ? "zh-CN" : "en-US";
 
@@ -279,6 +280,17 @@ export default function App() {
   useEffect(() => {
     document.title = alert ? `⚠ ${alert.title} · ${t.title}` : t.title;
   }, [alert?.title, t.title]);
+
+  useEffect(() => {
+    // Pop a native alert once per distinct severe condition; reset after recovery.
+    const signature = fault ? `fault:${work}` : (!connected && data ? "offline" : overtemp ? "overtemp" : "");
+    if (!signature) { lastAlertRef.current = ""; return; }
+    if (lastAlertRef.current === signature) return;
+    lastAlertRef.current = signature;
+    const message = alert ? `${alert.title}\n\n${alert.detail}` : t.deviceAlert;
+    const id = window.setTimeout(() => window.alert(message), 80);
+    return () => window.clearTimeout(id);
+  }, [fault, work, connected, data, overtemp, alert?.title, alert?.detail, t.deviceAlert]);
 
   return (
     <div className="min-h-screen">
