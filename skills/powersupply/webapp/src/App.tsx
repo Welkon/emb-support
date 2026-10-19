@@ -649,22 +649,29 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute inset-0 rounded-lg"
-            style={{ boxShadow: "0 0 46px 0 rgb(var(--glow-rgb) / var(--glow-shadow))" }}
-            animate={{ opacity: [0.25, 0.85, 0.25] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
+            style={{ boxShadow: "0 0 52px 0 rgb(var(--glow-rgb) / var(--glow-shadow))" }}
+            animate={{ opacity: [0.25, 1, 0.25] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
           <motion.div aria-hidden
             className="pointer-events-none absolute inset-0 rounded-lg"
-            style={{ backgroundColor: "rgb(var(--glow-rgb) / 0.055)" }}
-            animate={{ opacity: [0.3, 0.85, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
+            style={{ backgroundColor: "rgb(var(--glow-rgb) / 0.07)" }}
+            animate={{ opacity: [0.2, 0.9, 0.2] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+            <motion.div
+              className="absolute -inset-y-6 w-24 rotate-12 bg-gradient-to-r from-transparent via-success/20 to-transparent"
+              initial={{ x: "-140%" }}
+              animate={{ x: "620%" }}
+              transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 0.9, ease: "easeInOut" }} />
+          </div>
         </>
       )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">{t.control}
           {outputOn && (
             <motion.span className="h-1.5 w-1.5 rounded-full bg-success"
-              animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1.15, 0.9] }}
-              transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
+              animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.25, 0.85] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
           )}
         </CardTitle>
         {(data?.channels.length ?? 1) > 1 && (
