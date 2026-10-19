@@ -32,7 +32,11 @@ scripts/scope.py setup                       # 需要 USB/VXI-11 时安装 pyvis
 - **LAN 路径零依赖**：用原生 TCP socket，不装 pyvisa 也能用。
 - **USB 路径**需要 pyvisa + pyvisa-py（或 Linux `usbtmc` 内核设备）。
 - Linux/WSL 权限：`scripts/install_udev.sh`（Tek/Rigol/Siglent/Keysight/LeCroy/R&S/Yokogawa/GW Instek）。
-- WSL 的 USB 还需要 Windows 侧 `usbipd attach --wsl --busid X-Y`。
+- WSL 下 `doctor` 会自动调用 Windows 的 `usbipd.exe list`，识别示波器 VID 并给出/执行 attach 命令：
+  ```bash
+  scripts/scope.py doctor --attach-usb
+  ```
+  `Not shared` 的设备需要先以管理员执行 `usbipd bind --busid X`；`Shared` 可直接 attach。
 
 ## 2. 品牌与方言
 

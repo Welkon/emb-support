@@ -23,6 +23,9 @@ from .acquisition import (
     measure_channel, stats,
 )
 from .quality import check as check_quality
+from .wsl import (
+    attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
+)
 
 def _python_ok() -> bool:
     try:
@@ -70,6 +73,18 @@ def cmd_doctor(a) -> None:
         except OSError as e:
             info["socket_test"] = f"{host}:{port} failed: {e}"
             info["hints"].append("check LAN address, firewall, and that SCPI is enabled on the scope")
+    if is_wsl():
+        devices, err = list_devices()
+        scope_devices = [d for d in devices if d["vendor"]]
+        wsl = {"host_ip": windows_host_ip(), "usbipd_error": err,
+               "devices": scope_devices,
+               "hints": [h for d in scope_devices for h in attach_hint(d)]}
+        if not scope_devices:
+            wsl["hints"].append("no oscilloscope VID seen by usbipd; plug the scope into Windows and rerun")
+        if getattr(a, "attach_usb", False):
+            wsl["attach"] = attach_scope_devices()
+        info["wsl"] = wsl
+        info["hints"].append("WSL detected: USB instruments must be attached with usbipd before they appear here")
     if not info["usbtmc"] and not info["resources"]:
         info["hints"].append("no USB instrument visible: check cable, usbtmc module, and udev permissions")
     emit(info, as_json=True)
@@ -106,8 +121,10 @@ def cmd_discover(a) -> None:
             rm = pyvisa.ResourceManager(backend) if backend else pyvisa.ResourceManager()
             found = [{"resource": r} for r in rm.list_resources()]
         except Exception as e:
-            emit({"ok": False, "error": f"pyvisa unavailable: {e}; use --scan 192.168.1.0/24"},
-                 as_json=True)
+            hint = "; use --scan 192.168.1.0/24"
+            if is_wsl():
+                hint += "; on WSL run `doctor --attach-usb` for USB instruments"
+            emit({"ok": False, "error": f"pyvisa unavailable: {e}{hint}"}, as_json=True)
             return
     emit({"ok": True, "instruments": found}, as_json=True)
 
@@ -536,6 +553,8 @@ def main() -> None:
 
     p = sub.add_parser("doctor", help="environment and connection diagnostics")
     add_conn(p)
+    p.add_argument("--attach-usb", action="store_true",
+                   help="WSL only: attach oscilloscope USB devices via usbipd")
     p.set_defaults(fn=cmd_doctor)
 
     p = sub.add_parser("discover", help="list VISA resources or scan a subnet")
