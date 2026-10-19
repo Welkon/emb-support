@@ -103,7 +103,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     chart.setOption({
       animation: false,
       useDirtyRect: true,
-      grid: { left: showVRef.current ? 52 : 16, right: showARef.current ? 56 : 16, top: 22, bottom: 30 },
+      grid: { left: showVRef.current ? 52 : 16, right: showARef.current ? 56 : 16, top: 42, bottom: 30 },
       tooltip: {
         trigger: "axis", confine: true, animation: false,
         backgroundColor: darkRef.current ? "#111827" : "#ffffff",
@@ -135,14 +135,16 @@ export const LiveChart = forwardRef<LiveChartHandle, {
       },
       yAxis: [
         {
-          type: "value", name: "V", nameTextStyle: { color: vColor, align: "left" },
+          type: "value", name: "V", nameGap: 16, nameLocation: "end",
+          nameTextStyle: { color: vColor, align: "left", fontSize: 11, fontWeight: 600 },
           show: showVRef.current, min: vRange[0], max: vRange[1], position: "left",
           axisLine: { show: false }, axisTick: { show: false },
           axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
           splitLine: { lineStyle: { color: grid } },
         },
         {
-          type: "value", name: "A", nameTextStyle: { color: iColor, align: "right" },
+          type: "value", name: "A", nameGap: 16, nameLocation: "end",
+          nameTextStyle: { color: iColor, align: "right", fontSize: 11, fontWeight: 600 },
           show: showARef.current, min: iRange[0], max: iRange[1], position: "right",
           axisLine: { show: false }, axisTick: { show: false },
           axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },

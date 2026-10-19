@@ -724,7 +724,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <p className="text-[11px] text-muted-foreground">{t.applyHint}</p>
         <div className="grid grid-cols-2 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
         </div>
         </div>
         <div className="space-y-3">
@@ -746,7 +746,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
                 </div>
               )}
             </div>
-            <Button variant="secondary" className="w-full" disabled={busy} onClick={onProtect}><ShieldCheck /> {t.setProtection}</Button>
+            <Button variant="outline" className="w-full" disabled={busy} onClick={onProtect}><ShieldCheck /> {t.setProtection}</Button>
           </div>
         )}
         <p className="flex gap-2 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
