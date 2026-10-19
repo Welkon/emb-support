@@ -76,7 +76,7 @@ const STR = {
     advancedHint: "Sequence output · voltage/current scan", work: WORK_EN,
   },
   zh: {
-    title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
+    title: "程控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
     presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
     soundOn: "音效开", soundOff: "静音",
