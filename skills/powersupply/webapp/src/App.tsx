@@ -648,7 +648,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
       {outputOn && (
         <>
           <motion.div aria-hidden
-            className="pointer-events-none absolute -inset-3 rounded-2xl"
+            className="pointer-events-none absolute inset-0 rounded-lg"
             style={{ boxShadow: "0 0 46px 0 rgb(var(--glow-rgb) / var(--glow-shadow))" }}
             animate={{ opacity: [0.25, 0.85, 0.25] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
