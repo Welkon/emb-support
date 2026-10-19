@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, Ban, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
-  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Timer, Trash2, Waves, Zap,
+  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,9 +189,20 @@ export default function App() {
   const [dark, setDark] = useState<boolean>(() => document.documentElement.classList.contains("dark"));
   const editing = useRef<string | null>(null);
   const lastAlertRef = useRef("");
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(72);
+  const [dismissedAlert, setDismissedAlert] = useState("");
   const t = STR[lang];
   const locale = lang === "zh" ? "zh-CN" : "en-US";
 
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeaderH(el.getBoundingClientRect().height));
+    ro.observe(el);
+    setHeaderH(el.getBoundingClientRect().height);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("psu-theme", dark ? "dark" : "light");
@@ -294,8 +305,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1440px] space-y-5 px-5 py-6 lg:px-8">
-        <header className="sticky top-0 z-30 -mx-5 border-b border-border/60 bg-background/85 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:-mx-8 lg:px-8">
+      <div className="mx-auto max-w-[1440px] space-y-5 px-5 pb-6 lg:px-8" style={{ paddingTop: headerH + 8 }}>
+        <header ref={headerRef} className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="mx-auto max-w-[1440px] px-5 py-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
@@ -329,18 +341,10 @@ export default function App() {
             <Button variant="outline" size="sm" onClick={() => setDark(!dark)} title="Theme">{dark ? <Sun /> : <Moon />} {dark ? t.light : t.dark}</Button>
           </div>
           </div>
-          {alert && (
-            <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="min-w-0">
-                <span className="font-semibold">{alert.title}</span>
-                <span className="ml-2 text-xs opacity-90">{alert.detail}</span>
-              </div>
-            </div>
-          )}
+          </div>
         </header>
 
-        <Card className="overflow-hidden">
+        <div className="overflow-hidden border-y border-border">
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
             <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" />
             <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#fbbf24" />
@@ -361,7 +365,7 @@ export default function App() {
               {connected ? `live · ${hz} Hz` : t.disconnected}
             </span>
           </div>
-        </Card>
+        </div>
 
         {tab === "basic" ? (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -412,38 +416,41 @@ export default function App() {
             </aside>
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-            <div className="min-w-0 space-y-5">
-              <SequencePanel t={t} channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
-                onState={applyState} setError={setError} />
+          <div className="space-y-8">
+            <SequencePanel t={t} channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+              onState={applyState} setError={setError} />
+            <div className="grid gap-8 border-t border-border pt-8 xl:grid-cols-2">
               <ScanPanel t={t} kind="voltage" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
                 onState={applyState} setError={setError} />
               <ScanPanel t={t} kind="current" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
                 onState={applyState} setError={setError} />
             </div>
-
-            <aside className="min-w-0">
-              <Card>
-                <CardHeader className="flex-row items-center justify-between space-y-0">
-                  <CardTitle>{t.device}</CardTitle>
+            <div className="grid gap-8 border-t border-border pt-8 md:grid-cols-2">
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{t.device}</h3>
                   <span className="font-mono text-[11px] text-muted-foreground">{String(data?.device_info?.serial_number_hex ?? "")}</span>
-                </CardHeader>
-                <CardContent className="space-y-2">
+                </div>
+                <div className="space-y-2">
                   <Row label={t.model} value={String(data?.device_info?.model ?? data?.family ?? "—")} />
                   <Row label={t.hardware} value={String(data?.device_info?.hardware_version ?? "—")} />
                   <Row label={t.app} value={String(data?.device_info?.app_version ?? "—")} />
                   {caps?.input_voltage && <Row label={t.inputVoltage} value={`${fmt(data?.measurement.input_voltage, 2)} V`} />}
                   {caps?.temperature && <Row label={t.temperature} value={`${fmt(data?.measurement.temperature, 1)} °C`} />}
-                  <div className="my-2 border-t border-border" />
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{t.limits}</h3>
+                <div className="space-y-3.5">
                   <LimitBar label={t.voltage} value={data?.measurement.voltage ?? null} max={data?.limits.max_voltage} unit="V" />
                   <LimitBar label={t.current} value={data?.measurement.current ?? null} max={data?.limits.max_current} unit="A" />
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
                     <span>{t.ovpMax} <b className="font-mono text-foreground">{data?.limits.max_ovp ?? "—"} V</b></span>
                     <span>{t.ocpMax} <b className="font-mono text-foreground">{data?.limits.max_ocp ?? "—"} A</b></span>
                   </div>
-                </CardContent>
-              </Card>
-            </aside>
+                </div>
+              </section>
+            </div>
           </div>
         )}
 
@@ -457,6 +464,21 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {alert && dismissedAlert !== `${alert.title}|${alert.detail}` && (
+          <div role="alert"
+            className="fixed bottom-5 right-5 z-50 flex w-[min(380px,calc(100vw-2.5rem))] items-start gap-2.5 rounded-xl border border-destructive/40 bg-card/95 p-3.5 text-sm text-destructive shadow-lg backdrop-blur">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{alert.title}</div>
+              <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{alert.detail}</div>
+            </div>
+            <button className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => setDismissedAlert(`${alert.title}|${alert.detail}`)} title="Dismiss">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -589,8 +611,8 @@ function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <CardTitle>{t.sequence}</CardTitle>
           <p className="mt-1 text-[11px] text-muted-foreground">{t.sequenceHint}</p>
@@ -599,8 +621,8 @@ function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
           {running ? <Button size="sm" variant="destructive" onClick={() => { stopRef.current = true; }}><Square /> {t.stop}</Button>
             : <Button size="sm" variant="success" onClick={start}><Play /> {t.run}</Button>}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="space-y-3">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-muted-foreground">
@@ -633,8 +655,8 @@ function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
           <Button size="sm" variant="outline" disabled={running} onClick={() => setRows((r) => [...r, { v: "0.0", i: "0.5", delay: "1" }])}><Plus /> {t.addRow}</Button>
           <span className="text-[11px] text-muted-foreground">max {maxV ?? "—"} V / {maxI ?? "—"} A</span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -674,16 +696,16 @@ function ScanPanel({ t, kind, channel, maxV, maxI, onState, setError }: {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <CardTitle>{isV ? t.voltageScan : t.currentScan}</CardTitle>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           {current != null && <span className="font-mono">{current.toFixed(3)} {isV ? "V" : "A"}</span>}
           {running ? <Button size="sm" variant="destructive" onClick={() => { stopRef.current = true; }}><Square /> {t.stop}</Button>
             : <Button size="sm" variant="success" onClick={run}><Play /> {t.run}</Button>}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="space-y-1.5"><Label>{t.start} ({isV ? "V" : "A"})</Label><Input className="h-8" value={start} onChange={(e) => setStart(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>{t.end} ({isV ? "V" : "A"})</Label><Input className="h-8" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
@@ -692,7 +714,7 @@ function ScanPanel({ t, kind, channel, maxV, maxI, onState, setError }: {
           <div className="space-y-1.5"><Label>{isV ? t.iset : t.vset} ({isV ? "A" : "V"})</Label><Input className="h-8" value={other} onChange={(e) => setOther(e.target.value)} /></div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">max {isV ? `${maxV ?? "—"} V` : `${maxI ?? "—"} A`}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
