@@ -102,7 +102,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const iStep = (iRange[1] - iRange[0]) / 4;
     const vDigits = 3;
     const iDigits = 3;
-    const vColor = darkRef.current ? "#FF8A5C" : "#B84A25";
+    const vColor = darkRef.current ? "#FF8A5C" : "#C2410C";
     const iColor = darkRef.current ? "#5CC8E5" : "#0E7490";
     chart.setOption({
       animation: false,
@@ -257,7 +257,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     return () => { cancelled = true; es?.close(); };
   }, [historyUrl, streamUrl, appendPoint]);
 
-  const vC = dark ? "#FF8A5C" : "#B84A25";
+  const vC = dark ? "#FF8A5C" : "#C2410C";
   const iC = dark ? "#5CC8E5" : "#0E7490";
   return (
     <div className="relative w-full" style={{ height }}>

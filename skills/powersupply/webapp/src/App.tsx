@@ -490,7 +490,7 @@ export default function App() {
                 </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant={showV ? "secondary" : "outline"} onClick={() => setShowV(!showV)}>
-                    <span className="h-2 w-2 rounded-full bg-[#B84A25] dark:bg-[#FF8A5C]" /> V
+                    <span className="h-2 w-2 rounded-full bg-[#C2410C] dark:bg-[#FF8A5C]" /> V
                   </Button>
                   <Button size="sm" variant={showA ? "secondary" : "outline"} onClick={() => setShowA(!showA)}>
                     <span className="h-2 w-2 rounded-full bg-[#0E7490] dark:bg-[#5CC8E5]" /> A
@@ -649,10 +649,10 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute -inset-1 rounded-2xl"
-            style={{ boxShadow: "0 0 24px 4px rgba(96,140,96,0.45)" }}
+            style={{ boxShadow: "0 0 22px 3px rgb(var(--glow-rgb) / var(--glow-alpha))" }}
             animate={{ opacity: [0.22, 0.55, 0.22] }}
             transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
-          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.035]" />
+          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.015]" />
         </>
       )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -723,7 +723,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         </div>
         <p className="text-[11px] text-muted-foreground">{t.applyHint}</p>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="success" disabled={busy || outputOn} onClick={onConfirmOn}><Power /> {t.on}</Button>
+          <Button variant="success" disabled={busy || outputOn} aria-pressed={outputOn}
+            className={cn(outputOn && "disabled:opacity-100")} onClick={onConfirmOn}><Power /> {t.on}</Button>
           <Button variant="outline" disabled={busy || !outputOn} onClick={() => onOutput(false)}>{t.off}</Button>
         </div>
         </div>
