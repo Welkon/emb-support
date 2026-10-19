@@ -20,7 +20,7 @@ cmsis-dap-mcp（`guohj2021/CMSIS-DAP-MCP`，44 个 MCP 工具，npm `npx -y cmsi
 | `load_svd` / `list_peripherals` / `read_peripheral` / `write_peripheral` | `svd attach/list/read/write` | 用 pyOCD 自带 SVD 解析器；另有 `svd field` 位域读写 |
 | `read_dap` / `write_dap` | `dapreg read/write` | 底层 `target.dp.read_reg/write_reg` |
 | `read_option_bytes` / `write_option_bytes` | `option read/write --addr` | 必须显式给地址；写入需 `--yes` |
-| `get_config` / `update_config` / `reload_config` | `config get/set/unset/list` | 持久化到 `~/.local/share/daplink/config.json` |
+| `get_config` / `update_config` / `reload_config` | `config get/set/unset/list` | 持久化到 `~/.local/share/mcu-debug/config.json` |
 | `define_chip` | `pack install` / `--pack` | 走 CMSIS-Pack；不支持无中生有定义芯片 |
 | （无对应工具，CLI 有）RTT | `rtt` | pyOCD 原生 SEGGER RTT Viewer |
 | （无对应工具）GDB server | `gdb` | `--detach` 后台运行 |

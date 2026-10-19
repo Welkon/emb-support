@@ -1,11 +1,11 @@
 ---
-name: daplink
+name: mcu-debug
 metadata:
   short-description: "Flash and debug Cortex-M over DAPLink/CMSIS-DAP with fault root-cause analysis"
 description: Control DAPLink / CMSIS-DAP debug probes over SWD or JTAG for ARM Cortex-M — enumerate probes, install CMSIS-Packs, flash ELF/HEX/BIN with verify, chip/sector erase, reset, read/write memory and core registers, capture SEGGER RTT logs, and run a GDB server. Use this skill whenever the user mentions DAPLink, CMSIS-DAP, DAP, SWD, SWDIO/SWCLK, pyOCD, or a CMSIS-DAP-compatible probe (ST-Link, LPC-Link, NXP/Infineon onboard debugger), or asks to 烧录 / 下载固件 / 刷板子 / 擦除 flash / 看寄存器 / 读内存 / 抓 RTT 日志 / 查 HardFault, or reports "no probe found", "target not found", "flash failed", "SWD error", even when they never name the probe. Do not use it for J-Link-native flows that depend on JLinkExe-only features (RTT Viewer, J-Link scripts) — use the jlink skill instead — and do not use it for ESP32/ESP8266 UART flashing.
 ---
 
-# DAPLink / CMSIS-DAP 调试
+# MCU 调试（DAPLink / CMSIS-DAP / ST-Link / J-Link）
 
 所有硬件操作都通过 `scripts/dap.py` 完成。它是 pyOCD 的薄封装：pyOCD 负责探针枚举、flash 算法、CMSIS-Packs、RTT 和 gdbserver，脚本只负责参数归一化和输出结构化 JSON，避免每次手工拼 pyOCD 命令时踩参数顺序、target 命名和阻塞等待的坑。
 
@@ -31,7 +31,7 @@ python3 scripts/dap.py doctor
 ```
 
 脚本目录是 skill 所在目录；若当前工作目录不在 skill 下，用绝对路径
-`~/.pi/agent/skills/daplink/scripts/dap.py`。
+`~/.pi/agent/skills/mcu-debug/scripts/dap.py`。
 
 `doctor` 输出 JSON，重点看四个字段：
 
@@ -176,7 +176,7 @@ scripts/dap.py bp set 0x08001234 --type flash --yes   # 会擦写整块扇区
 scripts/dap.py bp clear 0x08001234                    # 从备份恢复
 ```
 
-原扇区会备份到 `~/.local/share/daplink/flash_bp.json`；断电或恢复失败需要重新烧录。优先用 HW 断点。
+原扇区会备份到 `~/.local/share/mcu-debug/flash_bp.json`；断电或恢复失败需要重新烧录。优先用 HW 断点。
 
 **Semihosting**
 
@@ -329,7 +329,7 @@ pyOCD 覆盖面最广（CMSIS-Pack、内置 flash 算法、RTT、gdbserver），
 ## 7. 自测与 CI（无需硬件）
 
 ```bash
-~/.local/share/daplink/venv/bin/python -m pytest tests -q   # 92 tests, ~7s
+~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q   # 101 tests, ~7s
 scripts/dap.py setup --dev                                  # 安装 pytest
 ruff check scripts tests                                    # 静态检查
 ```

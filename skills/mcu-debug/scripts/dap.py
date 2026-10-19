@@ -37,7 +37,18 @@ from dap_debug import (
     eval_expr,
 )
 
-HOME = Path(os.environ.get("DAPLINK_HOME", str(Path.home() / ".local/share/daplink"))).expanduser()
+
+def _data_home() -> Path:
+    for env in ("MCU_DEBUG_HOME", "DAPLINK_HOME"):
+        value = os.environ.get(env)
+        if value:
+            return Path(value).expanduser()
+    new = Path.home() / ".local/share/mcu-debug"
+    old = Path.home() / ".local/share/daplink"
+    return old if (old.exists() and not new.exists()) else new
+
+
+HOME = _data_home()
 VENV = HOME / "venv"
 CONFIG = HOME / "config.json"
 BP_REGISTRY = HOME / "breakpoints.json"

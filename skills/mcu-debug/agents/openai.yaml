@@ -1,0 +1,3 @@
+display_name: MCU Debug
+short_description: Flash and debug Cortex-M over DAPLink/CMSIS-DAP, with fault root-cause analysis.
+default_prompt: Use $mcu-debug to flash or debug a Cortex-M target over DAPLink/CMSIS-DAP, inspect a HardFault, capture RTT/SWO output, or generate a post-mortem report.

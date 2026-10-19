@@ -104,7 +104,7 @@ RTT 是"目标写、探针读"，不需要 UART；但如果固件同时用了 SW
 ## GDB 连不上
 
 - 端口占用：`ss -ltnp | grep 3333`，换 `-p 3334`。
-- `--detach` 后进程已退出：看 `~/.local/share/daplink/gdbserver.log`。
+- `--detach` 后进程已退出：看 `~/.local/share/mcu-debug/gdbserver.log`。
 - GDB 侧必须加载带符号的 ELF：`arm-none-eabi-gdb build/fw.elf -ex 'target extended-remote :3333'`。只连地址没有符号，断点只能按地址下。
 - 复位后断点丢失：pyOCD 的 gdbserver 会重下软件断点；如果用了 `--persist` 仍异常，改用硬件断点。
 
