@@ -7,6 +7,7 @@
     "./altium-pcb/SKILL.md",
     "./cachip/SKILL.md",
     "./mcu-debug/SKILL.md",
-    "./oscilloscope/SKILL.md"
+    "./oscilloscope/SKILL.md",
+    "./powersupply/SKILL.md"
   ]
 }

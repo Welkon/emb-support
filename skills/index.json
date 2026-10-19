@@ -106,6 +106,17 @@
         "short_description": "多品牌示波器控制与波形采集",
         "default_prompt": "Use $oscilloscope to identify a scope, configure channels/timebase/trigger, capture waveforms to CSV, run measurements, save a screenshot, or monitor an intermittent fault."
       }
+    },
+    {
+      "name": "powersupply",
+      "path": "./powersupply",
+      "description": "Control programmable bench power supplies over LAN (SCPI socket), USB (USBTMC/VISA) or serial — Rigol DP800, Keysight E36xx, Siglent SPD, Rohde & Schwarz HMC, GW Instek, BK Precision, Owon, Aim-TTi and Korad. Use this skill whenever the user mentions a power supply, PSU, bench supply, programmable source, SCPI voltage/current setpoints, OVP/OCP, output enable, voltage ramp, or asks to set/measure/log supply rails — including 可编程电源 / 直流电源 / 设电压 / 设电流 / 开输出 / 限流保护 / 电源老化记录 — even if they do not name the model. Also use it for safe output control and power-rail logging.",
+      "short_description": "多品牌可编程电源控制、设压设流、保护与记录",
+      "interface": {
+        "display_name": "Programmable Power Supply",
+        "short_description": "多品牌可编程电源控制与安全限值",
+        "default_prompt": "Use $powersupply to identify a bench supply, set voltage/current within safety limits, enable outputs, measure V/I/P, configure OVP/OCP, or run a ramp/sequence/log."
+      }
     }
   ]
 }
