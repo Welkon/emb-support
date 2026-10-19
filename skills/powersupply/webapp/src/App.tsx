@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
   Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
@@ -587,7 +587,6 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
   const outputOn = (data?.output || "").toUpperCase() === "ON";
-  const reduceMotion = useReducedMotion();
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
@@ -596,10 +595,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute -inset-1 rounded-2xl"
-            animate={reduceMotion
-              ? { boxShadow: "0 0 24px 2px rgba(34,197,94,0.35)" }
-              : { boxShadow: ["0 0 0px 0px rgba(34,197,94,0)", "0 0 32px 5px rgba(34,197,94,0.5)", "0 0 0px 0px rgba(34,197,94,0)"] }}
-            transition={reduceMotion ? { duration: 0 } : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }} />
+            animate={{ boxShadow: ["0 0 0px 0px rgba(34,197,94,0)", "0 0 42px 8px rgba(34,197,94,0.62)", "0 0 0px 0px rgba(34,197,94,0)"] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
           <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.05]" />
         </>
       )}
