@@ -39,6 +39,7 @@ scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/py
 - USB 走 pyvisa（或 Linux `/dev/usbtmc*`）。
 - Korad 等串口电源：`--serial /dev/ttyUSB0 --baud 9600`。
 - DP100（USB HID）：`--hid dp100`（自动枚举 VID:PID `2e3c:af01`）。
+  官方手册与协议细节见 `references/dp100.md`。
 - DPS-150（USB CDC）：`--serial /dev/ttyACM0 --family dps150`。
 - B&K 168x / Manson：`--serial /dev/ttyUSB0 --family bk168x`（1685B 加 `--current-decimals 2`）。
 - Linux/WSL 权限：`scripts/install_udev.sh`；WSL 需 `usbipd attach`。
@@ -58,7 +59,7 @@ scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/py
 | `aimtti` | PL/CPX 系列 | 通用 `:VOLT` / `:CURR` / `:OUTP` |
 | `itech` | IT6300/IT6900 | `:INSTrument:NSELect` + `:VOLTage` / `:OUTPut` |
 | `generic` | 其它 SCPI | `:VOLTage` / `:CURRent` / `:OUTPut` |
-| `dp100` | 正点原子 DP100 | **USB HID**，私有帧 + CRC16 |
+| `dp100` | 正点原子 DP100（0–30 V / 0–5 A / 100 W） | **USB HID**，私有帧 + CRC16 |
 | `dps150` | FNIRSI DPS-150 | **USB CDC 串口**，F1/F0 帧 + float32 寄存器 |
 | `bk168x` | B&K 1685B/1687B/1688B、Manson HCS-3xxx | 串口 ASCII（`VOLT123` / `GETD` / `SOUT0`） |
 

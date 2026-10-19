@@ -71,6 +71,14 @@ def test_dp100_driver(monkeypatch):
     assert fake.frames[-1][5] == 1
     assert dev.measure_voltage(1) == pytest.approx(5.0)
     assert dev.measure_power(1) == pytest.approx(5.0)
+    assert dev.limits["max_voltage"] == 30.0
+    assert dev.limits["max_ovp"] == 30.5
+    dev.set_ovp(1, 30.5)
+    dev.set_ocp(1, 5.05)
+    with pytest.raises(RuntimeError):
+        dev.set_ovp(1, 31)
+    with pytest.raises(RuntimeError):
+        dev.set_ocp(1, 5.1)
 
 
 class FakeSerial:

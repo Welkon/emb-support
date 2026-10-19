@@ -187,7 +187,8 @@ def cmd_channels(a) -> None:
                   "ovp": dev.supports_ovp,
                   "ocp": dev.supports_ocp,
                   "power": dev.supports_power,
-              }}, as_json=True)
+              },
+              "limits": getattr(dev, "limits", None)}, as_json=True)
     finally:
         dev.close()
 

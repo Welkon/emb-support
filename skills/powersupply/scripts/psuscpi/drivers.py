@@ -176,9 +176,18 @@ def _dp_parse(raw: bytes):
 
 
 class Dp100Device(Device):
-    """ALIENTEK DP100 USB-HID supply (VID:PID 2e3c:af01)."""
+    """ALIENTEK DP100 USB-HID supply (VID:PID 2e3c:af01).
+
+    Official specs (DP100 user manual V1.2): 0-30 V, 0-5 A, 100 W,
+    10 mV / 1 mA setpoint resolution, OVP 0-30.5 V, OCP 0-5.05 A.
+    """
 
     family = "dp100"
+    MAX_VOLTAGE = 30.0
+    MAX_CURRENT = 5.0
+    MAX_OVP = 30.5
+    MAX_OCP = 5.05
+    MAX_POWER = 100.0
     channels = (1,)
     supports_power = True
     supports_ovp = True
@@ -205,6 +214,11 @@ class Dp100Device(Device):
         self._ovp = s["ovp_v"]
         self._ocp = s["ocp_a"]
         self._out = bool(s["state"])
+        self.limits = {"max_voltage": self.MAX_VOLTAGE,
+                       "max_current": self.MAX_CURRENT,
+                       "max_ovp": self.MAX_OVP,
+                       "max_ocp": self.MAX_OCP,
+                       "max_power": self.MAX_POWER}
 
     def close(self):
         try:
@@ -250,12 +264,15 @@ class Dp100Device(Device):
         }
 
     def _apply(self):
-        if self._v > self._max_v + 1e-9:
-            raise RuntimeError(f"DP100 max output is {self._max_v:.2f} V")
+        if self._v < 0 or self._v > min(self.MAX_VOLTAGE, self._max_v) + 1e-9:
+            raise RuntimeError(
+                f"DP100 voltage {self._v} V outside 0..{min(self.MAX_VOLTAGE, self._max_v):.2f} V")
+        if self._i < 0 or self._i > self.MAX_CURRENT + 1e-9:
+            raise RuntimeError(f"DP100 current {self._i} A outside 0..{self.MAX_CURRENT:.2f} A")
         v_mv = int(round(self._v * 1000))
         i_ma = int(round(self._i * 1000))
-        ovp = int(round((self._ovp or self._v * 1.1) * 1000))
-        ocp = int(round((self._ocp or self._i * 1.1) * 1000))
+        ovp = int(round((self._ovp if self._ovp is not None else self._v * 1.1) * 1000))
+        ocp = int(round((self._ocp if self._ocp is not None else self._i * 1.1) * 1000))
         payload = bytes([_SET_MODIFY, 1 if self._out else 0,
                          v_mv & 0xFF, (v_mv >> 8) & 0xFF,
                          i_ma & 0xFF, (i_ma >> 8) & 0xFF,
@@ -296,10 +313,14 @@ class Dp100Device(Device):
         return "ON" if b["out_mode"] == 1 else "OFF"
 
     def set_ovp(self, ch, v):
+        if v < 0 or v > self.MAX_OVP + 1e-9:
+            raise RuntimeError(f"DP100 OVP {v} V outside 0..{self.MAX_OVP} V")
         self._ovp = float(v)
         self._apply()
 
     def set_ocp(self, ch, a):
+        if a < 0 or a > self.MAX_OCP + 1e-9:
+            raise RuntimeError(f"DP100 OCP {a} A outside 0..{self.MAX_OCP} A")
         self._ocp = float(a)
         self._apply()
 
