@@ -33,6 +33,7 @@ class Device:
     supports_ocp = False
     supports_output_state = False
     supports_input_voltage = False
+    supports_temperature = False
 
     def close(self):
         pass
@@ -45,6 +46,8 @@ class Device:
     def measure_current(self, ch): raise NotImplementedError
     def measure_power(self, ch): return None
     def measure_input_voltage(self, ch): return None
+    def measure_temperature(self, ch): return None
+    def device_info(self): return {}
     def status(self, ch): return None
     def output(self, ch, on): raise NotImplementedError
     def output_state(self, ch): return None
@@ -188,6 +191,7 @@ class Dp100Device(Device):
 
     family = "dp100"
     supports_input_voltage = True
+    supports_temperature = True
     MAX_VOLTAGE = 30.0
     MAX_CURRENT = 5.0
     MAX_OVP = 30.5
@@ -209,7 +213,8 @@ class Dp100Device(Device):
         except Exception as e:
             die(f"cannot open DP100: {e} (check udev/hidraw permissions)")
         self.resource = f"hid:{DP100_VID:04x}:{DP100_PID:04x}"
-        info = self._device_info()
+        self.info = self._device_info()
+        info = self.info
         self.idn = (f"ALIENTEK,DP100,{info.get('serial_number_hex', '?')},"
                     f"{info.get('app_version', '?')}")
         self._max_v = self._basic().get("vo_max_mv", 30000) / 1000.0
@@ -259,8 +264,10 @@ class Dp100Device(Device):
     def _device_info(self):
         d = self._exchange(_OP_INFO)
         return {
-            "device_type": d[0:15].split(b"\x00")[0].decode(errors="replace"),
+            "model": d[0:15].split(b"\x00")[0].decode(errors="replace"),
+            "hardware_version": ((d[17] << 8) | d[16]) / 10,
             "app_version": ((d[19] << 8) | d[18]) / 10,
+            "bootloader_version": ((d[21] << 8) | d[20]) / 10,
             "serial_number_hex": d[24:35].hex(),
         }
 
@@ -270,6 +277,8 @@ class Dp100Device(Device):
             "vout_mv": (d[3] << 8) | d[2],
             "iout_ma": (d[5] << 8) | d[4],
             "vo_max_mv": (d[7] << 8) | d[6],
+            "temp_deci_c": (d[9] << 8) | d[8],
+            "vin_mv": (d[11] << 8) | d[10],
             "out_mode": d[14],
             "work_state": d[15],
         }
@@ -328,6 +337,40 @@ class Dp100Device(Device):
     def measure_input_voltage(self, ch):
         b = self._basic()
         return b["vin_mv"] / 1000
+
+    def measure_temperature(self, ch):
+        return self._basic()["temp_deci_c"] / 10
+
+    def device_info(self):
+        return self.info
+
+    def sample(self, ch):
+        b = self._basic()
+        return {
+            "voltage": b["vout_mv"] / 1000,
+            "current": b["iout_ma"] / 1000,
+            "power": b["vout_mv"] * b["iout_ma"] / 1e6,
+            "input_voltage": b["vin_mv"] / 1000,
+            "temperature": b["temp_deci_c"] / 10,
+        }
+
+    def snapshot(self, ch):
+        """One HID read for the whole UI frame (avoids 8 round-trips per poll)."""
+        b = self._basic()
+        s = self._settings()
+        return {
+            "output": "ON" if b["out_mode"] == 1 else "OFF",
+            "setpoint": {"voltage": s["vset_v"], "current": s["iset_a"]},
+            "measurement": {
+                "voltage": b["vout_mv"] / 1000,
+                "current": b["iout_ma"] / 1000,
+                "power": b["vout_mv"] * b["iout_ma"] / 1e6,
+                "input_voltage": b["vin_mv"] / 1000,
+                "temperature": b["temp_deci_c"] / 10,
+            },
+            "status": {"output_mode": {0: "OFF", 1: "ON"}.get(b["out_mode"], b["out_mode"]),
+                        "work_state": b["work_state"]},
+        }
 
     def status(self, ch):
         b = self._basic()

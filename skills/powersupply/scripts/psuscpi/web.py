@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import mimetypes
 import threading
+import time
+from collections import deque
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -181,12 +183,17 @@ function download(){
 
 class PsuWebServer:
     def __init__(self, device, max_voltage: float, max_current: float,
-                 bind: str = "127.0.0.1", port: int = 8765):
+                 bind: str = "127.0.0.1", port: int = 8765, start_sampler: bool = True):
         self.device = device
         self.max_voltage = float(max_voltage)
         self.max_current = float(max_current)
         self.lock = threading.Lock()
+        self.sample_hz = 30 if getattr(device, "family", "") == "dp100" else 10
+        self.history = {ch: deque(maxlen=self.sample_hz * 240) for ch in device.channels}
+        self._stop = threading.Event()
         self.httpd = ThreadingHTTPServer((bind, port), self._handler())
+        if start_sampler:
+            threading.Thread(target=self._sample_loop, daemon=True).start()
 
     @property
     def port(self) -> int:
@@ -195,38 +202,83 @@ class PsuWebServer:
     def _state(self, ch: int) -> dict:
         if ch not in self.device.channels:
             raise ValueError(f"channel {ch} not available")
-        return {
-            "ok": True,
-            "idn": self.device.idn,
-            "family": self.device.family,
-            "channels": list(self.device.channels),
-            "ch": ch,
-            "output": self.device.output_state(ch),
-            "setpoint": {"voltage": self.device.get_voltage(ch),
-                         "current": self.device.get_current(ch)},
-            "measurement": {
+        snap = self.device.snapshot(ch) if hasattr(self.device, "snapshot") else None
+        if snap:
+            output, setpoint, measurement, status = (
+                snap["output"], snap["setpoint"], snap["measurement"], snap["status"])
+        else:
+            output = self.device.output_state(ch)
+            setpoint = {"voltage": self.device.get_voltage(ch),
+                        "current": self.device.get_current(ch)}
+            measurement = {
                 "voltage": self.device.measure_voltage(ch),
                 "current": self.device.measure_current(ch),
                 "power": self.device.measure_power(ch) if self.device.supports_power else None,
                 "input_voltage": self.device.measure_input_voltage(ch)
                 if self.device.supports_input_voltage else None,
-            },
-            "status": self.device.status(ch) if hasattr(self.device, "status") else None,
+                "temperature": self.device.measure_temperature(ch)
+                if self.device.supports_temperature else None,
+            }
+            status = self.device.status(ch) if hasattr(self.device, "status") else None
+        return {
+            "ok": True,
+            "idn": self.device.idn,
+            "family": self.device.family,
+            "device_info": self.device.device_info(),
+            "channels": list(self.device.channels),
+            "ch": ch,
+            "output": output,
+            "setpoint": setpoint,
+            "measurement": measurement,
+            "status": status,
             "capabilities": {
                 "power": self.device.supports_power,
                 "ovp": self.device.supports_ovp,
                 "ocp": self.device.supports_ocp,
                 "output_state": self.device.supports_output_state,
                 "input_voltage": self.device.supports_input_voltage,
+                "temperature": self.device.supports_temperature,
             },
             "limits": {**{"max_voltage": self.max_voltage, "max_current": self.max_current},
                         **(getattr(self.device, "limits", None) or {})},
+        }
+
+    def _sample_loop(self):
+        period = 1.0 / self.sample_hz
+        while not self._stop.is_set():
+            for ch in self.device.channels:
+                try:
+                    with self.lock:
+                        sample = self._sample(ch)
+                    sample = dict(sample)
+                    sample["t"] = int(time.time() * 1000)
+                    with self.lock:
+                        self.history[ch].append(sample)
+                except Exception:
+                    pass
+            self._stop.wait(period)
+
+    def _sample(self, ch: int) -> dict:
+        if ch not in self.device.channels:
+            raise ValueError(f"channel {ch} not available")
+        if hasattr(self.device, "sample"):
+            return self.device.sample(ch)
+        return {
+            "voltage": self.device.measure_voltage(ch),
+            "current": self.device.measure_current(ch),
+            "power": self.device.measure_power(ch) if self.device.supports_power else None,
+            "input_voltage": self.device.measure_input_voltage(ch)
+            if self.device.supports_input_voltage else None,
+            "temperature": self.device.measure_temperature(ch)
+            if self.device.supports_temperature else None,
         }
 
     def _handler(self):
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
             def log_message(self, *args):
                 pass
 
@@ -268,6 +320,59 @@ class PsuWebServer:
                     if target.is_file():
                         self._file(target)
                         return
+                if parsed.path == "/api/history":
+                    qs = parse_qs(parsed.query)
+                    try:
+                        ch = int(qs.get("ch", ["1"])[0])
+                        seconds = max(1.0, min(120.0, float(qs.get("seconds", ["62"])[0])))
+                        if ch not in outer.device.channels:
+                            raise ValueError(f"channel {ch} not available")
+                        cutoff = time.time() * 1000 - seconds * 1000
+                        with outer.lock:
+                            samples = [s for s in outer.history[ch] if s["t"] >= cutoff]
+                        self._json(200, {"ok": True, "ch": ch, "samples": samples})
+                    except Exception as e:  # noqa: BLE001
+                        self._json(400, {"ok": False, "error": str(e)})
+                    return
+                if parsed.path == "/api/stream":
+                    qs = parse_qs(parsed.query)
+                    try:
+                        ch = int(qs.get("ch", ["1"])[0])
+                        hz = max(1.0, min(60.0, float(qs.get("hz", ["30"])[0])))
+                        if ch not in outer.device.channels:
+                            raise ValueError(f"channel {ch} not available")
+                    except Exception as e:  # noqa: BLE001
+                        self._json(400, {"ok": False, "error": str(e)})
+                        return
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    # HTTP/1.1 + chunked framing keeps EventSource reliable.
+                    self.send_header("Transfer-Encoding", "chunked")
+                    self.end_headers()
+                    self.close_connection = True
+                    period = 1.0 / hz
+                    last_t, last_sent = 0, 0.0
+                    try:
+                        while True:
+                            now = time.time()
+                            with outer.lock:
+                                items = outer.history.get(ch)
+                                payload = items[-1] if items else None
+                            if payload and payload["t"] > last_t and now - last_sent >= period:
+                                chunk = f"data: {json.dumps(payload)}\n\n".encode()
+                                self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
+                                self.wfile.flush()
+                                last_t, last_sent = payload["t"], now
+                            elif now - last_sent > 5:
+                                chunk = b": keepalive\n\n"
+                                self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
+                                self.wfile.flush()
+                                last_sent = now
+                            time.sleep(period)
+                    except (BrokenPipeError, ConnectionResetError, OSError):
+                        pass
+                    return
                 if parsed.path == "/api/state":
                     try:
                         ch = int(parse_qs(parsed.query).get("ch", ["1"])[0])

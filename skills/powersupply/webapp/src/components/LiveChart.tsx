@@ -1,161 +1,243 @@
-import { useEffect, useRef } from "react";
-import { fmt } from "@/lib/utils";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import * as echarts from "echarts/core";
+import { LineChart } from "echarts/charts";
+import { GridComponent } from "echarts/components";
+import { CanvasRenderer } from "echarts/renderers";
 
-export type ChartPoint = { t: number; v: number | null; i: number | null; p: number | null };
-type Metric = "voltage" | "current" | "power";
+echarts.use([LineChart, GridComponent, CanvasRenderer]);
 
-const KEY: Record<Metric, keyof ChartPoint> = { voltage: "v", current: "i", power: "p" };
-export function LiveChart({ points, metric, color, unit, digits, dark, height = 260, windowMs = 10_000 }: {
-  points: ChartPoint[]; metric: Metric; color: string; unit: string;
-  digits: number; dark: boolean; height?: number; windowMs?: number;
-}) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const dataRef = useRef(points);
-  const themeRef = useRef(dark);
-  dataRef.current = points;
-  themeRef.current = dark;
+export type Point = { t: number; v: number | null; i: number | null; p: number | null };
+export type LiveChartHandle = { history: () => Point[] };
+const LEAD_MS = 100;
+
+function niceBounds(lo: number, hi: number): [number, number] {
+  const raw = (hi - lo) / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  return [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
+}
+
+function baseRange(kind: "v" | "i", vset?: number | null, iset?: number | null): [number, number] | null {
+  if (kind === "v" && vset != null && Number.isFinite(vset)) {
+    const span = Math.max(0.01, Math.abs(vset) * 0.002);
+    return niceBounds(vset - span, vset + span);
+  }
+  if (kind === "i" && iset != null && Number.isFinite(iset)) {
+    const span = Math.max(0.002, Math.abs(iset) * 0.01);
+    return niceBounds(iset - span, iset + span);
+  }
+  return null;
+}
+
+function stableRange(values: number[], current: [number, number] | null, base: [number, number] | null): [number, number] {
+  if (!values.length) return base ?? current ?? [0, 1];
+  const dataLo = Math.min(...values), dataHi = Math.max(...values);
+  let lo = base ? base[0] : dataLo;
+  let hi = base ? base[1] : dataHi;
+  if (dataLo < lo || dataHi > hi) {
+    const pad = Math.max((hi - lo) * 0.15, 1e-6);
+    [lo, hi] = niceBounds(Math.min(lo, dataLo - pad), Math.max(hi, dataHi + pad));
+  } else if (base && (!current || (current[1] - current[0]) > (base[1] - base[0]) * 4)) {
+    return base;
+  }
+  if (current && lo >= current[0] && hi <= current[1]) return current;
+  return [lo, hi];
+}
+
+export const LiveChart = forwardRef<LiveChartHandle, {
+  streamUrl: string; historyUrl: string; dark: boolean; height?: number; windowMs: number;
+  cache: boolean; vset?: number | null; iset?: number | null; showV: boolean; showA: boolean; paused: boolean;
+}>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused }, ref) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<echarts.ECharts | null>(null);
+  const bufferRef = useRef<Point[]>([]);
+  const vRangeRef = useRef<[number, number] | null>(null);
+  const iRangeRef = useRef<[number, number] | null>(null);
+  const windowRef = useRef(windowMs);
+  const cacheRef = useRef(cache);
+  const darkRef = useRef(dark);
+  const showVRef = useRef(showV);
+  const showARef = useRef(showA);
+  const vsetRef = useRef(vset);
+  const isetRef = useRef(iset);
+  const pausedRef = useRef(paused);
+  const rafRef = useRef(0);
+  const [hasData, setHasData] = useState(false);
+  const hasDataRef = useRef(false);
+  windowRef.current = windowMs;
+  cacheRef.current = cache;
+  darkRef.current = dark;
+  showVRef.current = showV;
+  showARef.current = showA;
+  vsetRef.current = vset;
+  isetRef.current = iset;
+  pausedRef.current = paused;
+
+  useImperativeHandle(ref, () => ({ history: () => bufferRef.current.slice() }), []);
+
+  const draw = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const now = Date.now();
+    const cutoff = now - windowRef.current - 2000;
+    const start = now - windowRef.current + LEAD_MS;
+    const end = now + LEAD_MS;
+    const vData: [number, number][] = [];
+    const iData: [number, number][] = [];
+    const vs: number[] = [];
+    const is: number[] = [];
+    for (const p of bufferRef.current) {
+      if (p.t < cutoff) continue;
+      if (p.v != null) { vData.push([p.t, p.v]); vs.push(p.v); }
+      if (p.i != null) { iData.push([p.t, p.i]); is.push(p.i); }
+    }
+    const vRange = stableRange(vs, vRangeRef.current, baseRange("v", vsetRef.current, isetRef.current));
+    const iRange = stableRange(is, iRangeRef.current, baseRange("i", vsetRef.current, isetRef.current));
+    vRangeRef.current = vRange;
+    iRangeRef.current = iRange;
+    const axis = darkRef.current ? "#94a3b8" : "#64748b";
+    const grid = darkRef.current ? "rgba(148,163,184,0.16)" : "rgba(100,116,139,0.16)";
+    const vColor = "#3b82f6";
+    const iColor = "#f59e0b";
+    if (vData.length) vData.push([end, vData[vData.length - 1][1]]);
+    if (iData.length) iData.push([end, iData[iData.length - 1][1]]);
+    chart.setOption({
+      animation: false,
+      useDirtyRect: true,
+      grid: { left: showVRef.current ? 52 : 16, right: showARef.current ? 56 : 16, top: 22, bottom: 30 },
+      tooltip: {
+        trigger: "axis", confine: true, animation: false,
+        backgroundColor: darkRef.current ? "#111827" : "#ffffff",
+        borderColor: darkRef.current ? "rgba(148,163,184,0.25)" : "rgba(100,116,139,0.2)",
+        textStyle: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
+        axisPointer: { type: "line", lineStyle: { color: grid } },
+        formatter: (params: any[]) => {
+          if (!params?.length) return "";
+          const stamp = new Date(params[0].value[0]).toLocaleTimeString();
+          const rows = params.map((p: any) => {
+            const unit = p.seriesName === "Voltage" ? "V" : "A";
+            return `${p.marker}${p.seriesName}  <b>${Number(p.value[1]).toFixed(3)} ${unit}</b>`;
+          });
+          return `<div>${stamp}<br/>${rows.join("<br/>")}</div>`;
+        },
+      },
+      xAxis: {
+        type: "time", min: start, max: end, boundaryGap: false, showMaxLabel: true, showMinLabel: true,
+        axisLine: { lineStyle: { color: grid } },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: {
+          color: axis, fontSize: 11, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          formatter: (value: number) => {
+            const s = Math.round((value - Date.now()) / 1000);
+            return s >= 0 ? "now" : `${s}s`;
+          },
+        },
+      },
+      yAxis: [
+        {
+          type: "value", name: "V", nameTextStyle: { color: vColor, align: "left" },
+          show: showVRef.current, min: vRange[0], max: vRange[1], position: "left",
+          axisLine: { show: false }, axisTick: { show: false },
+          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
+          splitLine: { lineStyle: { color: grid } },
+        },
+        {
+          type: "value", name: "A", nameTextStyle: { color: iColor, align: "right" },
+          show: showARef.current, min: iRange[0], max: iRange[1], position: "right",
+          axisLine: { show: false }, axisTick: { show: false },
+          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
+          splitLine: { show: false },
+        },
+      ],
+      series: [
+        {
+          name: "Voltage", type: "line", data: showVRef.current ? vData : [], yAxisIndex: 0,
+          showSymbol: false, smooth: 0.25, animation: false, emphasis: { disabled: true },
+          lineStyle: { width: 2, color: vColor }, itemStyle: { color: vColor },
+        },
+        {
+          name: "Current", type: "line", data: showARef.current ? iData : [], yAxisIndex: 1,
+          showSymbol: false, smooth: 0.25, animation: false, emphasis: { disabled: true },
+          lineStyle: { width: 2, color: iColor }, itemStyle: { color: iColor },
+        },
+      ],
+    }, { lazyUpdate: true });
+  }, []);
+
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      draw();
+    });
+  }, [draw]);
+
+  const appendPoint = useCallback((p: Point) => {
+    const buf = bufferRef.current;
+    if (buf.length && p.t <= buf[buf.length - 1].t) return;
+    buf.push(p);
+    const keep = cacheRef.current ? 3_600_000 : Math.max(windowRef.current + 2000, 62_000);
+    const cutoff = Date.now() - keep;
+    while (buf.length && buf[0].t < cutoff) buf.shift();
+    if (buf.length > 108_000) buf.splice(0, buf.length - 108_000);
+    if (!hasDataRef.current) { hasDataRef.current = true; setHasData(true); }
+    if (!pausedRef.current) scheduleDraw();
+  }, [scheduleDraw]);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const chart = echarts.init(host, undefined, { renderer: "canvas" });
+    chartRef.current = chart;
+    const ro = new ResizeObserver(() => chart.resize());
+    ro.observe(host);
+    draw();
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(rafRef.current);
+      chart.dispose();
+      chartRef.current = null;
+    };
+  }, [draw]);
+
+  useEffect(() => { scheduleDraw(); }, [dark, showV, showA, paused, scheduleDraw]);
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const yr: { v: [number, number] | null } = { v: null };
-    let raf = 0;
-    let last = 0;
-    let w = 0, h = 0;
-
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      w = Math.max(1, rect.width);
-      h = Math.max(1, rect.height);
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let cancelled = false;
+    let es: EventSource | null = null;
+    const startStream = () => {
+      if (cancelled) return;
+      es = new EventSource(streamUrl);
+      es.onmessage = (ev) => {
+        let d: { t?: number; voltage?: number | null; current?: number | null; power?: number | null; error?: string };
+        try { d = JSON.parse(ev.data); } catch { return; }
+        if (d.error || d.t == null) return;
+        appendPoint({ t: d.t, v: d.voltage ?? null, i: d.current ?? null, p: d.power ?? null });
+      };
     };
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-    resize();
-
-    const range = (vals: number[]) => {
-      let lo = Math.min(...vals), hi = Math.max(...vals);
-      if (hi - lo < 1e-9) { const p = Math.max(0.01, Math.abs(hi) * 0.001); lo -= p; hi += p; }
-      const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
-      return [lo, hi] as const;
-    };
-
-    const draw = (ts: number) => {
-      raf = requestAnimationFrame(draw);
-      if (ts - last < 33) return;
-      last = ts;
-      const darkNow = themeRef.current;
-      const grid = darkNow ? "#262b36" : "#e4e4e7";
-      const text = darkNow ? "#8b93a7" : "#71717a";
-      const data = dataRef.current;
-      ctx.clearRect(0, 0, w, h);
-      const L = 56, R = 12, T = 12, B = 22;
-      const plotW = Math.max(1, w - L - R);
-      const plotH = Math.max(1, h - T - B);
-      ctx.strokeStyle = grid;
-      ctx.lineWidth = 1;
-      for (let k = 0; k <= 4; k++) {
-        const y = T + (plotH * k) / 4;
-        ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R, y); ctx.stroke();
-      }
-
-      const vals = data.map((p) => p[KEY[metric]]).filter((v): v is number => v != null);
-      if (!vals.length || data.length < 2) {
-        ctx.fillStyle = text;
-        ctx.font = "11px ui-monospace, monospace";
-        ctx.fillText("waiting for samples…", L + 6, T + 18);
-        return;
-      }
-      const target = range(vals);
-      if (!yr.v) yr.v = target;
-      else yr.v = [yr.v[0] + (target[0] - yr.v[0]) * 0.12, yr.v[1] + (target[1] - yr.v[1]) * 0.12];
-      const [lo, hi] = yr.v;
-      const lastT = data[data.length - 1].t;
-      const now = Date.now();
-      const x = (t: number) => L + plotW * (1 - (now - t) / windowMs);
-      const y = (v: number) => T + plotH * (1 - (v - lo) / (hi - lo));
-
-      ctx.save();
-      ctx.beginPath(); ctx.rect(L, T, plotW, plotH); ctx.clip();
-
-      const pts: Array<[number, number]> = [];
-      for (const p of data) {
-        const val = p[KEY[metric]];
-        if (val == null) continue;
-        const px = x(p.t), py = y(val);
-        if (px < L - 2) continue;
-        pts.push([px, py]);
-      }
-      ctx.beginPath();
-      if (pts.length === 1) {
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        ctx.lineTo(pts[0][0], pts[0][1]);
-      } else if (pts.length > 1) {
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 0; i < pts.length - 1; i++) {
-          const p0 = pts[i - 1] ?? pts[i];
-          const p1 = pts[i];
-          const p2 = pts[i + 1];
-          const p3 = pts[i + 2] ?? p2;
-          ctx.bezierCurveTo(
-            p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6,
-            p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6,
-            p2[0], p2[1],
-          );
+    fetch(historyUrl)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled || !d?.samples) return;
+        for (const s of d.samples) {
+          appendPoint({ t: s.t, v: s.voltage ?? null, i: s.current ?? null, p: s.power ?? null });
         }
-      }
-      if (pts.length) {
-        ctx.lineWidth = 2;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.strokeStyle = color;
-        ctx.stroke();
-      }
+      })
+      .catch(() => { /* history is optional */ })
+      .finally(startStream);
+    return () => { cancelled = true; es?.close(); };
+  }, [historyUrl, streamUrl, appendPoint]);
 
-      ctx.lineTo(pts.length ? pts[pts.length - 1][0] : x(lastT), T + plotH);
-      ctx.lineTo(pts.length ? pts[0][0] : Math.max(L, x(data[0].t)), T + plotH);
-      ctx.closePath();
-      const grad = ctx.createLinearGradient(0, T, 0, T + plotH);
-      grad.addColorStop(0, color + "4d");
-      grad.addColorStop(1, color + "05");
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.restore();
-
-      ctx.fillStyle = text;
-      ctx.font = "11px ui-monospace, monospace";
-      for (let k = 0; k <= 4; k++) {
-        const v = hi - ((hi - lo) * k) / 4;
-        ctx.fillText(fmt(v, digits), 4, T + (plotH * k) / 4 + 4);
-      }
-      ctx.textAlign = "right";
-      ctx.fillText(unit, w - R, T + 4);
-      ctx.textAlign = "left";
-      ctx.fillStyle = color;
-      const lastVal = data[data.length - 1][KEY[metric]];
-      if (lastVal != null) {
-        const px = x(lastT), py = y(lastVal);
-        ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-      }
-    };
-    raf = requestAnimationFrame(draw);
-
-    const onVisibility = () => {
-      cancelAnimationFrame(raf);
-      if (!document.hidden) raf = requestAnimationFrame(draw);
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [color, unit, metric, digits, windowMs]);
-
-  return <canvas ref={ref} style={{ width: "100%", height }} aria-label="live chart" />;
-}
+  return (
+    <div className="relative w-full" style={{ height }}>
+      <div ref={hostRef} className="h-full w-full" />
+      {!hasData && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+          waiting for samples…
+        </div>
+      )}
+    </div>
+  );
+});

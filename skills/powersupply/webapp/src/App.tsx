@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, Ban, Download, Gauge, Info, Languages, Moon,
-  Power, ShieldCheck, SlidersHorizontal, Sun, Timer, Waves, Zap,
+  Activity, AlertTriangle, Ban, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
+  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Timer, Trash2, Waves, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,21 +10,19 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LiveChart } from "@/components/LiveChart";
+import { LiveChart, type LiveChartHandle } from "@/components/LiveChart";
 import { cn, fmt } from "@/lib/utils";
 
 type Lang = "en" | "zh";
 type Limits = { max_voltage?: number; max_current?: number; max_ovp?: number; max_ocp?: number; max_power?: number };
-type Caps = { power: boolean; ovp: boolean; ocp: boolean; output_state: boolean; input_voltage: boolean };
-type Measurement = { voltage: number | null; current: number | null; power: number | null; input_voltage: number | null };
+type Caps = { power: boolean; ovp: boolean; ocp: boolean; output_state: boolean; input_voltage: boolean; temperature: boolean };
+type Measurement = { voltage: number | null; current: number | null; power: number | null; input_voltage: number | null; temperature: number | null };
 type State = {
   ok: boolean; idn: string; family: string; channels: number[]; ch: number;
   output: string | null; setpoint: { voltage: number | null; current: number | null };
   measurement: Measurement; status: { output_mode?: string; work_state?: number } | null;
-  capabilities: Caps; limits: Limits;
+  capabilities: Caps; limits: Limits; device_info: Record<string, unknown>;
 };
-type Point = { t: number; v: number | null; i: number | null; p: number | null };
-type Metric = "voltage" | "current" | "power";
 
 const WORK_EN = ["NM", "OVP", "OCP", "OPP", "OTP", "REP", "UVP"];
 const WORK_ZH = ["正常", "过压", "过流", "过功率", "过温", "反接", "欠压"];
@@ -32,27 +30,61 @@ const WORK_ZH = ["正常", "过压", "过流", "过功率", "过温", "反接", 
 const STR = {
   en: {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
+    connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
+    deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
+    connectionHint: "Check the USB cable and power. The page retries automatically.",
+    overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
+    faultHints: {
+      0: "Device reports a normal state.",
+      1: "Over-voltage protection. Check the load and voltage setting, then re-enable output.",
+      2: "Over-current protection. Check the load and current limit, then re-enable output.",
+      3: "Over-power protection. Reduce the load before re-enabling output.",
+      4: "Over-temperature protection. Let the device cool down and check ventilation.",
+      5: "Reverse polarity detected. Check the output wiring.",
+      6: "Input under-voltage. Check the DC input supply.",
+    },
     output: "Output", outputVoltage: "Output voltage", outputCurrent: "Output current",
     outputPower: "Output power", inputVoltage: "Input voltage", vset: "VSET", iset: "ISET",
     limit: "limit", dcInput: "DC input", mode: "mode", state: "state", channel: "channel", of: "of",
-    polling: "1 s polling", history: "History", control: "Control", apply: "Apply setpoints",
+    polling: "5 Hz live", history: "Live", control: "Control", apply: "Apply setpoints",
     on: "ON", off: "OFF", allOff: "ALL OFF", ovp: "OVP", ocp: "OCP", setProtection: "Set protection",
     outputNote: "Output ON requires confirmation. Limits are enforced by the server, not only by this page.",
     status: "Status", setpoint: "Setpoint", limits: "Limits", voltage: "Voltage", current: "Current",
     power: "Power", ovpMax: "OVP max", ocpMax: "OCP max", sessionLog: "Session log",
     samplesBuffered: "{n} samples buffered in this browser session.", downloadCsv: "Download CSV",
-    refreshNote: "Refreshing the page clears the buffer; use psu.py log for long recordings.",
+    refreshNote: "Refreshing clears the buffer; use psu.py log for long recordings.",
     enableOutput: "Enable output?", cancel: "Cancel", enable: "Enable",
     confirmDesc: "CH{ch} will be enabled at {v} V / {i} A. Check the load before continuing.",
     samples: "{n} samples", lastUpdate: "last update", light: "Light", dark: "Dark",
-    work: WORK_EN,
+    basic: "Basic", advanced: "Advanced", device: "Device", basicInfo: "Basic info",
+    model: "Model", hardware: "Hardware", app: "App", serial: "Serial", temperature: "Temperature",
+    sequence: "Serial output", sequenceHint: "Setpoint list; each row runs in order.",
+    addRow: "Add row", run: "Run", stop: "Stop", delay: "Delay (s)", step: "Step",
+    voltageScan: "Voltage scanning", currentScan: "Current scanning", start: "Start", end: "End",
+    idle: "Idle", running: "Running", row: "Row", cache: "Cache", cacheOn: "Cache on", cacheOff: "Cache off",
+    cacheHint: "Off: keep only the visible window. On: keep up to 1 hour for CSV export (chart still draws only the window).",
+    showAdvanced: "Show advanced", hideAdvanced: "Hide advanced",
+    advancedHint: "Sequence output · voltage/current scan", work: WORK_EN,
   },
   zh: {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
+    connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
+    deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
+    connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
+    overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
+    faultHints: {
+      0: "设备状态正常。",
+      1: "过压保护。请检查负载和设定电压，排除后重新开启输出。",
+      2: "过流保护。请检查负载和限流设定，排除后重新开启输出。",
+      3: "过功率保护。请降低负载后重新开启输出。",
+      4: "过温保护。请等待设备冷却并检查散热。",
+      5: "输出反接。请检查输出接线。",
+      6: "输入欠压。请检查直流输入电源。",
+    },
     output: "输出", outputVoltage: "输出电压", outputCurrent: "输出电流",
     outputPower: "输出功率", inputVoltage: "输入电压", vset: "设定电压", iset: "设定电流",
     limit: "上限", dcInput: "直流输入", mode: "模式", state: "状态", channel: "通道", of: "共",
-    polling: "1 秒轮询", history: "历史曲线", control: "控制", apply: "应用设定值",
+    polling: "5 Hz 实时", history: "实时曲线", control: "控制", apply: "应用设定值",
     on: "开", off: "关", allOff: "全部关闭", ovp: "过压保护", ocp: "过流保护", setProtection: "设置保护",
     outputNote: "开启输出需要二次确认；限值由服务端强制，不只是页面限制。",
     status: "状态", setpoint: "设定值", limits: "限值", voltage: "电压", current: "电流",
@@ -62,11 +94,18 @@ const STR = {
     enableOutput: "确认开启输出？", cancel: "取消", enable: "开启",
     confirmDesc: "将开启 CH{ch}，设定 {v} V / {i} A。请先确认负载连接。",
     samples: "{n} 个采样", lastUpdate: "更新于", light: "亮色", dark: "暗色",
-    work: WORK_ZH,
+    basic: "基础", advanced: "高级", device: "设备信息", basicInfo: "基本信息",
+    model: "型号", hardware: "硬件版本", app: "软件版本", serial: "序列号", temperature: "温度",
+    sequence: "序列输出", sequenceHint: "按行依次设置电压/电流，每行可设置延时。",
+    addRow: "新增一行", run: "运行", stop: "停止", delay: "延时 (s)", step: "步进",
+    voltageScan: "电压扫描", currentScan: "电流扫描", start: "起始", end: "结束",
+    idle: "空闲", running: "运行中", row: "行", cache: "缓存", cacheOn: "缓存开", cacheOff: "缓存关",
+    cacheHint: "关闭时只保留当前窗口；开启时最多保留 1 小时，用于导出 CSV。",
+    showAdvanced: "展开高级功能", hideAdvanced: "收起高级功能",
+    advancedHint: "序列输出 · 电压/电流扫描", work: WORK_ZH,
   },
 } as const;
-
-type Dict = (typeof STR)["en"];
+type Dict = (typeof STR)[Lang];
 
 async function api(path: string, body?: unknown): Promise<State> {
   const res = await fetch(path, body === undefined ? {} : {
@@ -77,20 +116,30 @@ async function api(path: string, body?: unknown): Promise<State> {
   return data as State;
 }
 
-function MetricTile({ label, value, unit, sub, icon: Icon, accent, big }: {
-  label: string; value: string; unit: string; sub?: string;
-  icon: React.ElementType; accent: string; big?: boolean;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function MetricTile({ label, value, unit, sub, icon: Icon, accent }: {
+  label: string; value: string; unit: string; sub?: string; icon: React.ElementType; accent: string;
 }) {
   return (
-    <div className="relative flex-1 px-5 py-4">
+    <div className="flex-1 px-5 py-4">
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         <Icon className="h-3.5 w-3.5" style={{ color: accent }} /> {label}
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
-        <span className={cn("font-mono font-semibold tabular-nums tracking-tight", big ? "text-4xl" : "text-3xl")}>{value}</span>
+        <span className="font-mono text-3xl font-semibold tabular-nums tracking-tight">{value}</span>
         <span className="text-xs text-muted-foreground">{unit}</span>
       </div>
       <div className="mt-1 h-4 text-[11px] text-muted-foreground">{sub ?? ""}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-mono">{value}</span>
     </div>
   );
 }
@@ -113,10 +162,23 @@ function LimitBar({ label, value, max, unit }: { label: string; value: number | 
 export default function App() {
   const [data, setData] = useState<State | null>(null);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState<Point[]>([]);
+  const [connected, setConnected] = useState(false);
+  const chartRef = useRef<LiveChartHandle>(null);
+  const [sampleCount, setSampleCount] = useState(0);
   const [channel, setChannel] = useState(1);
-  const [metric, setMetric] = useState<Metric>("voltage");
-  const [windowMs, setWindowMs] = useState(10_000);
+  const [rate, setRate] = useState<number | null>(() => {
+    const saved = localStorage.getItem("psu-rate");
+    return saved ? Number(saved) : null;
+  });
+  const [tab, setTab] = useState(() => (new URLSearchParams(location.search).get("advanced") === "1" ? "advanced" : "basic"));
+  const [cache, setCache] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [showV, setShowV] = useState(() => localStorage.getItem("psu-show-v") !== "0");
+  const [showA, setShowA] = useState(() => localStorage.getItem("psu-show-a") !== "0");
+  const [windowMs, setWindowMs] = useState(() => {
+    const saved = Number(localStorage.getItem("psu-window"));
+    return [10000, 30000, 60000].includes(saved) ? saved : 10000;
+  });
   const [vset, setVset] = useState("");
   const [iset, setIset] = useState("");
   const [ovp, setOvp] = useState("");
@@ -126,7 +188,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("psu-lang") as Lang) || (navigator.language.startsWith("zh") ? "zh" : "en"));
   const [dark, setDark] = useState<boolean>(() => document.documentElement.classList.contains("dark"));
   const editing = useRef<string | null>(null);
-  const t: Dict = STR[lang];
+  const t = STR[lang];
   const locale = lang === "zh" ? "zh-CN" : "en-US";
 
   useEffect(() => {
@@ -137,25 +199,37 @@ export default function App() {
     document.documentElement.lang = lang;
     localStorage.setItem("psu-lang", lang);
   }, [lang]);
+  useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
+  useEffect(() => { if (rate != null) localStorage.setItem("psu-rate", String(rate)); }, [rate]);
+  useEffect(() => {
+    localStorage.setItem("psu-show-v", showV ? "1" : "0");
+    localStorage.setItem("psu-show-a", showA ? "1" : "0");
+  }, [showV, showA]);
 
   const applyState = useCallback((s: State) => {
     setData(s);
+    setConnected(true);
     setError("");
-    setHistory((h) => [...h, { t: Date.now(), v: s.measurement.voltage, i: s.measurement.current, p: s.measurement.power }].slice(-240));
     if (editing.current !== "v") setVset(fmt(s.setpoint.voltage, 3));
     if (editing.current !== "i") setIset(fmt(s.setpoint.current, 3));
   }, []);
 
   const refresh = useCallback(async (ch = channel) => {
     try { applyState(await api(`/api/state?ch=${ch}`)); }
-    catch (e) { setError((e as Error).message); }
+    catch (e) { setConnected(false); setError((e as Error).message); }
   }, [applyState, channel]);
 
+  const autoRate = data?.family === "dp100" ? 30 : 10;
+  const hz = rate ?? autoRate;
   useEffect(() => {
     refresh(channel);
-    const id = setInterval(() => refresh(channel), 1000);
+    const id = setInterval(() => { if (!document.hidden) refresh(channel); }, 250);
     return () => clearInterval(id);
   }, [channel, refresh]);
+  useEffect(() => {
+    const id = setInterval(() => setSampleCount(chartRef.current?.history().length ?? 0), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const run = async (fn: () => Promise<State>) => {
     setBusy(true);
@@ -167,43 +241,50 @@ export default function App() {
   const setpoints = () => run(() => api("/api/set", { ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }));
   const output = (on: boolean) => run(() => api("/api/output", { ch: channel, on, confirm: on }));
   const allOff = () => run(() => api("/api/all-off", {}));
-  const protect = () => run(() => api("/api/protect", {
-    ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp),
-  }));
+  const protect = () => run(() => api("/api/protect", { ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp) }));
 
   const caps = data?.capabilities;
   const on = (data?.output || "").toUpperCase() === "ON";
   const work = data?.status?.work_state;
   const fault = work !== undefined && work !== 0;
   const workName = work === undefined ? "—" : t.work[work] ?? `CODE ${work}`;
-  const metrics = useMemo(() => {
-    const list: Metric[] = ["voltage", "current"];
-    if (caps?.power) list.push("power");
-    return list;
-  }, [caps?.power]);
-  const activeMetric = metrics.includes(metric) ? metric : "voltage";
-  const metricMeta = {
-    voltage: { unit: "V", color: "#60a5fa", key: "v" as const },
-    current: { unit: "A", color: "#fbbf24", key: "i" as const },
-    power: { unit: "W", color: "#34d399", key: "p" as const },
-  }[activeMetric];
-  const last = history[history.length - 1];
-
-  const fill = (s: string, vars: Record<string, string | number>) =>
-    s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
+  const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
+  const quickVoltage = (v: number) => {
+    setVset(fmt(v, 3));
+    const current = data?.setpoint.current ?? (Number.isFinite(parseFloat(iset)) ? parseFloat(iset) : undefined);
+    if (!on) run(() => api("/api/set", { ch: channel, voltage: v, current }));
+  };
   const download = () => {
     const rows = ["time,voltage,current,power"];
-    for (const p of history) rows.push(`${new Date(p.t).toISOString()},${p.v ?? ""},${p.i ?? ""},${p.p ?? ""}`);
+    for (const p of chartRef.current?.history() ?? []) rows.push(`${new Date(p.t).toISOString()},${p.v ?? ""},${p.i ?? ""},${p.p ?? ""}`);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
     a.download = "psu-log.csv";
     a.click();
   };
 
+  const faultHint = work !== undefined
+    ? ((t.faultHints as Record<number, string>)[work] ?? t.faultHints[0]) : "";
+  const overtemp = caps?.temperature && data?.measurement.temperature != null
+    && data.measurement.temperature >= 60;
+  const alert = !connected && data
+    ? { title: t.connectionLost, detail: error || t.connectionHint }
+    : fault
+      ? { title: `${t.deviceAlert}: ${workName}`, detail: faultHint }
+      : overtemp
+        ? { title: t.overtemp, detail: fill(t.overtempHint, { t: fmt(data?.measurement.temperature, 1) }) }
+        : error
+          ? { title: t.operationFailed, detail: error }
+          : null;
+  useEffect(() => {
+    document.title = alert ? `⚠ ${alert.title} · ${t.title}` : t.title;
+  }, [alert?.title, t.title]);
+
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1180px] space-y-5 px-5 py-7 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+      <div className="mx-auto max-w-[1440px] space-y-5 px-5 py-6 lg:px-8">
+        <header className="sticky top-0 z-30 -mx-5 border-b border-border/60 bg-background/85 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:-mx-8 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
               <Zap className="h-5 w-5 text-primary" />
@@ -212,194 +293,147 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold tracking-tight">{t.title}</h1>
                 <Badge variant="outline" className="font-mono">{data?.family ?? "—"}</Badge>
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", data ? "bg-success" : "bg-muted-foreground/40")} />
-                  {data ? t.live : t.connecting}
-                </span>
+                <Badge variant={connected ? "success" : data ? "destructive" : "outline"} className="gap-1.5">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
+                  {connected ? t.connected : data ? t.disconnected : t.connecting}
+                </Badge>
               </div>
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{data?.idn ?? t.noDevice}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {data?.limits.max_voltage != null && <Badge variant="secondary">0–{data.limits.max_voltage} V</Badge>}
-            {data?.limits.max_current != null && <Badge variant="secondary">0–{data.limits.max_current} A</Badge>}
-            {data?.limits.max_power != null && <Badge variant="secondary">≤{data.limits.max_power} W</Badge>}
+            <div className="mr-1 inline-flex h-8 items-center rounded-lg bg-muted/70 p-1 text-muted-foreground">
+              {(["basic", "advanced"] as const).map((key) => (
+                <button key={key} onClick={() => setTab(key)}
+                  className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    tab === key ? "bg-background text-foreground shadow-sm" : "hover:text-foreground")}>
+                  {t[key]}
+                </button>
+              ))}
+            </div>
             <Badge variant={on ? "success" : "outline"} className="px-3"><Power className="h-3 w-3" /> {data?.output ? `${t.output} ${data.output}` : `${t.output} —`}</Badge>
             {fault && <Badge variant="destructive"><AlertTriangle className="h-3 w-3" /> {workName}</Badge>}
-            <Button variant="outline" size="sm" onClick={() => setLang(lang === "en" ? "zh" : "en")} title="Language">
-              <Languages /> {lang === "en" ? "中文" : "EN"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDark(!dark)} title="Theme">
-              {dark ? <Sun /> : <Moon />} {dark ? t.light : t.dark}
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setLang(lang === "en" ? "zh" : "en")} title="Language"><Languages /> {lang === "en" ? "中文" : "EN"}</Button>
+            <Button variant="outline" size="sm" onClick={() => setDark(!dark)} title="Theme">{dark ? <Sun /> : <Moon />} {dark ? t.light : t.dark}</Button>
           </div>
+          </div>
+          {alert && (
+            <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <span className="font-semibold">{alert.title}</span>
+                <span className="ml-2 text-xs opacity-90">{alert.detail}</span>
+              </div>
+            </div>
+          )}
         </header>
-
-        {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-            <Ban className="h-4 w-4 shrink-0" /> {error}
-          </div>
-        )}
 
         <Card className="overflow-hidden">
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
-            <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V"
-              sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" big />
-            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A"
-              sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#fbbf24" big />
-            {caps?.power && <MetricTile label={t.outputPower} value={fmt(data?.measurement.power, 2)} unit="W"
-              sub={`${t.limit} ${data?.limits.max_power ?? "—"} W`} icon={Zap} accent="#34d399" big />}
-            {caps?.input_voltage && <MetricTile label={t.inputVoltage} value={fmt(data?.measurement.input_voltage, 2)} unit="V"
-              sub={t.dcInput} icon={CpuIcon} accent="#a78bfa" big />}
+            <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" />
+            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#fbbf24" />
+            {caps?.power && <MetricTile label={t.outputPower} value={fmt(data?.measurement.power, 2)} unit="W" sub={`${t.limit} ${data?.limits.max_power ?? "—"} W`} icon={Zap} accent="#34d399" />}
+            {caps?.input_voltage && <MetricTile label={t.inputVoltage} value={fmt(data?.measurement.input_voltage, 2)} unit="V" sub={t.dcInput} icon={Cpu} accent="#a78bfa" />}
           </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border px-5 py-2.5 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><Waves className="h-3 w-3" /> {t.mode} <b className="font-mono text-foreground">{data?.status?.output_mode ?? "—"}</b></span>
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" /> {t.state} <b className={cn("font-mono", fault ? "text-destructive" : "text-foreground")}>{workName}</b></span>
-            <span className="inline-flex items-center gap-1.5"><SlidersHorizontal className="h-3 w-3" /> {t.channel} <b className="font-mono text-foreground">CH{data?.ch ?? channel}</b> {t.of} {data?.channels.length ?? 1}</span>
-            <span className="ml-auto inline-flex items-center gap-1.5"><Timer className="h-3 w-3" /> {t.polling}</span>
+            {(data?.channels.length ?? 1) > 1 && (
+              <span className="inline-flex items-center gap-1.5"><SlidersHorizontal className="h-3 w-3" /> {t.channel} <b className="font-mono text-foreground">CH{data?.ch ?? channel}</b> {t.of} {data?.channels.length}</span>
+            )}
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <span className={cn("relative flex h-1.5 w-1.5", connected ? "bg-success" : "bg-destructive")}>
+                {connected && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />}
+                <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-destructive")} />
+              </span>
+              {connected ? `live · ${hz} Hz` : t.disconnected}
+            </span>
           </div>
         </Card>
 
-        <div className="grid gap-4 lg:grid-cols-12">
-          <Card className="lg:col-span-8">
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle>{t.history} · {t[activeMetric]}</CardTitle>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono">{fmt(last?.[metricMeta.key] ?? null, activeMetric === "power" ? 2 : 3)} {metricMeta.unit}</Badge>
-                <Tabs value={activeMetric} onValueChange={(v) => setMetric(v as Metric)}>
-                  <TabsList>
-                    <TabsTrigger value="voltage">V</TabsTrigger>
-                    <TabsTrigger value="current">A</TabsTrigger>
-                    {caps?.power && <TabsTrigger value="power">W</TabsTrigger>}
-                  </TabsList>
-                </Tabs>
-                <select
-                  value={windowMs}
-                  onChange={(e) => setWindowMs(Number(e.target.value))}
-                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
-                  aria-label="time window"
-                >
-                  <option value={10000}>10s</option>
-                  <option value={30000}>30s</option>
-                  <option value={60000}>60s</option>
-                </select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <LiveChart
-                points={history}
-                metric={activeMetric}
-                color={metricMeta.color}
-                unit={metricMeta.unit}
-                digits={activeMetric === "power" ? 2 : 3}
-                dark={dark}
-                height={260}
-                windowMs={windowMs}
-              />
-              <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>{fill(t.samples, { n: history.length })}</span>
-                <span>{t.lastUpdate} {new Date().toLocaleTimeString(locale)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-4">
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle>{t.control}</CardTitle>
-              {(data?.channels.length ?? 1) > 1 && (
-                <Tabs value={String(channel)} onValueChange={(v) => { setChannel(Number(v)); setHistory([]); }}>
-                  <TabsList>{data!.channels.map((c) => <TabsTrigger key={c} value={String(c)}>CH{c}</TabsTrigger>)}</TabsList>
-                </Tabs>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="vset">{t.vset}</Label>
-                  <div className="relative">
-                    <Input id="vset" inputMode="decimal" value={vset} onChange={(e) => setVset(e.target.value)}
-                      onFocus={() => (editing.current = "v")} onBlur={() => (editing.current = null)} className="pr-8" />
-                    <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">V</span>
-                  </div>
+        {tab === "basic" ? (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+            <Card className="h-full min-w-0">
+              <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+                <CardTitle>{t.history}</CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant={showV ? "secondary" : "outline"} onClick={() => setShowV(!showV)}>
+                    <span className="h-2 w-2 rounded-full bg-[#3b82f6]" /> V
+                  </Button>
+                  <Button size="sm" variant={showA ? "secondary" : "outline"} onClick={() => setShowA(!showA)}>
+                    <span className="h-2 w-2 rounded-full bg-[#f59e0b]" /> A
+                  </Button>
+                  <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
+                    <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>
+                  </select>
+                  <select value={hz} onChange={(e) => setRate(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="sample rate">
+                    <option value={5}>5 Hz</option><option value={10}>10 Hz</option><option value={20}>20 Hz</option><option value={30}>30 Hz</option>
+                  </select>
+                  <Button size="sm" variant={paused ? "secondary" : "outline"} onClick={() => setPaused(!paused)} title={paused ? t.resume : t.pause}>
+                    {paused ? <Play /> : <Pause />} {paused ? t.resume : t.pause}
+                  </Button>
+                  <Button size="sm" variant={cache ? "secondary" : "outline"} onClick={() => setCache(!cache)} title={t.cacheHint}>
+                    <Database /> {cache ? t.cacheOn : t.cacheOff}
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="iset">{t.iset}</Label>
-                  <div className="relative">
-                    <Input id="iset" inputMode="decimal" value={iset} onChange={(e) => setIset(e.target.value)}
-                      onFocus={() => (editing.current = "i")} onBlur={() => (editing.current = null)} className="pr-8" />
-                    <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">A</span>
-                  </div>
+              </CardHeader>
+              <CardContent>
+                <LiveChart ref={chartRef} key={channel}
+                  streamUrl={`/api/stream?ch=${channel}&hz=${hz}`}
+                  historyUrl={`/api/history?ch=${channel}&seconds=62`}
+                  dark={dark} height={400} windowMs={windowMs}
+                  cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
+                  showV={showV} showA={showA} paused={paused} />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
+                  <span>{fill(t.samples, { n: sampleCount })} · {t.lastUpdate} {new Date().toLocaleTimeString(locale)}</span>
+                  <Button size="sm" variant="outline" onClick={download} disabled={!sampleCount}><Download /> CSV</Button>
                 </div>
-              </div>
-              <Button className="w-full" disabled={busy} onClick={setpoints}>{t.apply}</Button>
-              <div className="grid grid-cols-3 gap-2">
-                <Button variant="success" disabled={busy} onClick={() => setConfirmOn(true)}><Power /> {t.on}</Button>
-                <Button variant="secondary" disabled={busy} onClick={() => output(false)}>{t.off}</Button>
-                <Button variant="destructive" disabled={busy} onClick={allOff}><Ban /> {t.allOff}</Button>
-              </div>
+              </CardContent>
+            </Card>
 
-              {(caps?.ovp || caps?.ocp) && (
-                <div className="space-y-3 border-t border-border pt-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    {caps.ovp && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="ovp">{t.ovp} <span className="text-muted-foreground/60">≤ {data?.limits.max_ovp ?? "—"} V</span></Label>
-                        <Input id="ovp" inputMode="decimal" value={ovp} placeholder="e.g. 6.0" onChange={(e) => setOvp(e.target.value)} />
-                      </div>
-                    )}
-                    {caps.ocp && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="ocp">{t.ocp} <span className="text-muted-foreground/60">≤ {data?.limits.max_ocp ?? "—"} A</span></Label>
-                        <Input id="ocp" inputMode="decimal" value={ocp} placeholder="e.g. 1.0" onChange={(e) => setOcp(e.target.value)} />
-                      </div>
-                    )}
+            <aside className="min-w-0 space-y-5">
+              <ControlCard t={t} caps={caps} data={data} busy={busy} vset={vset} iset={iset} ovp={ovp} ocp={ocp}
+                channel={channel} setChannel={setChannel}
+                setVset={setVset} setIset={setIset} setOvp={setOvp} setOcp={setOcp} editing={editing}
+                onApply={setpoints} onOutput={output} onAllOff={allOff} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
+                onQuickVoltage={quickVoltage} />
+            </aside>
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0 space-y-5">
+              <SequencePanel t={t} channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+                onState={applyState} setError={setError} />
+              <ScanPanel t={t} kind="voltage" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+                onState={applyState} setError={setError} />
+              <ScanPanel t={t} kind="current" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+                onState={applyState} setError={setError} />
+            </div>
+
+            <aside className="min-w-0">
+              <Card>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle>{t.device}</CardTitle>
+                  <span className="font-mono text-[11px] text-muted-foreground">{String(data?.device_info?.serial_number_hex ?? "")}</span>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Row label={t.model} value={String(data?.device_info?.model ?? data?.family ?? "—")} />
+                  <Row label={t.hardware} value={String(data?.device_info?.hardware_version ?? "—")} />
+                  <Row label={t.app} value={String(data?.device_info?.app_version ?? "—")} />
+                  {caps?.input_voltage && <Row label={t.inputVoltage} value={`${fmt(data?.measurement.input_voltage, 2)} V`} />}
+                  {caps?.temperature && <Row label={t.temperature} value={`${fmt(data?.measurement.temperature, 1)} °C`} />}
+                  <div className="my-2 border-t border-border" />
+                  <LimitBar label={t.voltage} value={data?.measurement.voltage ?? null} max={data?.limits.max_voltage} unit="V" />
+                  <LimitBar label={t.current} value={data?.measurement.current ?? null} max={data?.limits.max_current} unit="A" />
+                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
+                    <span>{t.ovpMax} <b className="font-mono text-foreground">{data?.limits.max_ovp ?? "—"} V</b></span>
+                    <span>{t.ocpMax} <b className="font-mono text-foreground">{data?.limits.max_ocp ?? "—"} A</b></span>
                   </div>
-                  <Button variant="secondary" className="w-full" disabled={busy} onClick={protect}><ShieldCheck /> {t.setProtection}</Button>
-                </div>
-              )}
-
-              <p className="flex gap-2 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {t.outputNote}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader><CardTitle>{t.status}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{t.output}</span>
-                <Badge variant={on ? "success" : "outline"}><Power className="h-3 w-3" /> {data?.output ?? "—"}</Badge></div>
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{t.mode}</span><span className="font-mono">{data?.status?.output_mode ?? "—"}</span></div>
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{t.state}</span>
-                <span className={cn("font-mono", fault && "text-destructive")}>{workName}</span></div>
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{t.setpoint}</span>
-                <span className="font-mono">{fmt(data?.setpoint.voltage, 3)} V · {fmt(data?.setpoint.current, 3)} A</span></div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>{t.limits}</CardTitle></CardHeader>
-            <CardContent className="space-y-3.5">
-              <LimitBar label={t.voltage} value={data?.measurement.voltage ?? null} max={data?.limits.max_voltage} unit="V" />
-              <LimitBar label={t.current} value={data?.measurement.current ?? null} max={data?.limits.max_current} unit="A" />
-              <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
-                <span>{t.ovpMax} <b className="font-mono text-foreground">{data?.limits.max_ovp ?? "—"} V</b></span>
-                <span>{t.ocpMax} <b className="font-mono text-foreground">{data?.limits.max_ocp ?? "—"} A</b></span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>{t.sessionLog}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">{fill(t.samplesBuffered, { n: history.length })}</p>
-              <Button variant="secondary" className="w-full" onClick={download} disabled={!history.length}><Download /> {t.downloadCsv}</Button>
-              <p className="text-[11px] text-muted-foreground">{t.refreshNote}</p>
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              </Card>
+            </aside>
+          </div>
+        )}
 
         <Dialog open={confirmOn} onOpenChange={setConfirmOn}>
           <DialogContent>
@@ -416,12 +450,237 @@ export default function App() {
   );
 }
 
-function CpuIcon(props: React.ComponentProps<"svg">) {
+function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onAllOff, onProtect, onConfirmOn, onQuickVoltage }: {
+  t: Dict; caps: Caps | undefined; data: State | null; busy: boolean;
+  vset: string; iset: string; ovp: string; ocp: string;
+  channel: number; setChannel: (ch: number) => void;
+  setVset: (v: string) => void; setIset: (v: string) => void;
+  setOvp: (v: string) => void; setOcp: (v: string) => void;
+  editing: React.MutableRefObject<string | null>;
+  onApply: () => void; onOutput: (on: boolean) => void; onAllOff: () => void;
+  onProtect: () => void; onConfirmOn: () => void; onQuickVoltage: (v: number) => void;
+}) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <rect x="4" y="4" width="16" height="16" rx="2" />
-      <rect x="9" y="9" width="6" height="6" />
-      <path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
-    </svg>
+    <Card className="flex h-full flex-col">
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle>{t.control}</CardTitle>
+        {(data?.channels.length ?? 1) > 1 && (
+          <Tabs value={String(channel)} onValueChange={(v) => setChannel(Number(v))}>
+            <TabsList>{data!.channels.map((c) => <TabsTrigger key={c} value={String(c)}>CH{c}</TabsTrigger>)}</TabsList>
+          </Tabs>
+        )}
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-between gap-4">
+        <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="vset">{t.vset}</Label>
+            <div className="relative">
+              <Input id="vset" inputMode="decimal" value={vset} onChange={(e) => setVset(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
+                onFocus={() => (editing.current = "v")} onBlur={() => (editing.current = null)} className="pr-8" />
+              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">V</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="iset">{t.iset}</Label>
+            <div className="relative">
+              <Input id="iset" inputMode="decimal" value={iset} onChange={(e) => setIset(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
+                onFocus={() => (editing.current = "i")} onBlur={() => (editing.current = null)} className="pr-8" />
+              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">A</span>
+            </div>
+          </div>
+        </div>
+        <Button className="w-full" disabled={busy} onClick={onApply}>{t.apply}</Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[11px] text-muted-foreground">{t.quick}</span>
+          {[3.3, 5, 9, 12, 24].filter((v) => v <= (data?.limits.max_voltage ?? 30)).map((v) => (
+            <Button key={v} size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onQuickVoltage(v)}>
+              {v} V
+            </Button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
+          <Button variant="destructive" disabled={busy} onClick={onAllOff}><Ban /> {t.allOff}</Button>
+        </div>
+        </div>
+        <div className="space-y-3">
+        {(caps?.ovp || caps?.ocp) && (
+          <div className="space-y-3 border-t border-border pt-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {caps.ovp && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ovp">{t.ovp} <span className="text-muted-foreground/60">≤ {data?.limits.max_ovp ?? "—"} V</span></Label>
+                  <Input id="ovp" inputMode="decimal" value={ovp} placeholder="e.g. 6.0" onChange={(e) => setOvp(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") onProtect(); }} />
+                </div>
+              )}
+              {caps.ocp && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ocp">{t.ocp} <span className="text-muted-foreground/60">≤ {data?.limits.max_ocp ?? "—"} A</span></Label>
+                  <Input id="ocp" inputMode="decimal" value={ocp} placeholder="e.g. 1.0" onChange={(e) => setOcp(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") onProtect(); }} />
+                </div>
+              )}
+            </div>
+            <Button variant="secondary" className="w-full" disabled={busy} onClick={onProtect}><ShieldCheck /> {t.setProtection}</Button>
+          </div>
+        )}
+        <p className="flex gap-2 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {t.outputNote}
+        </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type SeqRow = { v: string; i: string; delay: string };
+
+function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
+  t: Dict; channel: number; maxV?: number; maxI?: number;
+  onState: (s: State) => void; setError: (e: string) => void;
+}) {
+  const [rows, setRows] = useState<SeqRow[]>([
+    { v: "3.3", i: "0.5", delay: "1" },
+    { v: "5.0", i: "0.5", delay: "1" },
+    { v: "0.0", i: "0.5", delay: "0" },
+  ]);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
+  const stopRef = useRef(false);
+  useEffect(() => () => { stopRef.current = true; }, []);
+
+  const update = (idx: number, key: keyof SeqRow, value: string) =>
+    setRows((r) => r.map((row, i) => (i === idx ? { ...row, [key]: value } : row)));
+
+  const start = async () => {
+    stopRef.current = false;
+    setRunning(true);
+    try {
+      for (let i = 0; i < rows.length; i++) {
+        if (stopRef.current) break;
+        setProgress(i);
+        const v = parseFloat(rows[i].v), cur = parseFloat(rows[i].i);
+        onState(await api("/api/set", {
+          ch: channel,
+          voltage: Number.isFinite(v) ? v : undefined,
+          current: Number.isFinite(cur) ? cur : undefined,
+        }));
+        await sleep((parseFloat(rows[i].delay) || 0) * 1000);
+      }
+    } catch (e) { setError((e as Error).message); }
+    finally { setRunning(false); setProgress(null); }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>{t.sequence}</CardTitle>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t.sequenceHint}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {running ? <Button size="sm" variant="destructive" onClick={() => { stopRef.current = true; }}><Square /> {t.stop}</Button>
+            : <Button size="sm" variant="success" onClick={start}><Play /> {t.run}</Button>}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-muted-foreground">
+              <tr className="border-b border-border text-left">
+                <th className="w-10 py-2 font-medium">#</th>
+                <th className="py-2 font-medium">{t.vset} (V)</th>
+                <th className="py-2 font-medium">{t.iset} (A)</th>
+                <th className="py-2 font-medium">{t.delay}</th>
+                <th className="w-16 py-2 font-medium">{t.status}</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className={cn("border-b border-border/60", progress === i && "bg-primary/5")}>
+                  <td className="py-1.5 font-mono text-muted-foreground">{String(i + 1).padStart(3, "0")}</td>
+                  <td className="py-1.5 pr-2"><Input className="h-8" value={row.v} onChange={(e) => update(i, "v", e.target.value)} /></td>
+                  <td className="py-1.5 pr-2"><Input className="h-8" value={row.i} onChange={(e) => update(i, "i", e.target.value)} /></td>
+                  <td className="py-1.5 pr-2"><Input className="h-8" value={row.delay} onChange={(e) => update(i, "delay", e.target.value)} /></td>
+                  <td className="py-1.5 text-muted-foreground">{progress === i ? t.running : t.idle}</td>
+                  <td className="py-1.5 text-right">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={running} onClick={() => setRows((r) => r.filter((_, k) => k !== i))}><Trash2 /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={running} onClick={() => setRows((r) => [...r, { v: "0.0", i: "0.5", delay: "1" }])}><Plus /> {t.addRow}</Button>
+          <span className="text-[11px] text-muted-foreground">max {maxV ?? "—"} V / {maxI ?? "—"} A</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScanPanel({ t, kind, channel, maxV, maxI, onState, setError }: {
+  t: Dict; kind: "voltage" | "current"; channel: number; maxV?: number; maxI?: number;
+  onState: (s: State) => void; setError: (e: string) => void;
+}) {
+  const isV = kind === "voltage";
+  const [start, setStart] = useState("0");
+  const [end, setEnd] = useState(isV ? "5" : "1");
+  const [step, setStep] = useState(isV ? "1" : "0.1");
+  const [delay, setDelay] = useState("1");
+  const [other, setOther] = useState(isV ? "0.5" : "5");
+  const [running, setRunning] = useState(false);
+  const [current, setCurrent] = useState<number | null>(null);
+  const stopRef = useRef(false);
+  useEffect(() => () => { stopRef.current = true; }, []);
+
+  const run = async () => {
+    const s0 = parseFloat(start), e0 = parseFloat(end), st = Math.abs(parseFloat(step)) || 0.1;
+    const d = parseFloat(delay) || 0, fixed = parseFloat(other);
+    if (!Number.isFinite(s0) || !Number.isFinite(e0)) { setError(t.start + " / " + t.end); return; }
+    stopRef.current = false;
+    setRunning(true);
+    try {
+      const dir = e0 >= s0 ? 1 : -1;
+      for (let x = s0; dir > 0 ? x <= e0 + 1e-9 : x >= e0 - 1e-9; x += dir * st) {
+        if (stopRef.current) break;
+        setCurrent(x);
+        onState(await api("/api/set", isV
+          ? { ch: channel, voltage: +x.toFixed(4), current: Number.isFinite(fixed) ? fixed : undefined }
+          : { ch: channel, current: +x.toFixed(4), voltage: Number.isFinite(fixed) ? fixed : undefined }));
+        await sleep(d * 1000);
+      }
+    } catch (e) { setError((e as Error).message); }
+    finally { setRunning(false); setCurrent(null); }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle>{isV ? t.voltageScan : t.currentScan}</CardTitle>
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          {current != null && <span className="font-mono">{current.toFixed(3)} {isV ? "V" : "A"}</span>}
+          {running ? <Button size="sm" variant="destructive" onClick={() => { stopRef.current = true; }}><Square /> {t.stop}</Button>
+            : <Button size="sm" variant="success" onClick={run}><Play /> {t.run}</Button>}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="space-y-1.5"><Label>{t.start} ({isV ? "V" : "A"})</Label><Input className="h-8" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t.end} ({isV ? "V" : "A"})</Label><Input className="h-8" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t.step} ({isV ? "V" : "A"})</Label><Input className="h-8" value={step} onChange={(e) => setStep(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t.delay}</Label><Input className="h-8" value={delay} onChange={(e) => setDelay(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{isV ? t.iset : t.vset} ({isV ? "A" : "V"})</Label><Input className="h-8" value={other} onChange={(e) => setOther(e.target.value)} /></div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">max {isV ? `${maxV ?? "—"} V` : `${maxI ?? "—"} A`}</p>
+      </CardContent>
+    </Card>
   );
 }

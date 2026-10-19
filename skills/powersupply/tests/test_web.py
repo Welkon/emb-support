@@ -15,6 +15,7 @@ class FakeDevice:
     supports_ocp = True
     supports_output_state = True
     supports_input_voltage = True
+    supports_temperature = True
 
     def __init__(self):
         self.v = {1: 0.0, 2: 0.0}
@@ -30,6 +31,8 @@ class FakeDevice:
     def measure_current(self, ch): return self.i[ch]
     def measure_power(self, ch): return self.v[ch] * self.i[ch]
     def measure_input_voltage(self, ch): return 12.0
+    def measure_temperature(self, ch): return 35.5
+    def device_info(self): return {"model": "FAKE"}
     def status(self, ch): return {"output_mode": "ON" if self.out[ch] else "OFF", "work_state": 0}
     def output(self, ch, on): self.out[ch] = on
     def output_state(self, ch): return "ON" if self.out[ch] else "OFF"
@@ -41,7 +44,7 @@ class FakeDevice:
 def server():
     from psuscpi.web import PsuWebServer
     dev = FakeDevice()
-    srv = PsuWebServer(dev, 30, 5, bind="127.0.0.1", port=0)
+    srv = PsuWebServer(dev, 30, 5, bind="127.0.0.1", port=0, start_sampler=False)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
     yield srv, dev

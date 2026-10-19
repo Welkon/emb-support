@@ -36,7 +36,7 @@ class FakeDp100:
         elif op == 0x30:
             d = (5000).to_bytes(2, "little") + (5000).to_bytes(2, "little") \
                 + (1000).to_bytes(2, "little") + (30000).to_bytes(2, "little") \
-                + b"\x00" * 6 + bytes([1, 1])
+                + b"\x00" * 2 + (12000).to_bytes(2, "little") + b"\x00" * 2 + bytes([1, 1])
             self.queue.append(_resp(op, d))
         elif op == 0x35:
             d = bytes([0, 0]) + (5000).to_bytes(2, "little") + (1000).to_bytes(2, "little") \
@@ -71,6 +71,12 @@ def test_dp100_driver(monkeypatch):
     assert fake.frames[-1][5] == 1
     assert dev.measure_voltage(1) == pytest.approx(5.0)
     assert dev.measure_power(1) == pytest.approx(5.0)
+    assert dev.measure_input_voltage(1) == pytest.approx(12.0)
+    snap = dev.snapshot(1)
+    assert snap["output"] == "ON"
+    assert snap["setpoint"] == {"voltage": 5.0, "current": 1.0}
+    assert snap["measurement"]["input_voltage"] == pytest.approx(12.0)
+    assert snap["measurement"]["power"] == pytest.approx(5.0)
     assert dev.limits["max_voltage"] == 30.0
     assert dev.limits["max_ovp"] == 30.5
     dev.set_ovp(1, 30.5)

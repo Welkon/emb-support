@@ -12,6 +12,16 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Power Supply</title>
+    <script>
+      window.addEventListener("error", function (e) {
+        var root = document.getElementById("root");
+        if (root && !root.childElementCount) root.innerHTML = '<pre style="padding:24px;color:#b91c1c;white-space:pre-wrap">' + (e.message || e.error) + '\n' + (e.error && e.error.stack || "") + '</pre>';
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        var root = document.getElementById("root");
+        if (root && !root.childElementCount) root.innerHTML = '<pre style="padding:24px;color:#b91c1c;white-space:pre-wrap">' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '</pre>';
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
