@@ -19,7 +19,10 @@ export default {
         success: { DEFAULT: "hsl(var(--success))", foreground: "hsl(var(--success-foreground))" },
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
-      fontFamily: { mono: ["ui-monospace","SFMono-Regular","Menlo","Consolas","monospace"] },
+      fontFamily: {
+        sans: ["Inter","ui-sans-serif","system-ui","-apple-system","Segoe UI","sans-serif"],
+        mono: ["ui-monospace","SFMono-Regular","Menlo","Consolas","monospace"],
+      },
     },
   },
   plugins: [],
