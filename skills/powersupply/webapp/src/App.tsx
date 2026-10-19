@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, Ban, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
+  Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
   Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -578,20 +578,23 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
               <Plus /> {t.savePreset}
             </Button>
           </div>
-          <select id="preset" aria-label={t.presets}
-            value={(() => {
-              const idx = presets.findIndex((p) => Math.abs((parseFloat(vset) || 0) - p.v) < 1e-6 && Math.abs((parseFloat(iset) || 0) - p.i) < 1e-6);
-              return idx >= 0 ? String(idx) : "";
-            })()}
-            onChange={(e) => { const p = presets[Number(e.target.value)]; if (p) onPreset(p); }}
-            className="h-9 w-full rounded-md border border-border bg-background px-2.5 font-mono text-xs text-foreground outline-none focus:ring-1 focus:ring-ring">
-            <option value="" disabled>{t.presetPlaceholder}</option>
-            {presets.map((p, idx) => (
-              <option key={`${p.v}-${p.i}-${idx}`} value={idx} disabled={p.v > (data?.limits.max_voltage ?? 30) || p.i > (data?.limits.max_current ?? 5)}>
-                {p.v} V / {p.i} A
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select id="preset" aria-label={t.presets}
+              value={(() => {
+                const idx = presets.findIndex((p) => Math.abs((parseFloat(vset) || 0) - p.v) < 1e-6 && Math.abs((parseFloat(iset) || 0) - p.i) < 1e-6);
+                return idx >= 0 ? String(idx) : "";
+              })()}
+              onChange={(e) => { const p = presets[Number(e.target.value)]; if (p) onPreset(p); }}
+              className="h-9 w-full appearance-none rounded-md border border-border bg-background px-2.5 pr-8 font-mono text-xs text-foreground outline-none focus:ring-1 focus:ring-ring">
+              <option value="" disabled>{t.presetPlaceholder}</option>
+              {presets.map((p, idx) => (
+                <option key={`${p.v}-${p.i}-${idx}`} value={idx} disabled={p.v > (data?.limits.max_voltage ?? 30) || p.i > (data?.limits.max_current ?? 5)}>
+                  {p.v} V / {p.i} A
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
