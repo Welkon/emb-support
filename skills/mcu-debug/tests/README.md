@@ -5,7 +5,7 @@ Offline test suite. No probe or target hardware is required.
 ## Run
 
 ```bash
-~/.local/share/daplink/venv/bin/python -m pytest tests -q
+~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q
 ```
 
 If pytest is missing:
