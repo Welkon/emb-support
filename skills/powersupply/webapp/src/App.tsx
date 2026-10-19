@@ -723,8 +723,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         </div>
         <p className="text-[11px] text-muted-foreground">{t.applyHint}</p>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
-          <Button variant="outline" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
+          <Button variant="success" disabled={busy || outputOn} onClick={onConfirmOn}><Power /> {t.on}</Button>
+          <Button variant="outline" disabled={busy || !outputOn} onClick={() => onOutput(false)}>{t.off}</Button>
         </div>
         </div>
         <div className="space-y-3">
