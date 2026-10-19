@@ -69,6 +69,11 @@
     background-image:
       radial-gradient(900px 480px at 15% -10%, hsl(18 60% 50% / 0.08), transparent 70%);
   }
+  @keyframes output-breathe {
+    0%, 100% { box-shadow: 0 1px 2px rgba(28,25,23,0.05), 0 18px 40px -32px rgba(28,25,23,0.35); }
+    50% { box-shadow: 0 0 22px 3px rgb(var(--glow-rgb) / var(--glow-alpha)), 0 1px 2px rgba(28,25,23,0.05), 0 18px 40px -32px rgba(28,25,23,0.35); }
+  }
+  .output-on { animation: output-breathe 3.6s ease-in-out infinite; }
   ::selection { @apply bg-primary/25; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
