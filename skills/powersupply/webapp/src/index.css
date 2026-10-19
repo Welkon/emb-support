@@ -24,7 +24,6 @@
     --accent: 18 50% 90%;
     --accent-foreground: 18 55% 32%;
     --success: 158 55% 30%;
-    --glow-rgb: 22 122 74;
     --success-foreground: 0 0% 100%;
     --radius: 0.35rem;
   }
@@ -49,7 +48,6 @@
     --accent: 40 8% 17%;
     --accent-foreground: 18 60% 70%;
     --success: 158 55% 45%;
-    --glow-rgb: 88 196 140;
     --success-foreground: 40 10% 8%;
     --radius: 0.35rem;
   }

@@ -645,13 +645,6 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
     <Card className="relative flex h-full flex-col">
-      {outputOn && (
-        <motion.div aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-lg"
-          style={{ boxShadow: "inset 0 0 26px 2px rgb(var(--glow-rgb) / 0.7)" }}
-          animate={{ opacity: [0.12, 0.62, 0.12] }}
-          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
-      )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">{t.control}
           {outputOn && (
