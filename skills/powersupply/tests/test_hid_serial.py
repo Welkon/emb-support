@@ -192,3 +192,11 @@ def test_dps150_driver(monkeypatch):
     assert dev.measure_power(1) == pytest.approx(18.0)
     dev.output(1, True)
     assert dev.output_state(1) == "ON"
+
+
+def test_dp100_golden_frames():
+    """Frames captured by weigu1/dp100_manipulator on real hardware."""
+    from psuscpi.drivers import _dp_frame
+    assert _dp_frame(0x10).hex() == "fb10000030c5"
+    assert _dp_frame(0x30).hex() == "fb300000310f"
+    assert _dp_frame(0x35, b"\x80").hex() == "fb35000180ce28"
