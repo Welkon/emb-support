@@ -98,8 +98,8 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     iRangeRef.current = iRange;
     const axis = darkRef.current ? "#94a3b8" : "#64748b";
     const grid = darkRef.current ? "rgba(148,163,184,0.16)" : "rgba(100,116,139,0.16)";
-    const vColor = "#3b82f6";
-    const iColor = "#f59e0b";
+    const vColor = darkRef.current ? "#22d3ee" : "#0e7490";
+    const iColor = darkRef.current ? "#fbbf24" : "#b45309";
     chart.setOption({
       animation: false,
       useDirtyRect: true,

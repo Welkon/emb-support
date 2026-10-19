@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
+  Activity, AlertTriangle, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
   Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Volume2, VolumeX, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ const STR = {
     outputPower: "Output power", inputVoltage: "Input voltage", vset: "VSET", iset: "ISET",
     limit: "limit", dcInput: "DC input", mode: "mode", state: "state", channel: "channel", of: "of",
     polling: "5 Hz live", history: "Live", control: "Control", apply: "Apply setpoints",
-    on: "ON", off: "OFF", allOff: "ALL OFF", ovp: "OVP", ocp: "OCP", setProtection: "Set protection",
+    on: "ON", off: "OFF", ovp: "OVP", ocp: "OCP", setProtection: "Set protection",
     outputNote: "Output ON requires confirmation. Limits are enforced by the server, not only by this page.",
     status: "Status", setpoint: "Setpoint", limits: "Limits", voltage: "Voltage", current: "Current",
     power: "Power", ovpMax: "OVP max", ocpMax: "OCP max", sessionLog: "Session log",
@@ -97,7 +97,7 @@ const STR = {
     outputPower: "输出功率", inputVoltage: "输入电压", vset: "设定电压", iset: "设定电流",
     limit: "上限", dcInput: "直流输入", mode: "模式", state: "状态", channel: "通道", of: "共",
     polling: "5 Hz 实时", history: "实时曲线", control: "控制", apply: "应用设定值",
-    on: "开", off: "关", allOff: "全部关闭", ovp: "过压保护", ocp: "过流保护", setProtection: "设置保护",
+    on: "开", off: "关", ovp: "过压保护", ocp: "过流保护", setProtection: "设置保护",
     outputNote: "开启输出需要二次确认；限值由服务端强制，不只是页面限制。",
     status: "状态", setpoint: "设定值", limits: "限值", voltage: "电压", current: "电流",
     power: "功率", ovpMax: "OVP 上限", ocpMax: "OCP 上限", sessionLog: "本次记录",
@@ -315,7 +315,6 @@ export default function App() {
 
   const setpoints = () => run(() => api("/api/set", { ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }));
   const output = (on: boolean) => run(() => api("/api/output", { ch: channel, on, confirm: on }));
-  const allOff = () => run(() => api("/api/all-off", {}));
   const protect = () => run(() => api("/api/protect", { ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp) }));
 
   const caps = data?.capabilities;
@@ -433,10 +432,10 @@ export default function App() {
                 <motion.button key={key} onClick={() => setTab(key)} whileTap={{ scale: 0.97 }}
                   className="relative rounded-md px-3 py-1 text-xs font-medium">
                   {tab === key && (
-                    <motion.span layoutId="psu-tab-pill" className="absolute inset-0 rounded-md bg-background shadow-sm"
+                    <motion.span layoutId="psu-tab-pill" className="absolute inset-0 rounded-md bg-primary/10 ring-1 ring-inset ring-primary/20"
                       transition={{ type: "spring", stiffness: 520, damping: 38 }} />
                   )}
-                  <span className={cn("relative z-10 transition-colors", tab === key ? "text-foreground" : "hover:text-foreground")}>{t[key]}</span>
+                  <span className={cn("relative z-10 transition-colors", tab === key ? "text-primary" : "hover:text-foreground")}>{t[key]}</span>
                 </motion.button>
               ))}
             </div>
@@ -454,6 +453,7 @@ export default function App() {
 
         {tab === "basic" && (
         <div className="overflow-hidden border-y border-border">
+          <div className="h-px bg-gradient-to-r from-primary/60 via-primary/15 to-transparent" />
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
             <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" />
             <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#fbbf24" />
@@ -485,13 +485,15 @@ export default function App() {
             className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
             <Card className="h-full min-w-0">
               <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-                <CardTitle>{t.history}</CardTitle>
+                <CardTitle className="flex items-center gap-2">{t.history}
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant={showV ? "secondary" : "outline"} onClick={() => setShowV(!showV)}>
-                    <span className="h-2 w-2 rounded-full bg-[#3b82f6]" /> V
+                    <span className="h-2 w-2 rounded-full bg-[#0e7490] dark:bg-[#22d3ee]" /> V
                   </Button>
                   <Button size="sm" variant={showA ? "secondary" : "outline"} onClick={() => setShowA(!showA)}>
-                    <span className="h-2 w-2 rounded-full bg-[#f59e0b]" /> A
+                    <span className="h-2 w-2 rounded-full bg-[#b45309] dark:bg-[#fbbf24]" /> A
                   </Button>
                   <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
                     <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>
@@ -525,7 +527,7 @@ export default function App() {
               <ControlCard t={t} caps={caps} data={data} busy={busy} vset={vset} iset={iset} ovp={ovp} ocp={ocp}
                 channel={channel} setChannel={setChannel}
                 setVset={setVset} setIset={setIset} setOvp={setOvp} setOcp={setOcp} editing={editing}
-                onApply={setpoints} onOutput={output} onAllOff={allOff} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
+                onApply={setpoints} onOutput={output} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
                 presets={presets} onPreset={applyPreset} onSavePreset={savePreset} />
             </aside>
           </motion.div>
@@ -627,14 +629,14 @@ function NumberInput({ value, onChange, step = 0.1, min = 0, max = 100, ...props
   return <Input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} {...props} />;
 }
 
-function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onAllOff, onProtect, onConfirmOn, presets, onPreset, onSavePreset }: {
+function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onProtect, onConfirmOn, presets, onPreset, onSavePreset }: {
   t: Dict; caps: Caps | undefined; data: State | null; busy: boolean;
   vset: string; iset: string; ovp: string; ocp: string;
   channel: number; setChannel: (ch: number) => void;
   setVset: (v: string) => void; setIset: (v: string) => void;
   setOvp: (v: string) => void; setOcp: (v: string) => void;
   editing: React.MutableRefObject<string | null>;
-  onApply: () => void; onOutput: (on: boolean) => void; onAllOff: () => void;
+  onApply: () => void; onOutput: (on: boolean) => void;
   onProtect: () => void; onConfirmOn: () => void;
   presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
@@ -647,7 +649,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute -inset-1 rounded-2xl"
-            style={{ boxShadow: "0 0 22px 3px rgba(34,197,94,0.38)" }}
+            style={{ boxShadow: "0 0 24px 4px rgba(16,185,129,0.45)" }}
             animate={{ opacity: [0.22, 0.55, 0.22] }}
             transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
           <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.035]" />
@@ -720,10 +722,9 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground">{t.applyHint}</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
           <Button variant="secondary" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
-          <Button variant="destructive" disabled={busy} onClick={onAllOff}><Ban /> {t.allOff}</Button>
         </div>
         </div>
         <div className="space-y-3">

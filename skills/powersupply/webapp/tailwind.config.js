@@ -20,8 +20,8 @@ export default {
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
       fontFamily: {
-        sans: ["Inter","ui-sans-serif","system-ui","-apple-system","Segoe UI","sans-serif"],
-        mono: ["ui-monospace","SFMono-Regular","Menlo","Consolas","monospace"],
+        sans: ["Geist Variable","Inter","ui-sans-serif","system-ui","-apple-system","Segoe UI","sans-serif"],
+        mono: ["Geist Mono Variable","ui-monospace","SFMono-Regular","Menlo","Consolas","monospace"],
       },
     },
   },

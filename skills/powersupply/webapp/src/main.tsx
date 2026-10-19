@@ -1,5 +1,7 @@
 import ReactDOM from "react-dom/client";
 import { MotionConfig } from "framer-motion";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import App from "./App";
 import "./index.css";
 
