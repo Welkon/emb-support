@@ -6,9 +6,13 @@ half; the rest is a manual matrix.
 
 ## 0. WSL preflight
 
+Any command that needs a probe auto-detects Windows-side probes and attaches
+already-shared ones. To inspect or drive it manually:
+
 ```bash
 dap.py wsl status          # Windows-side USB devices + known probes
 dap.py doctor --attach     # attach the first known probe automatically
+dap.py wsl attach --busid 2-1
 ```
 
 `usbipd bind` (elevated, once per port) is still required before `attach`.
