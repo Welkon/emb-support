@@ -12,13 +12,15 @@
    ```
    没有设备 → 线、供电、USB 口问题。DAPLink 通常会被目标板供电或 USB 自供电，两种都要试。
 2. **WSL**（`doctor` 里 `wsl: true`）
-   USB 不会自动进 WSL：
-   ```powershell
-   usbipd list
-   usbipd bind --busid 2-3        # 管理员，仅首次
-   usbipd attach --wsl --busid 2-3
+   USB 不会自动进 WSL。skill 会自动调用 Windows 侧的 `usbipd.exe` 探测设备：
+   ```bash
+   dap.py wsl status                 # Windows 侧设备 + 已知探针 + busid/状态
+   dap.py wsl attach --busid 2-3     # 挂到 WSL（未 shared 会提示先 bind）
+   dap.py doctor --attach            # 自动挂载第一个未挂载的已知探针
    ```
+   首次或换口时需要管理员 PowerShell 执行一次 `usbipd bind --busid 2-3`；
    每次重新插拔/重启后都要重新 `attach`。`usbipd attach` 成功后 WSL 里才有 `/dev/bus/usb/...`。
+   常见探针 VID：`0d28` DAPLink、`0483` ST-Link、`1366` J-Link、`1209` pid.codes。
 3. **Linux 权限**
    ```bash
    ls -l /dev/bus/usb/*/* | head

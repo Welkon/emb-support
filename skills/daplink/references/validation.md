@@ -4,6 +4,15 @@ Everything here needs a real probe and target. Run it before trusting the
 debug features on a new chip family. `selfcheck` covers the non-destructive
 half; the rest is a manual matrix.
 
+## 0. WSL preflight
+
+```bash
+dap.py wsl status          # Windows-side USB devices + known probes
+dap.py doctor --attach     # attach the first known probe automatically
+```
+
+`usbipd bind` (elevated, once per port) is still required before `attach`.
+
 ## 1. Automated smoke check
 
 ```bash
