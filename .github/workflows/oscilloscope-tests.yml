@@ -1,0 +1,32 @@
+name: oscilloscope skill
+
+on:
+  push:
+    paths:
+      - 'skills/oscilloscope/**'
+      - '.github/workflows/oscilloscope-tests.yml'
+  pull_request:
+    paths:
+      - 'skills/oscilloscope/**'
+      - '.github/workflows/oscilloscope-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest pyelftools
+      - name: Run tests
+        working-directory: skills/oscilloscope
+        run: python -m pytest tests -q
+      - name: CLI smoke test
+        working-directory: skills/oscilloscope
+        run: python scripts/scope.py --help

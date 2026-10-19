@@ -8,7 +8,7 @@ from .rigol import RigolDialect
 from .keysight import KeysightDialect, RnsDialect
 from .siglent import SiglentDialect
 from .tektronix import TektronixDialect, _q_first
-from .lecroy import LeCroyDialect
+from .lecroy import LeCroyDialect, parse_wavedesc
 from .gwinstek import GwInstekDialect
 from .owon import OwonDialect, PeakTechDialect
 from .hantek import HantekDialect

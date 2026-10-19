@@ -106,7 +106,7 @@ CURVe?
 | `owon` | `bushjavier/hanmatek-dos1104-py`（Owon SDS1104 命令集，实机 V1.2.0） | 通道/时基/触发/测量/波形/截图 | 高 |
 | `hantek` | `p96xl/hantek-dso2000-esu-tester`（DSO2C50，101 条查询实测 94 条应答） | 通道/时基/触发/测量/状态 | 中；波形只能走 `PRIVate:WAVeform:DATA:ALL?` |
 | `micsig` | `tralamazza/micsig-rs`（MHO14-200N） | run/stop/single、测量、截图 | 中；波形导出未实现 |
-| `bkprecision` | `robertozeitoun/bkprecision`（LeCroy MAUI 命令集） | 通道/时基/触发/测量 | 中；波形为 LeCroy WAVEDESC 格式，未实现 |
+| `bkprecision` | `robertozeitoun/bkprecision`（LeCroy MAUI 命令集） | 通道/时基/触发/测量/波形（WAVEDESC） | 中高；波形解析已实现 |
 | `unit` / `fluke` / `zlg` | 仅 IDN 识别 | 无 | 低；按通用 SCPI 处理 |
 
 ### OWON / Hanmatek 的自定义帧
@@ -137,7 +137,11 @@ CURVe?
 - 时基 `TDIV`
 - 触发 `TRMD`、`TRLV`、`TRSL`、`TRSE EDGE,SR,C1,...`
 - 测量 `C1:PAVA? VPP`
-- 波形 `C1:WF? DAT2` 是带 WAVEDESC 的二进制格式，本 skill 未解析
+- 波形 `C1:WF? DAT2` 返回 WAVEDESC + 采样点；已实现解析：
+  `comm_type`（8/16 位）、`wave_array_1`、`wave_array_count`、
+  `vertical_gain/offset`、`horiz_interval/offset`，以及 `C1:WF? DAT2` 前的命令回显前缀。
+  `volt = gain * raw - offset`；`time = i * interval + horiz_offset`。
+- BK Precision 2540/2560 直接复用该方言（`BkPrecisionDialect(LeCroyDialect)`）
 
 
 ## 搜索引擎找到的厂商手册（国产为主）

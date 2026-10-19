@@ -40,28 +40,45 @@ def save_config(cfg: dict) -> None:
     CONFIG.write_text(json.dumps(cfg, indent=2))
 
 
-def parse_block(data: bytes) -> bytes:
-    """Strip an IEEE-488.2 definite-length block header."""
-    if not data:
-        return data
-    if not data.startswith(b"#"):
-        return data
-    if len(data) < 2 or not data[1:2].isdigit():
-        return data
-    ndigits = int(data[1:2])
+def block_bounds(data: bytes) -> tuple[int, int] | None:
+    """Return (header_start, payload_end) for a definite-length block, or None.
+
+    Instruments may prefix the block with a command echo (LeCroy: "C1:WF DAT2,#9...").
+    """
+    start = data.find(b"#")
+    if start < 0 or len(data) < start + 2:
+        return None
+    nd = data[start + 1:start + 2]
+    if not nd.isdigit():
+        return None
+    ndigits = int(nd)
     if ndigits == 0:
-        return data[2:]
-    if len(data) < 2 + ndigits:
-        return data
+        return None
+    if len(data) < start + 2 + ndigits:
+        return None
     try:
-        length = int(data[2:2 + ndigits])
+        length = int(data[start + 2:start + 2 + ndigits])
     except ValueError:
+        return None
+    end = start + 2 + ndigits + length
+    return (start, end) if len(data) >= end else None
+
+
+def parse_block(data: bytes) -> bytes:
+    """Strip an IEEE-488.2 block header (prefix and indefinite #0 tolerated)."""
+    start = data.find(b"#")
+    if start >= 0 and data[start + 1:start + 2] == b"0":
+        return data[start + 2:]
+    bounds = block_bounds(data)
+    if bounds is None:
         return data
-    return data[2 + ndigits:2 + ndigits + length]
+    start, end = bounds
+    ndigits = int(data[start + 1:start + 2])
+    return data[start + 2 + ndigits:end]
 
 
 def is_block(data: bytes) -> bool:
-    return data.startswith(b"#") and len(data) > 2 and data[1:2].isdigit()
+    return block_bounds(data) is not None
 
 
 # ------------------------------------------------------------------ transports

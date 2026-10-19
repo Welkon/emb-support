@@ -27,7 +27,7 @@ from scopescpi.common import *  # noqa: F401,F403
 from scopescpi.common import _parse_rate, _parse_scaled  # noqa: F401
 from scopescpi.transport import *  # noqa: F401,F403
 from scopescpi.dialects import *  # noqa: F401,F403
-from scopescpi.dialects import _q_first  # noqa: F401
+from scopescpi.dialects import _q_first, parse_wavedesc  # noqa: F401
 from scopescpi.acquisition import *  # noqa: F401,F403
 from scopescpi.acquisition import _edges  # noqa: F401
 from scopescpi.cli import main  # noqa: F401

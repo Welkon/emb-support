@@ -12,6 +12,7 @@ def test_parse_block(scope):
     assert scope.parse_block(b"#0raw\n") == b"raw\n"
     assert scope.parse_block(b"#210" + b"x" * 10) == b"x" * 10
     assert scope.parse_block(b"plain") == b"plain"
+    assert scope.parse_block(b"C1:WF DAT2,#15hello") == b"hello"
 
 
 def test_socket_query_and_block(scope, rigol):

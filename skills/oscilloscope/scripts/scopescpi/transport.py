@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from .common import die, load_config, parse_block, is_block
+from .common import block_bounds, die, is_block, load_config, parse_block
 
 class SocketInstrument:
     """Raw SCPI over TCP (port 5025 on most instruments)."""
@@ -39,16 +39,10 @@ class SocketInstrument:
             if not chunk:
                 break
             buf += chunk
-            if is_block(buf):
-                nd = int(buf[1:2])
-                if len(buf) >= 2 + nd:
-                    try:
-                        n = int(buf[2:2 + nd])
-                    except ValueError:
-                        return buf
-                    if len(buf) >= 2 + nd + n:
-                        return buf
-            elif b"\n" in buf:
+            bounds = block_bounds(buf)
+            if bounds is not None:
+                return buf[:bounds[1]]
+            if b"#" not in buf and b"\n" in buf:
                 return buf
         return buf
 
