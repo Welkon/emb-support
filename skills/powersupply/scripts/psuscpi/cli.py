@@ -19,6 +19,7 @@ from .common import (
 )
 from .dialects import FAMILIES, detect_family
 from .web import run as run_web
+from .wsl import attach_hint, ensure_supply_attached, is_wsl, list_devices, windows_host_ip
 from .drivers import (
     DP100_PID, DP100_VID, Bk168xDevice, Device, Dp100Device, Dps150Device,
     ScpiDevice, find_dp100, open_device,
@@ -96,8 +97,19 @@ def cmd_doctor(a) -> None:
         except OSError as e:
             info["socket_test"] = f"{host}:{port} failed: {e}"
             info["hints"].append("check LAN address, firewall, and SCPI/LAN enable")
-    if Path("/proc/version").exists() and "microsoft" in Path("/proc/version").read_text().lower():
-        info["hints"].append("WSL: attach USB instruments with usbipd before use")
+    if is_wsl():
+        devices, err = list_devices()
+        supplies = [d for d in devices if d["vendor"]]
+        wsl = {"host_ip": windows_host_ip(), "usbipd_error": err,
+               "devices": supplies,
+               "hints": [h for d in supplies for h in attach_hint(d)]}
+        if not supplies:
+            wsl["hints"].append("no supply VID seen by usbipd; plug it into Windows and rerun")
+        if getattr(a, "attach_usb", False):
+            wsl["attach"] = ensure_supply_attached()
+            info["hints"].append("WSL: attempted usbipd attach for shared supply devices")
+        info["wsl"] = wsl
+        info["hints"].append("WSL detected: attach USB supplies with usbipd before use")
     if not info["resources"] and not info["usbtmc"] and not info["serial"] and not info["hid"]:
         info["hints"].append("no instrument found: check cable, driver/udev, and SCPI mode")
     emit(info, as_json=True)
@@ -449,6 +461,8 @@ def main() -> None:
 
     p = sub.add_parser("doctor", help="environment and connection diagnostics")
     add_conn(p)
+    p.add_argument("--attach-usb", action="store_true",
+                   help="WSL only: attach shared supply devices via usbipd")
     p.set_defaults(fn=cmd_doctor)
 
     p = sub.add_parser("discover", help="list VISA/HID resources or scan a subnet")

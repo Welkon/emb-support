@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import threading
-import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .common import die, load_config
 from .drivers import open_device
+from .wsl import is_wsl, open_browser
 
 
 INDEX_HTML = """<!doctype html>
@@ -304,10 +304,14 @@ def run(a) -> None:
         server = PsuWebServer(dev, mv, mi, bind=a.bind, port=a.web_port)
     except OSError as e:
         die(f"cannot bind {a.bind}:{a.web_port}: {e}")
-    url = f"http://{a.bind}:{server.port}/"
+    host = a.bind if a.bind not in ("127.0.0.1", "0.0.0.0", "::1") else "localhost"
+    url = f"http://{host}:{server.port}/"
     print(f"web UI: {url}")
+    if is_wsl():
+        print("WSL detected: open this URL in a Windows browser "
+              "(localhost is forwarded from WSL)")
     if a.open:
-        webbrowser.open(url)
+        open_browser(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

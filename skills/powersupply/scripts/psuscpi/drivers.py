@@ -12,6 +12,7 @@ import time
 from .common import die, load_config
 from .dialects import make_dialect
 from .transport import SerialInstrument, connect
+from .wsl import ensure_supply_attached, is_wsl
 
 
 def find_dp100() -> list[dict]:
@@ -445,8 +446,11 @@ def open_device(a) -> Device:
 
     host = getattr(a, "host", None) or cfg.get("host")
     resource = getattr(a, "resource", None) or cfg.get("resource")
-    if not any((host, resource, serial_port, hid_name)) and find_dp100():
-        return Dp100Device()
+    if not any((host, resource, serial_port, hid_name)):
+        if is_wsl():
+            ensure_supply_attached()
+        if find_dp100():
+            return Dp100Device()
 
     if serial_port:
         if family == "dps150":

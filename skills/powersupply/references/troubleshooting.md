@@ -54,6 +54,12 @@
 - 电子负载/脉冲负载下，电源显示值与万用表可能差很多，优先看 `measure` 的原始读数。
 - 需要更精确时用 `scpi` 直接读型号的高分辨率测量命令。
 
+## WSL 检测
+
+- `psu.py` 启动时自动识别 WSL；无显式连接参数时会尝试 `usbipd attach` Windows 侧已共享的电源。
+- `psu.py doctor` 会列出 Windows 侧的 USB 设备、VID 品牌和 bind/attach 命令；`--attach-usb` 直接执行 attach。
+- `psu.py web --open` 在 WSL 下调用 Windows 浏览器；如果没弹出，手动打开终端打印的 `http://localhost:<port>/`。
+
 ## 网页 UI 打不开 / 端口占用
 
 - 默认 `127.0.0.1:8765`；端口占用用 `--web-port 8766`。
