@@ -37,6 +37,7 @@ const STR = {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
     presets: "Presets", savePreset: "Save current", presetPlaceholder: "Select a preset…",
+    wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
     overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
@@ -76,6 +77,7 @@ const STR = {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
     presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
+    wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
     overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
@@ -241,8 +243,9 @@ export default function App() {
     setData(s);
     setConnected(true);
     setError("");
-    if (editing.current !== "v") setVset(fmt(s.setpoint.voltage, 3));
-    if (editing.current !== "i") setIset(fmt(s.setpoint.current, 3));
+    const activeId = document.activeElement?.id;
+    if (editing.current !== "v" && activeId !== "vset") setVset(fmt(s.setpoint.voltage, 3));
+    if (editing.current !== "i" && activeId !== "iset") setIset(fmt(s.setpoint.current, 3));
   }, []);
 
   const refresh = useCallback(async (ch = channel) => {
@@ -527,6 +530,30 @@ export default function App() {
   );
 }
 
+function NumberInput({ value, onChange, step = 0.1, min = 0, max = 100, ...props }: React.ComponentProps<typeof Input> & {
+  value: string; onChange: (v: string) => void; step?: number; min?: number; max?: number;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const latest = useRef({ value, onChange, step, min, max });
+  latest.current = { value, onChange, step, min, max };
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (document.activeElement !== el) return;
+      e.preventDefault();
+      const l = latest.current;
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const mult = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
+      const next = Math.min(l.max, Math.max(l.min, (parseFloat(l.value) || 0) + dir * l.step * mult));
+      l.onChange(next.toFixed(3));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  return <Input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} {...props} />;
+}
+
 function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onAllOff, onProtect, onConfirmOn, presets, onPreset, onSavePreset }: {
   t: Dict; caps: Caps | undefined; data: State | null; busy: boolean;
   vset: string; iset: string; ovp: string; ocp: string;
@@ -554,7 +581,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           <div className="space-y-1.5">
             <Label htmlFor="vset">{t.vset}</Label>
             <div className="relative">
-              <Input id="vset" inputMode="decimal" value={vset} onChange={(e) => setVset(e.target.value)}
+              <NumberInput id="vset" inputMode="decimal" value={vset} onChange={setVset}
+                step={0.1} min={0} max={data?.limits.max_voltage ?? 30} title={t.wheelHint}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
                 onFocus={() => (editing.current = "v")} onBlur={() => (editing.current = null)} className="pr-8" />
               <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">V</span>
@@ -563,7 +591,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           <div className="space-y-1.5">
             <Label htmlFor="iset">{t.iset}</Label>
             <div className="relative">
-              <Input id="iset" inputMode="decimal" value={iset} onChange={(e) => setIset(e.target.value)}
+              <NumberInput id="iset" inputMode="decimal" value={iset} onChange={setIset}
+                step={0.01} min={0} max={data?.limits.max_current ?? 5} title={t.wheelHint}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
                 onFocus={() => (editing.current = "i")} onBlur={() => (editing.current = null)} className="pr-8" />
               <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">A</span>
