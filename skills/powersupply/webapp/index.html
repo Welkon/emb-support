@@ -2,6 +2,14 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        var t = localStorage.getItem("psu-theme");
+        var dark = t ? t === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.lang = localStorage.getItem("psu-lang") || "en";
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Power Supply</title>
   </head>
