@@ -136,7 +136,21 @@ scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 连接失败、USBTMC 权限、WSL、二进制块截断、截图不支持、Windows TekVISA 位数问题，见
 `references/troubleshooting.md` 和 `references/tektronix.md`。
 
-## 8. 自测
+## 8. 代码结构
+
+```text
+scripts/scope.py                  # 稳定入口（参数解析 + 向后兼容导出）
+scripts/scopescpi/common.py       # 配置、输出、IEEE/Owon 帧解析
+scripts/scopescpi/transport.py    # Socket / pyvisa / usbtmc
+scripts/scopescpi/dialects/       # 每个品牌一个模块 + 注册表/自动识别
+scripts/scopescpi/acquisition.py  # 反缩放、统计、测量回退
+scripts/scopescpi/cli.py          # 子命令实现
+```
+
+旧脚本仍可按原方式调用 `scripts/scope.py`；需要复用内部 API 时也可以
+`from scopescpi.dialects import RigolDialect`。
+
+## 9. 自测
 
 ```bash
 ~/.local/share/scope/venv/bin/python -m pytest tests -q

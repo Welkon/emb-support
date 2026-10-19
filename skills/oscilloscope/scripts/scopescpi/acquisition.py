@@ -1,0 +1,122 @@
+"""Waveform scaling, statistics and channel acquisition."""
+
+from __future__ import annotations
+
+import math
+
+def to_volts(raw, meta: dict) -> list[float]:
+    yincr, yorig, yref = meta["yincr"], meta["yorig"], meta["yref"]
+    return [(float(b) - yref) * yincr + yorig for b in raw]
+
+
+def to_times(meta: dict, n: int | None = None) -> list[float]:
+    n = n or meta["points"]
+    return [(i - meta["xref"]) * meta["xincr"] + meta["xorig"] for i in range(n)]
+
+
+def stats(volts: list[float], times: list[float]) -> dict:
+    if not volts:
+        return {}
+    n = len(volts)
+    mean = sum(volts) / n
+    rms = math.sqrt(sum(v * v for v in volts) / n)
+    vmin, vmax = min(volts), max(volts)
+    out = {"points": n, "vmin": vmin, "vmax": vmax, "vpp": vmax - vmin,
+           "mean": mean, "rms": rms}
+    if n > 2 and times:
+        dt = (times[-1] - times[0]) / (n - 1)
+        out["dt"] = dt
+        mid = (vmin + vmax) / 2
+        span = (vmax - vmin) * 0.5
+        if span > 0:
+            crossings = []
+            for i in range(1, n):
+                a, b = volts[i - 1], volts[i]
+                if (a <= mid < b) or (a < mid <= b):
+                    frac = (mid - a) / (b - a) if b != a else 0.0
+                    t = times[i - 1] + frac * (times[i] - times[i - 1])
+                    if not crossings or t - crossings[-1] > (times[1] - times[0]) * 0.5:
+                        crossings.append(t)
+            if len(crossings) >= 2:
+                periods = [b - a for a, b in zip(crossings, crossings[1:])]
+                period = sum(periods) / len(periods)
+                if period > 0:
+                    out["period"] = period
+                    out["freq"] = 1.0 / period
+            high = sum(1 for v in volts if v > mid) / n * 100.0
+            out["duty_pct"] = high
+            out.update(_edges(volts, times, vmin, vmax))
+    return out
+
+
+def _edges(volts, times, vmin, vmax):
+    lo, hi = vmin + (vmax - vmin) * 0.1, vmin + (vmax - vmin) * 0.9
+    n = len(volts)
+    rise = fall = None
+    for i in range(1, n):
+        if rise is None and volts[i - 1] < lo <= volts[i] and volts[i] != volts[i - 1]:
+            t0, v0 = times[i - 1], volts[i - 1]
+            rise = t0 + (times[i] - t0) * (lo - v0) / (volts[i] - v0)
+        if rise is not None and volts[i - 1] < hi <= volts[i] and volts[i] != volts[i - 1]:
+            t0, v0 = times[i - 1], volts[i - 1]
+            t1 = t0 + (times[i] - t0) * (hi - v0) / (volts[i] - v0)
+            rise = t1 - rise
+            break
+    for i in range(1, n):
+        if fall is None and volts[i - 1] > hi >= volts[i] and volts[i] != volts[i - 1]:
+            t0, v0 = times[i - 1], volts[i - 1]
+            fall = t0 + (times[i] - t0) * (hi - v0) / (volts[i] - v0)
+        if fall is not None and volts[i - 1] > lo >= volts[i] and volts[i] != volts[i - 1]:
+            t0, v0 = times[i - 1], volts[i - 1]
+            t1 = t0 + (times[i] - t0) * (lo - v0) / (volts[i] - v0)
+            fall = t1 - fall
+            break
+    out = {}
+    if rise:
+        out["rise_time"] = rise
+    if fall:
+        out["fall_time"] = fall
+    return out
+
+
+def acquire_channels(inst, dialect, channels, points):
+    result = {}
+    for ch in channels:
+        meta, raw = dialect.acquire(inst, ch, points)
+        volts = to_volts(raw, meta)
+        times = to_times(meta, len(volts))
+        result[ch] = {"times": times, "volts": volts, "meta": meta}
+    return result
+
+
+MEASURE_ITEMS = ["vpp", "vmin", "vmax", "mean", "rms", "freq", "period", "duty", "rise", "fall"]
+ITEM_MAP = {"vpp": "vpp", "vmin": "vmin", "vmax": "vmax", "mean": "mean", "rms": "rms",
+            "freq": "freq", "period": "period", "duty": "duty_pct", "rise": "rise_time",
+            "fall": "fall_time"}
+
+
+def measure_channel(inst, dialect, ch, items):
+    out = {}
+    compute = []
+    for item in items:
+        q = dialect.measure_query(item, ch)
+        if q:
+            try:
+                out[item] = dialect.parse_measure(inst.query(q))
+                continue
+            except Exception:
+                pass
+        compute.append(item)
+    if compute:
+        meta, raw = dialect.acquire(inst, ch, None)
+        volts = to_volts(raw, meta)
+        times = to_times(meta, len(volts))
+        st = stats(volts, times)
+        for item in compute:
+            key = ITEM_MAP.get(item)
+            if key and key in st:
+                out[item] = st[key]
+    return out
+
+
+# -------------------------------------------------------------------- commands
