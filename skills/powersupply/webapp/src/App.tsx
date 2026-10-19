@@ -17,6 +17,11 @@ type Lang = "en" | "zh";
 type Limits = { max_voltage?: number; max_current?: number; max_ovp?: number; max_ocp?: number; max_power?: number };
 type Caps = { power: boolean; ovp: boolean; ocp: boolean; output_state: boolean; input_voltage: boolean; temperature: boolean };
 type Measurement = { voltage: number | null; current: number | null; power: number | null; input_voltage: number | null; temperature: number | null };
+type Preset = { v: number; i: number };
+const DEFAULT_PRESETS: Preset[] = [
+  { v: 3.3, i: 0.5 }, { v: 5, i: 0.5 }, { v: 9, i: 1 }, { v: 12, i: 1 }, { v: 24, i: 0.5 },
+];
+
 type State = {
   ok: boolean; idn: string; family: string; channels: number[]; ch: number;
   output: string | null; setpoint: { voltage: number | null; current: number | null };
@@ -31,6 +36,7 @@ const STR = {
   en: {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
+    presets: "Presets", savePreset: "Save current",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
     overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
@@ -69,6 +75,7 @@ const STR = {
   zh: {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
+    presets: "预设", savePreset: "保存当前",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
     overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
@@ -192,6 +199,16 @@ export default function App() {
   const headerRef = useRef<HTMLElement>(null);
   const [headerH, setHeaderH] = useState(72);
   const [dismissedAlert, setDismissedAlert] = useState("");
+  const [presets, setPresets] = useState<Preset[]>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("psu-presets") || "null");
+      if (Array.isArray(raw)) {
+        const valid = raw.filter((p: any) => p && Number.isFinite(p.v) && Number.isFinite(p.i));
+        if (valid.length) return valid.slice(0, 8);
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_PRESETS;
+  });
   const t = STR[lang];
   const locale = lang === "zh" ? "zh-CN" : "en-US";
 
@@ -212,6 +229,7 @@ export default function App() {
     localStorage.setItem("psu-lang", lang);
   }, [lang]);
   useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
+  useEffect(() => { localStorage.setItem("psu-presets", JSON.stringify(presets)); }, [presets]);
   useEffect(() => { if (rate != null) localStorage.setItem("psu-rate", String(rate)); }, [rate]);
   useEffect(() => {
     localStorage.setItem("psu-show-v", showV ? "1" : "0");
@@ -261,10 +279,15 @@ export default function App() {
   const fault = work !== undefined && work !== 0;
   const workName = work === undefined ? "—" : t.work[work] ?? `CODE ${work}`;
   const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
-  const quickVoltage = (v: number) => {
-    setVset(fmt(v, 3));
-    const current = data?.setpoint.current ?? (Number.isFinite(parseFloat(iset)) ? parseFloat(iset) : undefined);
-    if (!on) run(() => api("/api/set", { ch: channel, voltage: v, current }));
+  const applyPreset = (preset: Preset) => {
+    setVset(fmt(preset.v, 3));
+    setIset(fmt(preset.i, 3));
+    if (!on) run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }));
+  };
+  const savePreset = () => {
+    const v = parseFloat(vset), i = parseFloat(iset);
+    if (!Number.isFinite(v) || !Number.isFinite(i)) return;
+    setPresets((list) => [...list.filter((p) => p.v !== v || p.i !== i), { v, i }].slice(-8));
   };
   const download = () => {
     const rows = ["time,voltage,current,power"];
@@ -344,6 +367,7 @@ export default function App() {
           </div>
         </header>
 
+        {tab === "basic" && (
         <div className="overflow-hidden border-y border-border">
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
             <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" />
@@ -366,6 +390,8 @@ export default function App() {
             </span>
           </div>
         </div>
+
+        )}
 
         {tab === "basic" ? (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -412,7 +438,7 @@ export default function App() {
                 channel={channel} setChannel={setChannel}
                 setVset={setVset} setIset={setIset} setOvp={setOvp} setOcp={setOcp} editing={editing}
                 onApply={setpoints} onOutput={output} onAllOff={allOff} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
-                onQuickVoltage={quickVoltage} />
+                presets={presets} onPreset={applyPreset} onSavePreset={savePreset} />
             </aside>
           </div>
         ) : (
@@ -484,7 +510,7 @@ export default function App() {
   );
 }
 
-function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onAllOff, onProtect, onConfirmOn, onQuickVoltage }: {
+function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onAllOff, onProtect, onConfirmOn, presets, onPreset, onSavePreset }: {
   t: Dict; caps: Caps | undefined; data: State | null; busy: boolean;
   vset: string; iset: string; ovp: string; ocp: string;
   channel: number; setChannel: (ch: number) => void;
@@ -492,7 +518,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   setOvp: (v: string) => void; setOcp: (v: string) => void;
   editing: React.MutableRefObject<string | null>;
   onApply: () => void; onOutput: (on: boolean) => void; onAllOff: () => void;
-  onProtect: () => void; onConfirmOn: () => void; onQuickVoltage: (v: number) => void;
+  onProtect: () => void; onConfirmOn: () => void;
+  presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
   return (
     <Card className="flex h-full flex-col">
@@ -527,13 +554,21 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           </div>
         </div>
         <Button className="w-full" disabled={busy} onClick={onApply}>{t.apply}</Button>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[11px] text-muted-foreground">{t.quick}</span>
-          {[3.3, 5, 9, 12, 24].filter((v) => v <= (data?.limits.max_voltage ?? 30)).map((v) => (
-            <Button key={v} size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onQuickVoltage(v)}>
-              {v} V
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">{t.presets}</span>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={onSavePreset}>
+              <Plus /> {t.savePreset}
             </Button>
-          ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {presets.filter((p) => p.v <= (data?.limits.max_voltage ?? 30) && p.i <= (data?.limits.max_current ?? 5)).map((p) => (
+              <Button key={`${p.v}-${p.i}`} size="sm" variant="outline" className="h-7 px-2 font-mono text-[11px]"
+                onClick={() => onPreset(p)} title={`${p.v} V / ${p.i} A`}>
+                {p.v} V / {p.i} A
+              </Button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
