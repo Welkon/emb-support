@@ -1,4 +1,5 @@
 import os
+import sys
 import socketserver
 import threading
 from pathlib import Path
@@ -7,6 +8,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "psu.py"
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 class MockPsu:

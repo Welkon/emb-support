@@ -95,3 +95,62 @@ OUT<n>          # 1 = on, 0 = off
 - R&S HMC804x SCPI reference
 - Korad KA3005P serial protocol
 - `pymeasure` 的 Keysight E36xx 驱动（交叉验证）
+
+
+## 非 SCPI 驱动
+
+### 正点原子 DP100（`dp100`，USB HID）
+
+协议参考 `lymzzyh/dp100-mcp`（MIT）与 `weigu1/dp100_manipulator`。
+
+- VID:PID `2e3c:af01`，HID report 64 字节
+- 帧：`FB op 00 len <data> crc_lo crc_hi`；CRC16-Modbus（poly 0xA001，init 0xFFFF）
+- 响应：`FA op 00 len <data> crc`
+- 操作码：`0x10` 设备信息、`0x30` 实时遥测、`0x35` 设定/输出、`0x40` 系统信息
+- 遥测（`0x30`）：`vin, vout, iout, vo_max`（mV/mA），`out_mode`、`work_state`
+- 设定（`0x35`，子命令 `0x20` + 输出位 + `v_mv, i_ma, ovp_mv, ocp_ma`）
+- 最大电压由设备上报的 `vo_max` 决定（本 skill 会先读再限制）
+- 依赖 `hidapi`；Linux 需要 hidraw 权限（udev/plugdev）
+
+### FNIRSI DPS-150（`dps150`，USB CDC）
+
+协议参考 `nasheed-x/dps150_api` 的 `PROTOCOL.md`。
+
+- USB CDC，115200 8N1，RTS 置位
+- 帧：`F1/F0 | cmd | reg | len | data | checksum`，`checksum = (reg+len+sum(data)) & 0xFF`
+- 命令：`0xC1` 会话、`0xB1` 写寄存器、`0xA1` 读寄存器
+- 关键寄存器：
+  - `0xC1` 设定电压（float32 LE）
+  - `0xC2` 设定电流（float32 LE）
+  - `0xC3` 实测 V/I/P（3×float32）
+  - `0xD1/0xD2` OVP/OCP
+  - `0xDB` 输出开关（uint8）
+  - `0xDE/0xE0` 型号/固件字符串
+  - `0xE2/0xE3` 最大电压/电流
+- 打开后先发会话包 `F1 C1 00 01 01 02`
+
+### B&K 168x / Manson HCS-3xxx（`bk168x`，串口）
+
+协议参考 `JacobBeningo/devpsu`（MIT）。
+
+- 9600 8N1，命令以 CR 结尾，响应以 `OK` 行结束
+- `VOLT123` = 12.3 V（3 位 + 1 位小数）
+- `CURR050` = 5.0 A（1685B 用两位小数，需 `--current-decimals 2`）
+- `GETS` → 设定值；`GETD` → 实测值 + CV/CC 标志
+- `SOUT0` 开输出、`SOUT1` 关输出（注意是反的）
+- `SOVP`/`SOCP` 设置保护；`GMAX` 读型号量程
+
+### ITECH（`itech`，SCPI）
+
+来自 ITECH IT6300 Programming Guide：
+
+```
+:INSTrument:NSELect <n>
+:VOLTage / :CURRent
+:OUTPut ON|OFF
+:MEASure:VOLTage? / :CURRent? / :POWer?
+:VOLTage:PROTection <v>
+:CURRent:PROTection <a>
+```
+
+通道 1–3；IT6900 系列命令族相同。

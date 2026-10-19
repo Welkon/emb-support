@@ -8,6 +8,7 @@ FAMILIES = {
     "KORAD,KA3005P,SN,1.0": "korad",
     "GW INSTEK,GPP-3323,SN,1.0": "gwinstek",
     "B&K PRECISION,9130B,SN,1.0": "bkprecision",
+    "ITECH,IT6302,SN,1.0": "itech",
     "OWON,SPE3103,SN,1.0": "owon",
     "AIM-TTI,PL303QMD,SN,1.0": "aimtti",
     "ACME,PSU-1,SN,1.0": "generic",
@@ -45,6 +46,15 @@ def test_rns_output(module):
     d = module.RnsHmc()
     assert d.output(3, True) == ":OUTPut:CHANnel3:STATe ON"
     assert d.output_state(3) == ":OUTPut:CHANnel3:STATe?"
+
+
+def test_itech_commands(module):
+    d = module.Itech()
+    assert d.select(2) == ":INSTrument:NSELect 2"
+    assert d.set_voltage(2, 5) == ":VOLTage 5"
+    assert d.output(2, True) == ":OUTPut ON"
+    assert d.measure_power(2) == ":MEASure:POWer?"
+    assert d.ovp(2, 6) == ":VOLTage:PROTection 6"
 
 
 def test_limits_are_model_independent(module):

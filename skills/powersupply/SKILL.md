@@ -38,6 +38,9 @@ scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/py
 - LAN 用原生 socket，零依赖。
 - USB 走 pyvisa（或 Linux `/dev/usbtmc*`）。
 - Korad 等串口电源：`--serial /dev/ttyUSB0 --baud 9600`。
+- DP100（USB HID）：`--hid dp100`（自动枚举 VID:PID `2e3c:af01`）。
+- DPS-150（USB CDC）：`--serial /dev/ttyACM0 --family dps150`。
+- B&K 168x / Manson：`--serial /dev/ttyUSB0 --family bk168x`（1685B 加 `--current-decimals 2`）。
 - Linux/WSL 权限：`scripts/install_udev.sh`；WSL 需 `usbipd attach`。
 
 ## 2. 品牌与方言
@@ -53,7 +56,11 @@ scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/py
 | `bkprecision` | 9130B / 9200 | 通道选择 + `:VOLT` / `:OUTP` |
 | `owon` | SPE/SPD 系列 | `:CH<n>:VOLT`、`:OUTP CH<n>,ON` |
 | `aimtti` | PL/CPX 系列 | 通用 `:VOLT` / `:CURR` / `:OUTP` |
+| `itech` | IT6300/IT6900 | `:INSTrument:NSELect` + `:VOLTage` / `:OUTPut` |
 | `generic` | 其它 SCPI | `:VOLTage` / `:CURRent` / `:OUTPut` |
+| `dp100` | 正点原子 DP100 | **USB HID**，私有帧 + CRC16 |
+| `dps150` | FNIRSI DPS-150 | **USB CDC 串口**，F1/F0 帧 + float32 寄存器 |
+| `bk168x` | B&K 1685B/1687B/1688B、Manson HCS-3xxx | 串口 ASCII（`VOLT123` / `GETD` / `SOUT0`） |
 
 细节与来源见 `references/dialects.md`；排错见 `references/troubleshooting.md`。
 
@@ -113,7 +120,7 @@ scripts/psu.py sequence seq.json --host <ip> --ch 1 --yes
 | `ramp` | 软件斜坡 | `--to`、`--start`、`--step`、`--delay`、`--yes` |
 | `sequence` | JSON 序列 | 文件、`--yes` |
 | `log` | V/I/P 记录 | `--duration`、`--interval`、`--out` |
-| `scpi` / `query` / `write` | 原始 SCPI | `--query` |
+| `scpi` / `query` / `write` | 原始 SCPI（非 SCPI 设备会拒绝） | `--query` |
 | `config` | 默认值与上限 | `host/resource/serial/max_voltage/max_current/safe_off` |
 
 通用连接参数：`--host`、`--port 5025`、`--resource`、`--serial`、`--baud`、`--backend`、`--family`、`--timeout`、`--max-voltage`、`--max-current`。

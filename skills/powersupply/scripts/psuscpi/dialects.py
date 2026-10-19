@@ -130,6 +130,23 @@ class Owon(Dialect):
     def output_state(self, n): return f":OUTP? CH{n}"
 
 
+class Itech(Dialect):
+    name = "itech"
+    channels = (1, 2, 3)
+    selected = True
+
+    def select(self, n): return f":INSTrument:NSELect {n}"
+    def set_voltage(self, n, v): return f":VOLTage {fnum(v)}"
+    def set_current(self, n, a): return f":CURRent {fnum(a)}"
+    def measure_voltage(self, n): return ":MEASure:VOLTage?"
+    def measure_current(self, n): return ":MEASure:CURRent?"
+    def measure_power(self, n): return ":MEASure:POWer?"
+    def output(self, n, on): return f":OUTPut {'ON' if on else 'OFF'}"
+    def output_state(self, n): return ":OUTPut?"
+    def ovp(self, n, v): return f":VOLTage:PROTection {fnum(v)}"
+    def ocp(self, n, a): return f":CURRent:PROTection {fnum(a)}"
+
+
 class AimTti(Dialect):
     name = "aimtti"
     channels = (1, 2)
@@ -148,6 +165,7 @@ FAMILIES = {
     "gwinstek": GwInstek,
     "bkprecision": BkPrecision,
     "owon": Owon,
+    "itech": Itech,
     "aimtti": AimTti,
     "generic": Generic,
 }
@@ -169,6 +187,8 @@ def detect_family(idn: str) -> str:
         return "gwinstek"
     if "B&K" in u or "BK PRECISION" in u:
         return "bkprecision"
+    if "ITECH" in u:
+        return "itech"
     if "OWON" in u:
         return "owon"
     if "AIM" in u or "TTI" in u:

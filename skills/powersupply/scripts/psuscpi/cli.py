@@ -14,28 +14,14 @@ import time
 from pathlib import Path
 
 from .common import (
-    CONFIG, DEFAULT_MAX_CURRENT, DEFAULT_MAX_VOLTAGE, HOME, VENV,
-    die, emit, fnum, load_config, save_config,
+    CONFIG, DEFAULT_MAX_CURRENT, DEFAULT_MAX_VOLTAGE, VENV,
+    die, emit, load_config, save_config,
 )
-from .dialects import FAMILIES, detect_family, make_dialect
-from .transport import (
-    SerialInstrument, SocketInstrument, UsbtmcInstrument, VisaInstrument, connect,
+from .dialects import FAMILIES, detect_family
+from .drivers import (
+    DP100_PID, DP100_VID, Bk168xDevice, Device, Dp100Device, Dps150Device,
+    ScpiDevice, find_dp100, open_device,
 )
-
-
-def _dialect(inst, a):
-    idn = inst.query("*IDN?")
-    family = getattr(a, "family", None) or load_config().get("family")
-    try:
-        return make_dialect(idn, family), idn
-    except ValueError as e:
-        die(str(e))
-
-
-def _select(inst, d, n: int) -> None:
-    cmd = d.select(n)
-    if cmd:
-        inst.write(cmd)
 
 
 def _limits(a):
@@ -55,12 +41,9 @@ def _check_limits(a, voltage, current):
             f"(raise with --max-current or config set max_current)")
 
 
-def _q_float(inst, cmd):
-    try:
-        text = inst.query(cmd).strip()
-        return float(text) if text else None
-    except Exception:
-        return None
+def _validate_channel(dev, n):
+    if n not in dev.channels:
+        die(f"channel {n} not available; this device has {list(dev.channels)}")
 
 
 def cmd_setup(a) -> None:
@@ -71,7 +54,7 @@ def cmd_setup(a) -> None:
         if p.returncode != 0:
             die(f"failed to create venv: {p.stderr[-800:]}")
     pip = VENV / ("Scripts/pip.exe" if os.name == "nt" else "bin/pip")
-    pkgs = ["pyvisa", "pyvisa-py", "pyusb", "pyserial"]
+    pkgs = ["pyvisa", "pyvisa-py", "pyusb", "pyserial", "hidapi"]
     if getattr(a, "dev", False):
         pkgs.append("pytest")
     p = subprocess.run([str(pip), "install", "-U", "pip"] + pkgs,
@@ -85,7 +68,7 @@ def cmd_doctor(a) -> None:
     info = {"ok": True, "python": sys.executable, "pyvisa": None,
             "resources": [], "usbtmc": sorted(glob.glob("/dev/usbtmc*")),
             "serial": sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")),
-            "hints": []}
+            "hid": [], "hints": []}
     try:
         import pyvisa
         info["pyvisa"] = getattr(pyvisa, "__version__", "?")
@@ -96,6 +79,13 @@ def cmd_doctor(a) -> None:
         info["resources"] = list(rm.list_resources())
     except Exception as e:
         info["hints"].append(f"pyvisa not available ({e}); run psu.py setup for USB/VISA")
+    try:
+        import hid
+        info["hid"] = [{"vendor": f"{d['vendor_id']:04x}", "product": f"{d['product_id']:04x}",
+                        "serial": d.get("serial_number"), "manufacturer": d.get("manufacturer_string")}
+                       for d in hid.enumerate(DP100_VID, DP100_PID)]
+    except Exception:
+        pass
     host = getattr(a, "host", None) or load_config().get("host")
     if host:
         port = int(getattr(a, "port", None) or load_config().get("port") or 5025)
@@ -107,7 +97,7 @@ def cmd_doctor(a) -> None:
             info["hints"].append("check LAN address, firewall, and SCPI/LAN enable")
     if Path("/proc/version").exists() and "microsoft" in Path("/proc/version").read_text().lower():
         info["hints"].append("WSL: attach USB instruments with usbipd before use")
-    if not info["resources"] and not info["usbtmc"] and not info["serial"]:
+    if not info["resources"] and not info["usbtmc"] and not info["serial"] and not info["hid"]:
         info["hints"].append("no instrument found: check cable, driver/udev, and SCPI mode")
     emit(info, as_json=True)
 
@@ -145,18 +135,20 @@ def cmd_discover(a) -> None:
             emit({"ok": False, "error": f"pyvisa unavailable: {e}; use --scan 192.168.1.0/24"},
                  as_json=True)
             return
+    for d in find_dp100():
+        found.append({"hid": "dp100", "serial": d.get("serial_number"),
+                      "path": d.get("path")})
     emit({"ok": True, "instruments": found}, as_json=True)
 
 
 def cmd_idn(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        idn = inst.query("*IDN?")
-        family = getattr(a, "family", None) or detect_family(idn)
-        emit({"ok": True, "resource": inst.resource, "idn": idn,
-              "family": family, "families": list(FAMILIES)}, as_json=True)
+        emit({"ok": True, "resource": dev.resource, "idn": dev.idn,
+              "family": dev.family, "channels": list(dev.channels),
+              "families": list(FAMILIES)}, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_config(a) -> None:
@@ -186,189 +178,163 @@ def cmd_config(a) -> None:
 
 
 def cmd_channels(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        emit({"ok": True, "idn": idn, "family": d.name,
-              "channels": list(d.channels),
+        emit({"ok": True, "idn": dev.idn, "family": dev.family,
+              "channels": list(dev.channels),
               "capabilities": {
-                  "output_state": d.output_state(1) is not None,
-                  "ovp": d.ovp(1, 1) is not None,
-                  "ocp": d.ocp(1, 1) is not None,
-                  "power": d.measure_power(1) is not None,
+                  "output_state": dev.supports_output_state,
+                  "ovp": dev.supports_ovp,
+                  "ocp": dev.supports_ocp,
+                  "power": dev.supports_power,
               }}, as_json=True)
     finally:
-        inst.close()
-
-
-def _validate_channel(d, n):
-    if n not in d.channels:
-        die(f"channel {n} not available; this model has {list(d.channels)}")
+        dev.close()
 
 
 def cmd_set(a) -> None:
-    inst = connect(a)
     voltage = getattr(a, "voltage", None)
     current = getattr(a, "current", None)
     if voltage is None and current is None:
         die("set requires --voltage and/or --current")
     _check_limits(a, voltage, current)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
+        _validate_channel(dev, a.ch)
         if voltage is not None:
-            inst.write(d.set_voltage(a.ch, voltage))
+            dev.set_voltage(a.ch, voltage)
         if current is not None:
-            inst.write(d.set_current(a.ch, current))
-        out = {"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
+            dev.set_current(a.ch, current)
+        out = {"ok": True, "idn": dev.idn, "family": dev.family, "channel": a.ch,
                "voltage": voltage, "current": current}
         if a.verify:
-            got_v = _q_float(inst, d.get_voltage(a.ch))
-            got_i = _q_float(inst, d.get_current(a.ch))
+            got_v = dev.get_voltage(a.ch)
+            got_i = dev.get_current(a.ch)
             out["readback"] = {"voltage": got_v, "current": got_i}
             if voltage is not None and got_v is not None and abs(got_v - voltage) > 0.02 * max(1, abs(voltage)) + 0.01:
                 out["warning"] = f"voltage readback {got_v} differs from setpoint {voltage}"
         emit(out, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_get(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
-              "voltage": _q_float(inst, d.get_voltage(a.ch)),
-              "current": _q_float(inst, d.get_current(a.ch))}, as_json=True)
+        _validate_channel(dev, a.ch)
+        emit({"ok": True, "idn": dev.idn, "family": dev.family, "channel": a.ch,
+              "voltage": dev.get_voltage(a.ch), "current": dev.get_current(a.ch)},
+             as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_measure(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
+        _validate_channel(dev, a.ch)
         items = [x.strip().lower() for x in (a.items or "voltage,current,power").split(",")]
         values = {}
         if "voltage" in items:
-            values["voltage"] = _q_float(inst, d.measure_voltage(a.ch))
+            values["voltage"] = dev.measure_voltage(a.ch)
         if "current" in items:
-            values["current"] = _q_float(inst, d.measure_current(a.ch))
+            values["current"] = dev.measure_current(a.ch)
         if "power" in items:
-            q = d.measure_power(a.ch)
-            p = _q_float(inst, q) if q else None
+            p = dev.measure_power(a.ch) if dev.supports_power else None
             if p is None and values.get("voltage") is not None and values.get("current") is not None:
                 p = values["voltage"] * values["current"]
             values["power"] = p
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
+        emit({"ok": True, "idn": dev.idn, "family": dev.family, "channel": a.ch,
               "measurements": values}, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_output(a) -> None:
     if a.state == "on" and not a.yes:
         die("turning the output ON requires --yes (safety interlock)")
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
-        inst.write(d.output(a.ch, a.state == "on"))
-        out = {"ok": True, "idn": idn, "family": d.name, "channel": a.ch, "state": a.state}
-        q = d.output_state(a.ch)
-        if q:
-            out["readback"] = inst.query(q)
+        _validate_channel(dev, a.ch)
+        dev.output(a.ch, a.state == "on")
+        out = {"ok": True, "idn": dev.idn, "family": dev.family,
+               "channel": a.ch, "state": a.state}
+        q = dev.output_state(a.ch)
+        if q is not None:
+            out["readback"] = q
         emit(out, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_all_off(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
         done = []
-        for ch in d.channels:
+        for ch in dev.channels:
             try:
-                _select(inst, d, ch)
-                inst.write(d.output(ch, False))
+                dev.output(ch, False)
                 done.append(ch)
             except Exception:
                 pass
-        emit({"ok": True, "idn": idn, "family": d.name, "outputs_off": done}, as_json=True)
+        emit({"ok": True, "idn": dev.idn, "family": dev.family, "outputs_off": done},
+             as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_protect(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
-        cmds = []
-        if a.ovp is not None:
-            c = d.ovp(a.ch, a.ovp)
-            if not c:
-                die("OVP is not supported by this dialect")
-            cmds.append(c)
-        if a.ocp is not None:
-            c = d.ocp(a.ch, a.ocp)
-            if not c:
-                die("OCP is not supported by this dialect")
-            cmds.append(c)
-        if not cmds:
+        _validate_channel(dev, a.ch)
+        if a.ovp is None and a.ocp is None:
             die("protect requires --ovp and/or --ocp")
-        for c in cmds:
-            inst.write(c)
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
-              "commands": cmds}, as_json=True)
+        done = []
+        if a.ovp is not None:
+            dev.set_ovp(a.ch, a.ovp)
+            done.append("ovp")
+        if a.ocp is not None:
+            dev.set_ocp(a.ch, a.ocp)
+            done.append("ocp")
+        emit({"ok": True, "idn": dev.idn, "family": dev.family, "channel": a.ch,
+              "set": done}, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_ramp(a) -> None:
     if not a.yes:
         die("ramp changes the output while it may be enabled; pass --yes")
     _check_limits(a, a.to, None)
-    inst = connect(a)
+    dev = open_device(a)
     safe = load_config().get("safe_off", True)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
-        start = a.start if a.start is not None else _q_float(inst, d.get_voltage(a.ch))
+        _validate_channel(dev, a.ch)
+        start = a.start if a.start is not None else dev.get_voltage(a.ch)
         if start is None:
             die("cannot read the current voltage; pass --start")
         step = abs(a.step) or 0.1
         direction = 1 if a.to >= start else -1
         v = start
-        trail = []
+        steps = 0
         try:
             while (direction > 0 and v < a.to) or (direction < 0 and v > a.to):
                 v = min(a.to, v + step) if direction > 0 else max(a.to, v - step)
                 _check_limits(a, v, None)
-                inst.write(d.set_voltage(a.ch, round(v, 4)))
-                trail.append(round(v, 4))
+                dev.set_voltage(a.ch, round(v, 4))
+                steps += 1
                 time.sleep(max(0.0, a.delay))
         except BaseException:
             if safe:
                 try:
-                    _select(inst, d, a.ch)
-                    inst.write(d.output(a.ch, False))
+                    dev.output(a.ch, False)
                 except Exception:
                     pass
             raise
-        emit({"ok": True, "idn": idn, "channel": a.ch, "from": start, "to": a.to,
-              "steps": len(trail), "safe_off": safe}, as_json=True)
+        emit({"ok": True, "idn": dev.idn, "channel": a.ch, "from": start,
+              "to": a.to, "steps": steps, "safe_off": safe}, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_sequence(a) -> None:
@@ -384,53 +350,48 @@ def cmd_sequence(a) -> None:
     steps = data.get("steps", data) if isinstance(data, dict) else data
     if not isinstance(steps, list):
         die("sequence must be a list, or an object with a 'steps' list")
-    inst = connect(a)
+    dev = open_device(a)
     safe = load_config().get("safe_off", True)
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
+        _validate_channel(dev, a.ch)
         applied = []
         for i, step in enumerate(steps):
             v, cur = step.get("voltage"), step.get("current")
             _check_limits(a, v, cur)
             if v is not None:
-                inst.write(d.set_voltage(a.ch, v))
+                dev.set_voltage(a.ch, v)
             if cur is not None:
-                inst.write(d.set_current(a.ch, cur))
+                dev.set_current(a.ch, cur)
             applied.append({"step": i + 1, "voltage": v, "current": cur})
             time.sleep(max(0.0, float(step.get("delay", 0))))
-        emit({"ok": True, "idn": idn, "channel": a.ch, "steps": applied,
+        emit({"ok": True, "idn": dev.idn, "channel": a.ch, "steps": applied,
               "safe_off": safe}, as_json=True)
     except BaseException:
         if safe:
             try:
-                _select(inst, d, a.ch)
-                inst.write(d.output(a.ch, False))
+                dev.output(a.ch, False)
             except Exception:
                 pass
         raise
     finally:
-        inst.close()
+        dev.close()
 
 
 def cmd_log(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     out_path = Path(a.out).expanduser()
     rows = []
     try:
-        d, idn = _dialect(inst, a)
-        _validate_channel(d, a.ch)
-        _select(inst, d, a.ch)
+        _validate_channel(dev, a.ch)
         end = time.time() + a.duration
         while time.time() < end:
-            v = _q_float(inst, d.measure_voltage(a.ch))
-            i = _q_float(inst, d.measure_current(a.ch))
+            v = dev.measure_voltage(a.ch)
+            i = dev.measure_current(a.ch)
             p = v * i if (v is not None and i is not None) else None
             rows.append([time.time(), v, i, p])
             time.sleep(max(0.0, a.interval))
     finally:
-        inst.close()
+        dev.close()
     with out_path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["time", "voltage", "current", "power"])
@@ -440,26 +401,32 @@ def cmd_log(a) -> None:
 
 
 def cmd_scpi(a) -> None:
-    inst = connect(a)
+    dev = open_device(a)
     try:
+        if not isinstance(dev, ScpiDevice):
+            die(f"raw SCPI is not available on {dev.family}")
         if a.query:
-            emit({"ok": True, "command": a.command, "response": inst.query(a.command)},
-                 as_json=True)
+            emit({"ok": True, "command": a.command,
+                  "response": dev.inst.query(a.command)}, as_json=True)
         else:
-            inst.write(a.command)
+            dev.inst.write(a.command)
             emit({"ok": True, "command": a.command, "response": None}, as_json=True)
     finally:
-        inst.close()
+        dev.close()
 
 
 def add_conn(p):
     p.add_argument("--host", help="LAN address (raw socket)")
     p.add_argument("--port", type=int, default=None, help="SCPI port (default 5025)")
     p.add_argument("--resource", help="VISA resource string")
-    p.add_argument("--serial", help="serial port for Korad-style supplies")
+    p.add_argument("--serial", help="serial port (Korad, DPS-150, B&K 168x)")
     p.add_argument("--baud", type=int, default=None)
     p.add_argument("--backend", help="pyvisa backend")
-    p.add_argument("--family", choices=sorted(FAMILIES))
+    p.add_argument("--hid", choices=["dp100"], help="USB HID supply")
+    p.add_argument("--hid-path", help="hidraw path for DP100")
+    p.add_argument("--current-decimals", type=int, default=1,
+                   help="B&K 1685B uses 2")
+    p.add_argument("--family", choices=sorted(FAMILIES) + ["dps150", "bk168x"])
     p.add_argument("--timeout", type=float, default=None)
     p.add_argument("--max-voltage", type=float, default=None)
     p.add_argument("--max-current", type=float, default=None)
@@ -470,7 +437,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="psu.py", description="Generic programmable power supply CLI")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("setup", help="create venv and install pyvisa/pyserial")
+    p = sub.add_parser("setup", help="create venv and install pyvisa/pyserial/hidapi")
     p.add_argument("--dev", action="store_true")
     p.set_defaults(fn=cmd_setup)
 
@@ -478,7 +445,7 @@ def main() -> None:
     add_conn(p)
     p.set_defaults(fn=cmd_doctor)
 
-    p = sub.add_parser("discover", help="list VISA resources or scan a subnet")
+    p = sub.add_parser("discover", help="list VISA/HID resources or scan a subnet")
     p.add_argument("--scan")
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--backend")
@@ -504,7 +471,7 @@ def main() -> None:
     p.add_argument("--ch", type=int, default=1)
     p.add_argument("--voltage", type=float)
     p.add_argument("--current", type=float)
-    p.add_argument("--verify", action="store_true", help="read setpoints back")
+    p.add_argument("--verify", action="store_true")
     p.set_defaults(fn=cmd_set)
 
     p = sub.add_parser("get", help="read voltage/current setpoints")
