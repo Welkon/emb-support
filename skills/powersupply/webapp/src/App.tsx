@@ -456,7 +456,7 @@ export default function App() {
           <div className="h-px bg-gradient-to-r from-primary/60 via-primary/15 to-transparent" />
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
             <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#C96442" />
-            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#7F9DB0" />
+            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#2F8FA8" />
             {caps?.power && <MetricTile label={t.outputPower} value={fmt(data?.measurement.power, 2)} unit="W" sub={`${t.limit} ${data?.limits.max_power ?? "—"} W`} icon={Zap} accent="#7C8C5A" />}
             {caps?.input_voltage && <MetricTile label={t.inputVoltage} value={fmt(data?.measurement.input_voltage, 2)} unit="V" sub={t.dcInput} icon={Cpu} accent="#B08968" />}
           </div>
@@ -490,10 +490,10 @@ export default function App() {
                 </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant={showV ? "secondary" : "outline"} onClick={() => setShowV(!showV)}>
-                    <span className="h-2 w-2 rounded-full bg-[#B4532F] dark:bg-[#E08A6A]" /> V
+                    <span className="h-2 w-2 rounded-full bg-[#B84A25] dark:bg-[#FF8A5C]" /> V
                   </Button>
                   <Button size="sm" variant={showA ? "secondary" : "outline"} onClick={() => setShowA(!showA)}>
-                    <span className="h-2 w-2 rounded-full bg-[#5F7F94] dark:bg-[#9DB4C0]" /> A
+                    <span className="h-2 w-2 rounded-full bg-[#0E7490] dark:bg-[#5CC8E5]" /> A
                   </Button>
                   <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
                     <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>

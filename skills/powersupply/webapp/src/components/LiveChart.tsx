@@ -97,13 +97,17 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     vRangeRef.current = vRange;
     iRangeRef.current = iRange;
     const axis = darkRef.current ? "#94a3b8" : "#64748b";
-    const grid = darkRef.current ? "rgba(148,163,184,0.16)" : "rgba(100,116,139,0.16)";
-    const vColor = darkRef.current ? "#E08A6A" : "#B4532F";
-    const iColor = darkRef.current ? "#9DB4C0" : "#5F7F94";
+    const grid = darkRef.current ? "rgba(148,163,184,0.18)" : "rgba(100,116,139,0.18)";
+    const vStep = (vRange[1] - vRange[0]) / 4;
+    const iStep = (iRange[1] - iRange[0]) / 4;
+    const vDigits = 3;
+    const iDigits = 3;
+    const vColor = darkRef.current ? "#FF8A5C" : "#B84A25";
+    const iColor = darkRef.current ? "#5CC8E5" : "#0E7490";
     chart.setOption({
       animation: false,
       useDirtyRect: true,
-      grid: { left: showVRef.current ? 52 : 16, right: showARef.current ? 56 : 16, top: 42, bottom: 30 },
+      grid: { left: showVRef.current ? 52 : 16, right: showARef.current ? 56 : 16, top: 38, bottom: 28 },
       tooltip: {
         trigger: "axis", confine: true, animation: false,
         backgroundColor: darkRef.current ? "#111827" : "#ffffff",
@@ -124,30 +128,31 @@ export const LiveChart = forwardRef<LiveChartHandle, {
         type: "time", min: start, max: end, boundaryGap: false, showMaxLabel: true, showMinLabel: true,
         axisLine: { lineStyle: { color: grid } },
         axisTick: { show: false },
-        splitLine: { show: false },
+        splitLine: { show: true, lineStyle: { color: grid, type: "dashed", opacity: 0.45 } },
         axisLabel: {
           color: axis, fontSize: 11, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          hideOverlap: true, splitNumber: 6,
           formatter: (value: number) => {
-            const s = Math.round((value - Date.now()) / 1000);
-            return s >= 0 ? "now" : `${s}s`;
+            const sec = Math.round((value - Date.now()) / 1000);
+            return sec >= 0 ? "now" : `${sec}s`;
           },
         },
       },
       yAxis: [
         {
-          type: "value", name: "V", nameGap: 16, nameLocation: "end",
-          nameTextStyle: { color: vColor, align: "left", fontSize: 11, fontWeight: 600 },
+          type: "value",
           show: showVRef.current, min: vRange[0], max: vRange[1], position: "left",
-          axisLine: { show: false }, axisTick: { show: false },
-          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
+          splitNumber: 4, interval: (vRange[1] - vRange[0]) / 4,
+          axisLine: { show: false }, axisTick: { show: true, length: 3, lineStyle: { color: grid } },
+          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace", formatter: (v: number) => v.toFixed(vDigits) },
           splitLine: { lineStyle: { color: grid } },
         },
         {
-          type: "value", name: "A", nameGap: 16, nameLocation: "end",
-          nameTextStyle: { color: iColor, align: "right", fontSize: 11, fontWeight: 600 },
+          type: "value",
           show: showARef.current, min: iRange[0], max: iRange[1], position: "right",
-          axisLine: { show: false }, axisTick: { show: false },
-          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace" },
+          splitNumber: 4, interval: (iRange[1] - iRange[0]) / 4,
+          axisLine: { show: false }, axisTick: { show: true, length: 3, lineStyle: { color: grid } },
+          axisLabel: { color: axis, fontSize: 11, fontFamily: "ui-monospace, monospace", formatter: (v: number) => v.toFixed(iDigits) },
           splitLine: { show: false },
         },
       ],
@@ -155,12 +160,34 @@ export const LiveChart = forwardRef<LiveChartHandle, {
         {
           name: "Voltage", type: "line", data: showVRef.current ? vData : [], yAxisIndex: 0,
           showSymbol: false, smooth: 0.25, animation: false, emphasis: { disabled: true },
-          lineStyle: { width: 2, color: vColor }, itemStyle: { color: vColor },
+          lineStyle: { width: 2.2, color: vColor }, itemStyle: { color: vColor },
+          markLine: {
+            silent: true, symbol: "none",
+            lineStyle: { color: vColor, width: 1, type: "dashed", opacity: 0.35 },
+            label: { show: false },
+            data: vsetRef.current != null ? [{ yAxis: vsetRef.current }] : [],
+          },
         },
         {
           name: "Current", type: "line", data: showARef.current ? iData : [], yAxisIndex: 1,
           showSymbol: false, smooth: 0.25, animation: false, emphasis: { disabled: true },
           lineStyle: { width: 2, color: iColor }, itemStyle: { color: iColor },
+          markLine: {
+            silent: true, symbol: "none",
+            lineStyle: { color: iColor, width: 1, type: "dashed", opacity: 0.3 },
+            label: { show: false },
+            data: isetRef.current != null ? [{ yAxis: isetRef.current }] : [],
+          },
+        },
+        {
+          name: "", type: "scatter", data: showVRef.current && vData.length ? [vData[vData.length - 1]] : [],
+          yAxisIndex: 0, symbolSize: 5, silent: true, tooltip: { show: false },
+          itemStyle: { color: vColor, borderColor: darkRef.current ? "#1E1C1A" : "#FBFAF7", borderWidth: 2 },
+        },
+        {
+          name: "", type: "scatter", data: showARef.current && iData.length ? [iData[iData.length - 1]] : [],
+          yAxisIndex: 1, symbolSize: 5, silent: true, tooltip: { show: false },
+          itemStyle: { color: iColor, borderColor: darkRef.current ? "#1E1C1A" : "#FBFAF7", borderWidth: 2 },
         },
       ],
     }, { lazyUpdate: true });
@@ -230,9 +257,15 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     return () => { cancelled = true; es?.close(); };
   }, [historyUrl, streamUrl, appendPoint]);
 
+  const vC = dark ? "#FF8A5C" : "#B84A25";
+  const iC = dark ? "#5CC8E5" : "#0E7490";
   return (
     <div className="relative w-full" style={{ height }}>
       <div ref={hostRef} className="h-full w-full" />
+      <div className="pointer-events-none absolute inset-x-0 top-1.5 flex items-center justify-between px-[56px] font-mono text-[10px] font-semibold tracking-widest">
+        {showV && <span style={{ color: vC }}>V</span>}
+        {showA && <span style={{ color: iC }}>A</span>}
+      </div>
       {!hasData && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
           waiting for samples…
