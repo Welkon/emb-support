@@ -100,8 +100,6 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const grid = darkRef.current ? "rgba(148,163,184,0.16)" : "rgba(100,116,139,0.16)";
     const vColor = "#3b82f6";
     const iColor = "#f59e0b";
-    if (vData.length) vData.push([end, vData[vData.length - 1][1]]);
-    if (iData.length) iData.push([end, iData[iData.length - 1][1]]);
     chart.setOption({
       animation: false,
       useDirtyRect: true,

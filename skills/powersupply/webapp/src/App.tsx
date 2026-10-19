@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
-  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
+  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Volume2, VolumeX, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ const STR = {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
     presets: "Presets", savePreset: "Save current", presetPlaceholder: "Select a preset…",
+    soundOn: "Sound on", soundOff: "Muted",
     wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)", applyHint: "Enter or click away to apply",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
@@ -78,6 +79,7 @@ const STR = {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
     presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
+    soundOn: "音效开", soundOff: "静音",
     wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）", applyHint: "回车或移出输入框即应用",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
@@ -203,6 +205,34 @@ export default function App() {
   const [headerH, setHeaderH] = useState(72);
   const [toast, setToast] = useState<{ title: string; detail: string } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  const [sound, setSound] = useState(() => localStorage.getItem("psu-sound") !== "0");
+  const soundRef = useRef(sound);
+  const audioRef = useRef<AudioContext | null>(null);
+  const prevOutputRef = useRef<string | null>(null);
+  const prevAlertSoundRef = useRef("");
+  soundRef.current = sound;
+  const playTone = useCallback((freq: number, duration = 0.09, delay = 0, gain = 0.035) => {
+    if (!soundRef.current) return;
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      let ctx = audioRef.current;
+      if (!ctx) { ctx = new Ctx(); audioRef.current = ctx; }
+      if (ctx.state === "suspended") void ctx.resume();
+      const at = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const amp = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, at);
+      amp.gain.setValueAtTime(0.0001, at);
+      amp.gain.exponentialRampToValueAtTime(gain, at + 0.012);
+      amp.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+      osc.connect(amp).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + duration + 0.03);
+    } catch { /* audio is optional */ }
+  }, []);
+  useEffect(() => { localStorage.setItem("psu-sound", sound ? "1" : "0"); }, [sound]);
   const [presets, setPresets] = useState<Preset[]>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem("psu-presets") || "null");
@@ -265,6 +295,16 @@ export default function App() {
     const id = setInterval(() => setSampleCount(chartRef.current?.history().length ?? 0), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const current = (data?.output || "").toUpperCase() === "ON";
+    const prev = prevOutputRef.current;
+    if (prev !== null && prev !== current) {
+      if (current) { playTone(660, 0.1); playTone(880, 0.14, 0.11); }
+      else { playTone(520, 0.1); playTone(390, 0.15, 0.11); }
+    }
+    prevOutputRef.current = current;
+  }, [data?.output, playTone]);
 
   const run = async (fn: () => Promise<State>) => {
     setBusy(true);
@@ -337,6 +377,14 @@ export default function App() {
   }, [alert?.title, alert?.detail, fault, connected, overtemp]);
 
   useEffect(() => {
+    const signature = fault ? `fault:${work}` : (!connected && data ? "offline" : overtemp ? "overtemp" : "");
+    if (signature && signature !== prevAlertSoundRef.current) {
+      playTone(520, 0.14); playTone(400, 0.14, 0.16); playTone(520, 0.16, 0.32);
+    }
+    prevAlertSoundRef.current = signature;
+  }, [fault, work, connected, data, overtemp, playTone]);
+
+  useEffect(() => {
     // Pop a native alert once per distinct severe condition; reset after recovery.
     const signature = fault ? `fault:${work}` : (!connected && data ? "offline" : overtemp ? "overtemp" : "");
     if (!signature) { lastAlertRef.current = ""; return; }
@@ -393,6 +441,10 @@ export default function App() {
               ))}
             </div>
             {fault && <Badge variant="destructive"><AlertTriangle className="h-3 w-3" /> {workName}</Badge>}
+            <Button variant="outline" size="sm" title={sound ? t.soundOn : t.soundOff}
+              onClick={() => { const next = !sound; soundRef.current = next; setSound(next); if (next) playTone(880, 0.1); }}>
+              {sound ? <Volume2 /> : <VolumeX />}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setLang(lang === "en" ? "zh" : "en")} title="Language"><Languages /> {lang === "en" ? "中文" : "EN"}</Button>
             <Button variant="outline" size="sm" onClick={() => setDark(!dark)} title="Theme">{dark ? <Sun /> : <Moon />} {dark ? t.light : t.dark}</Button>
           </div>
