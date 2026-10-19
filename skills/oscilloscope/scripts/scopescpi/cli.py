@@ -19,8 +19,10 @@ from .common import (
 from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument, connect
 from .dialects import FAMILIES, detect_family, make_dialect
 from .acquisition import (
-    ITEM_MAP, MEASURE_ITEMS, acquire_channels, measure_channel, stats,
+    ITEM_MAP, MEASURE_ITEMS, acquire_channels, acquire_with_recovery,
+    measure_channel, stats,
 )
+from .quality import check as check_quality
 
 def _python_ok() -> bool:
     try:
@@ -224,13 +226,22 @@ def cmd_capture(a) -> None:
     try:
         d, idn = _dialect_for(a, inst)
         channels = [int(x) for x in a.channels.split(",") if x.strip()]
+        recovery = []
         try:
-            data = acquire_channels(inst, d, channels, a.points)
-        except RuntimeError as e:
-            die(str(e))
-        summary = {"ok": True, "idn": idn, "family": d.name, "channels": {}}
+            if a.no_recovery:
+                data = acquire_channels(inst, d, channels, a.points)
+            else:
+                data, recovery = acquire_with_recovery(
+                    inst, d, channels, a.points,
+                    attempts=3, allow_autoset=a.autoset_on_empty)
+        except Exception as e:  # noqa: BLE001
+            die(f"capture failed after retries: {e}")
+        summary = {"ok": True, "idn": idn, "family": d.name, "channels": {},
+                   "recovery": recovery}
         for ch, item in data.items():
             st = stats(item["volts"], item["times"])
+            if not a.no_quality:
+                st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
             summary["channels"][str(ch)] = st
         if a.out:
             path = Path(a.out).expanduser()
@@ -258,6 +269,10 @@ def cmd_capture(a) -> None:
                 lines.append(f"CH{ch}: {st.get('points')} pts  Vpp={st.get('vpp'):.4g}V "
                              f"mean={st.get('mean'):.4g}V" +
                              (f"  f={st['freq']:.4g}Hz" if "freq" in st else ""))
+                for w in st.get("quality", []):
+                    lines.append(f"  [{w['severity']}] {w['code']}: {w['message']} -> {w['suggestion']}")
+            for step in recovery:
+                lines.append(f"  recovery: attempt {step['attempt']} -> {step['recovery']}")
             if a.out:
                 lines.append(f"saved: {a.out}")
             emit(summary, "\n".join(lines))
@@ -433,14 +448,18 @@ def cmd_monitor(a) -> None:
             if not captured:
                 break
             try:
-                data = acquire_channels(inst, d, channels, a.points)
-            except RuntimeError as e:
-                die(str(e))
+                data, rec = acquire_with_recovery(inst, d, channels, a.points, attempts=2)
+            except Exception as e:  # noqa: BLE001
+                die(f"monitor capture failed: {e}")
             stem = outdir / f"{a.prefix}-{i + 1:02d}"
             _write_csv(stem.with_suffix(".csv"), data)
-            summary = {"idn": idn, "family": d.name, "event": i + 1, "channels": {}}
+            summary = {"idn": idn, "family": d.name, "event": i + 1,
+                       "recovery": rec, "channels": {}}
             for ch, item in data.items():
-                summary["channels"][str(ch)] = stats(item["volts"], item["times"])
+                st = stats(item["volts"], item["times"])
+                if not a.no_quality:
+                    st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
+                summary["channels"][str(ch)] = st
             stem.with_suffix(".json").write_text(json.dumps(summary, indent=2))
             events.append({"event": i + 1, "csv": str(stem.with_suffix(".csv")),
                            "json": str(stem.with_suffix(".json")),
@@ -476,6 +495,7 @@ def cmd_analyze(a) -> None:
         die(f"file not found: {path}")
     header, times, volts = read_csv_capture(path)
     out = stats(volts, times)
+    out["warnings"] = check_quality(volts, times)
     out["file"] = str(path)
     out["columns"] = header
     out["logic_levels"] = _logic_levels(volts)
@@ -569,6 +589,10 @@ def main() -> None:
     p.add_argument("--points", type=int, help="requested sample count")
     p.add_argument("--out", help="output file (csv/json/npz)")
     p.add_argument("--format", choices=["csv", "json", "npz"])
+    p.add_argument("--no-recovery", action="store_true", help="fail immediately instead of retrying")
+    p.add_argument("--autoset-on-empty", action="store_true",
+                   help="allow autoset as the last recovery step (changes instrument state)")
+    p.add_argument("--no-quality", action="store_true", help="skip signal-quality warnings")
     p.set_defaults(fn=cmd_capture)
 
     p = sub.add_parser("measure", help="automatic measurements")
@@ -614,6 +638,7 @@ def main() -> None:
     p.add_argument("--pulse-when", choices=["less", "greater", "less-equal", "greater-equal"],
                    help="pulse width comparison")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-quality", action="store_true")
     p.set_defaults(fn=cmd_monitor)
 
     p = sub.add_parser("analyze", help="analyze a captured CSV offline")

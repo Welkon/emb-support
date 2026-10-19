@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 def to_volts(raw, meta: dict) -> list[float]:
     yincr, yorig, yref = meta["yincr"], meta["yorig"], meta["yref"]
@@ -120,3 +121,46 @@ def measure_channel(inst, dialect, ch, items):
 
 
 # -------------------------------------------------------------------- commands
+
+
+def _recover_step(inst, dialect, attempt, allow_autoset):
+    try:
+        if attempt == 0:
+            inst.query("*OPC?")
+            return "wait-opc"
+        if attempt == 1:
+            inst.write(dialect.run())
+            try:
+                inst.write(dialect.force_trigger())
+            except Exception:
+                pass
+            return "run+force-trigger"
+        if allow_autoset:
+            inst.write(dialect.autoset())
+            time.sleep(0.5)
+            return "autoset"
+    except Exception as e:  # noqa: BLE001
+        return f"recovery failed: {type(e).__name__}: {e}"
+    return "none"
+
+
+def acquire_with_recovery(inst, dialect, channels, points,
+                          attempts: int = 3, allow_autoset: bool = False):
+    """Acquire channels, retrying with OPC wait / run+force / autoset."""
+    log: list[dict] = []
+    last: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            data = acquire_channels(inst, dialect, channels, points)
+            empty = [ch for ch, item in data.items() if len(item["volts"]) < 2]
+            if not empty:
+                return data, log
+            last = RuntimeError(f"empty waveform on channel(s) {empty}")
+        except Exception as e:  # noqa: BLE001
+            last = e
+        if attempt + 1 < attempts:
+            step = _recover_step(inst, dialect, attempt, allow_autoset)
+            log.append({"attempt": attempt + 1,
+                        "issue": f"{type(last).__name__}: {last}",
+                        "recovery": step})
+    raise last if last else RuntimeError("acquisition failed")

@@ -40,6 +40,8 @@ class Dialect:
     def trigger_slope(self, v): return f":TRIGger:EDGE:SLOPe {v}"
     def trigger_sweep(self, v): return f":TRIGger:SWEep {v}"
     def trigger_type(self): return ":TRIGger:MODE EDGE"
+    def force_trigger(self): return ":TRIGger:FORCe"
+    def autoset(self): return ":AUToscale"
     def trigger_pulse(self, width, polarity="POSitive", when="LESSthan"):
         return []
     def arm_single(self): return [self.single()]

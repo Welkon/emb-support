@@ -60,6 +60,8 @@ class TektronixDialect(Dialect):
     def arm_single(self):
         return [":ACQuire:STOPAfter SEQuence", ":ACQuire:STATE RUN"]
 
+    def autoset(self): return ":AUTOSet EXECute"
+
     def state_queries(self):
         return [":ACQuire:STATE?", ":TRIGger:STATe?"]
 

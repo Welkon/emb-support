@@ -30,6 +30,7 @@ from scopescpi.dialects import *  # noqa: F401,F403
 from scopescpi.dialects import _q_first, parse_wavedesc  # noqa: F401
 from scopescpi.acquisition import *  # noqa: F401,F403
 from scopescpi.acquisition import _edges  # noqa: F401
+from scopescpi.quality import check as check_quality  # noqa: F401
 from scopescpi.cli import main  # noqa: F401
 
 

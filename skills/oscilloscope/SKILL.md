@@ -123,6 +123,23 @@ scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 
 通用连接参数：`--host`、`--port 5025`、`--resource`、`--backend`、`--family`、`--timeout`、`--json`。
 
+## 5.5 自愈与信号质量
+
+`capture` 默认带两级保护：
+
+1. **失败重试**：空波形/超时会依次尝试 `*OPC?` 等待 → `:RUN` + 强制触发 → autoset（仅在加 `--autoset-on-empty` 时）。
+   返回 JSON 的 `recovery` 字段记录每次尝试和采取的动作；`--no-recovery` 可关闭。
+2. **信号质量检查**：每通道输出 `quality` 警告：
+   - `FLAT`：几乎没有幅度
+   - `CLIPPING`：大量样本贴住极值（可能削顶）
+   - `DC_OFFSET`：直流偏置过大
+   - `LOW_RESOLUTION`：只占用了很少 ADC 码
+   - `ALIASING`：测量频率接近奈奎斯特
+   - `EMPTY`：没有采样点
+
+每条警告都带 `suggestion`。`--no-quality` 可关闭；`analyze` 对离线 CSV 也做同样检查。
+`monitor` 同样带质量检查。
+
 ## 6. 安全边界
 
 - `channel/timebase/trigger/run/autoscale` 会改变仪器实时状态。用户没有明确要求时，先只读。

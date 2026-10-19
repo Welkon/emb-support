@@ -33,6 +33,7 @@ class OwonDialect(Dialect):
     def single(self): return ":TRIGger:SINGle:Sweep SINGLE"
     def arm_single(self): return [":TRIGger:SINGle:Sweep SINGLE", ":RUNning RUN"]
     def state_queries(self): return [":TRIG:STAT?"]
+    def autoset(self): return ":AUTOset on"
 
     def trigger_source(self, n): return f":TRIGger:SINGle:SOURce CH{n}"
     def trigger_level(self, v): return f":TRIGger:SINGle:EDGe:LEVel {fnum(v)}"
