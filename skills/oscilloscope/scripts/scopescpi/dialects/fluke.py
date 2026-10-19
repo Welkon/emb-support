@@ -25,6 +25,31 @@ class FlukeDialect(Dialect):
     def screenshot_queries(self): return [":DISPlay:DATA?"]
 
     def acquire(self, inst, ch, points):
-        raise RuntimeError(
-            "Fluke CombiScope traces use TRACe?/TRACe:POINts with instrument-specific "
-            "scaling; capture is not implemented. Use measure/scpi or FlukeView.")
+        bits = 16 if (points and points > 8192) else 8
+        inst.write(f"FORMat INTeger,{bits}")
+        n = int(points or 4096)
+        inst.write(f"TRACe:POINts CH{ch},{n}")
+        payload = inst.query_block(f"TRACe? CH{ch}")
+        if not payload:
+            raise RuntimeError("empty Fluke TRACe response")
+        fmt = payload[0]
+        body = payload[1:]
+        if len(body) >= 2:
+            body = body[:-2]  # checksum + newline
+        if fmt == 16:
+            samples = [int.from_bytes(body[i:i + 2], "big") for i in range(0, len(body) - 1, 2)]
+            divisor = 51200.0
+        else:
+            samples = list(body)
+            divisor = 200.0
+
+        ptpeak = float(inst.query("SENSe:VOLTage:RANGe:PTPeak?"))
+        offset = float(inst.query("SENSe:VOLTage:RANGe:OFFSet?"))
+        sweep = float(inst.query("SENSe:SWEep:TIME?"))
+        dt = sweep / len(samples) if samples else 1.0
+        meta = {
+            "points": len(samples), "count": len(samples), "format": fmt, "type": 0,
+            "xincr": dt, "xorig": -sweep / 2, "xref": 0,
+            "yincr": ptpeak / divisor, "yorig": -offset, "yref": 0,
+        }
+        return meta, samples

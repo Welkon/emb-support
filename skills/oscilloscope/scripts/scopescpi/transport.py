@@ -71,6 +71,24 @@ class SocketInstrument:
         size = int.from_bytes(self._read_exact(4), "little")
         return self._read_exact(size) if size else b""
 
+    def read_message(self, cmd: str) -> bytes:
+        """Read one transport message verbatim (vendor-specific framing)."""
+        self.write(cmd)
+        old = self.sock.gettimeout()
+        self.sock.settimeout(0.3)
+        buf = b""
+        try:
+            while True:
+                chunk = self.sock.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+        except (socket.timeout, TimeoutError):
+            pass
+        finally:
+            self.sock.settimeout(old)
+        return buf
+
 
 class VisaInstrument:
     """pyvisa / pyvisa-py backend: USBTMC, VXI-11, serial, GPIB."""
@@ -125,6 +143,10 @@ class VisaInstrument:
             return b""
         size = int.from_bytes(head, "little")
         return bytes(self.inst.read_bytes(size)) if size else b""
+
+    def read_message(self, cmd: str) -> bytes:
+        self.inst.write(cmd)
+        return bytes(self.inst.read_raw())
 
 
 class UsbtmcInstrument:

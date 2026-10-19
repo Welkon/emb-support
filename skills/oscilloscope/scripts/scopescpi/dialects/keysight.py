@@ -19,9 +19,21 @@ class KeysightDialect(Dialect):
 
 
 class RnsDialect(KeysightDialect):
+    """Rohde & Schwarz RTB/RTO/HMO: CHANnel<n>:DATA? plus X/Y increment queries."""
+
     name = "rns"
 
     def acquire(self, inst, ch, points):
-        raise RuntimeError(
-            "R&S RTB/RTO/HMO waveform transfer uses :CHANnel<n>:DATA? with a header "
-            "query; not implemented for this dialect yet. Use scpi or the vendor tool.")
+        inst.write("FORMat UINT,8")
+        raw = inst.query_block(f"CHANnel{ch}:DATA?")
+        samples = list(raw)
+        meta = {
+            "points": len(samples), "count": len(samples), "format": 0, "type": 0,
+            "xincr": float(inst.query(f"CHANnel{ch}:DATA:XINCrement?")),
+            "xorig": float(inst.query(f"CHANnel{ch}:DATA:XORigin?")),
+            "xref": 0,
+            "yincr": float(inst.query(f"CHANnel{ch}:DATA:YINCrement?")),
+            "yorig": float(inst.query(f"CHANnel{ch}:DATA:YORigin?")),
+            "yref": 0,
+        }
+        return meta, samples

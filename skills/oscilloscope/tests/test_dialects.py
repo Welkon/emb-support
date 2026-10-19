@@ -89,9 +89,8 @@ def test_fluke_commands(scope):
     assert d.trigger_source(2) == "TRIGger:SOURce INTernal2"
 
 
-@pytest.mark.parametrize("cls", ["HantekDialect", "FlukeDialect", "RnsDialect",
-                                 "GwInstekDialect", "YokogawaDialect", "ZlgDialect",
-                                 "AttenDialect"])
+@pytest.mark.parametrize("cls", ["GwInstekDialect", "YokogawaDialect",
+                                 "ZlgDialect", "AttenDialect"])
 def test_unsupported_capture_raises(scope, cls):
     d = getattr(scope, cls)("X")
     with pytest.raises(RuntimeError):

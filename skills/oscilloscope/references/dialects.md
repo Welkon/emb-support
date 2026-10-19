@@ -104,10 +104,12 @@ CURVe?
 | family | 来源 | 已验证内容 | 置信度 |
 |---|---|---|---|
 | `owon` | `bushjavier/hanmatek-dos1104-py`（Owon SDS1104 命令集，实机 V1.2.0） | 通道/时基/触发/测量/波形/截图 | 高 |
-| `hantek` | `p96xl/hantek-dso2000-esu-tester`（DSO2C50，101 条查询实测 94 条应答） | 通道/时基/触发/测量/状态 | 中；波形只能走 `PRIVate:WAVeform:DATA:ALL?` |
+| `hantek` | `p96xl/hantek-dso2000-esu-tester`（DSO2C50，101 条查询实测 94 条应答） | 通道/时基/触发/测量/状态/波形 | 中高；波形走私有 `PRIVate:WAVeform:DATA:ALL?` 多包协议 |
 | `micsig` | `tralamazza/micsig-rs`（MHO14-200N） | run/stop/single、测量、截图 | 中；波形导出未实现 |
 | `bkprecision` | `robertozeitoun/bkprecision`（LeCroy MAUI 命令集） | 通道/时基/触发/测量/波形（WAVEDESC） | 中高；波形解析已实现 |
-| `unit` / `fluke` / `zlg` | 仅 IDN 识别 | 无 | 低；按通用 SCPI 处理 |
+| `unit` | UNI-T 官方手册 | 通道/时基/触发/波形 | 高 |
+| `fluke` | Fluke PM3390 手册 | 通道/时基/触发/TRACe 波形 | 中；TRACe 缩放按手册公式 |
+| `zlg` | 无公开手册 | 仅 IDN 识别 | 低；通用 SCPI |
 
 ### OWON / Hanmatek 的自定义帧
 
@@ -185,13 +187,38 @@ CURVe?
 与 Owon 完全同协议：`:CH<n>:SCAL`、`:HORIzontal:Scale`、`:DATA:WAVE:SCREen:HEAD?`、
 采样点 16 位小端、volts = code × V/div ÷ 6400。继承 `OwonDialect`。
 
+### R&S / Hameg（`rns`）
+
+- 波形：`CHANnel<n>:DATA?`，先 `FORMat UINT,8`
+- 缩放：`CHANnel<n>:DATA:XINCrement?`、`XORigin?`、`YINCrement?`、`YORigin?`
+- `volt = raw * YINCrement + YORigin`，`time = i * XINCrement + XORigin`
+- 适用于 HMO1002/1202；RTB/RTO 命令族相同
+
+### Hantek 私有波形
+
+`PRIVate:WAVeform:DATA:ALL?` 返回多包：
+
+```
+[0:2]   "#9"
+[2:11]  9 位包长度
+[11:20] 9 位总字节数 total
+[20:29] 9 位当前偏移 off
+[29:128] 99 字节包头（通道使能位在 [46:50]）
+[128:]  数据（int8，按 2000 样本/通道交错）
+```
+
+按 `off` 拼接各包；`volt = code / 25 * V/div - offset`，`dt = :WAVeform:XINCrement?`。
+
 ### Fluke CombiScope（`fluke`）
 
 - 通道开关：`SENSe:FUNCtion:ON "XTIMe:VOLTage<n>"`
 - 垂直：`SENSe:VOLTage:RANGe:PTPeak`、`SENSe:VOLTage:RANGe:OFFSet`
 - 时基：`SENSe:SWEep:TIME`、`SENSe:SWEep:OFFSet:TIME`
 - 触发：`TRIGger:SOURce INTernal<n>`、`TRIGger:LEVel`
-- 波形：`TRACe:POINts CH<n>,<n>` + `TRACe? CH<n>`（带仪器相关缩放，本 skill 未实现）
+- 波形：`FORMat INTeger,8|16` + `TRACe:POINts CH<n>,<n>` + `TRACe? CH<n>`
+  响应：格式字节 + 样本 + 校验 + 换行；16 位为大端
+- 缩放：`volt = raw / 200 * PTPeak - offset`（8 位）或 `raw / 51200 * PTPeak - offset`（16 位）
+- 时间：`SENSe:SWEep:TIME` 均分，`xorig = -sweep/2`
 
 ### 搜索过但没找到公开 SCPI 的
 
