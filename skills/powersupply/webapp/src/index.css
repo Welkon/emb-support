@@ -62,14 +62,6 @@
       radial-gradient(900px 480px at 15% -10%, hsl(217 91% 60% / 0.10), transparent 70%),
       radial-gradient(700px 400px at 110% 0%, hsl(262 70% 60% / 0.06), transparent 70%);
   }
-  @keyframes output-breathe {
-    0%, 100% { box-shadow: 0 0 0 1px hsl(var(--success) / 0.35), 0 0 18px -10px hsl(var(--success) / 0.35); }
-    50% { box-shadow: 0 0 0 1px hsl(var(--success) / 0.65), 0 0 32px -8px hsl(var(--success) / 0.55); }
-  }
-  .output-on { animation: output-breathe 2.8s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) {
-    .output-on { animation: none; box-shadow: 0 0 0 1px hsl(var(--success) / 0.5); }
-  }
   ::selection { @apply bg-primary/25; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }

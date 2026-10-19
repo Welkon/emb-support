@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
   Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
@@ -365,10 +365,11 @@ export default function App() {
                   <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
                   {connected ? t.connected : data ? t.disconnected : t.connecting}
                 </Badge>
-                <Badge variant={on ? "success" : "outline"} className="gap-1.5 px-3">
+                <Badge variant={on ? "success" : "outline"}
+                  className={cn("gap-1.5 px-3 transition-colors", on && "border-success bg-success text-success-foreground shadow-sm")}>
                   {on ? (
                     <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-foreground/70" />
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-foreground/60" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-success-foreground" />
                     </span>
                   ) : <Power className="h-3 w-3" />}
@@ -586,10 +587,22 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
   const outputOn = (data?.output || "").toUpperCase() === "ON";
+  const reduceMotion = useReducedMotion();
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
-    <Card className={cn("flex h-full flex-col transition-colors duration-500", outputOn && "output-on border-success/50")}>
+    <Card className={cn("relative flex h-full flex-col transition-colors duration-500", outputOn && "border-success/60")}>
+      {outputOn && (
+        <>
+          <motion.div aria-hidden
+            className="pointer-events-none absolute -inset-1 rounded-2xl"
+            animate={reduceMotion
+              ? { boxShadow: "0 0 24px 2px rgba(34,197,94,0.35)" }
+              : { boxShadow: ["0 0 0px 0px rgba(34,197,94,0)", "0 0 32px 5px rgba(34,197,94,0.5)", "0 0 0px 0px rgba(34,197,94,0)"] }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }} />
+          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.05]" />
+        </>
+      )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">{t.control}
           {outputOn && (
