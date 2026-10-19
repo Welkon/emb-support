@@ -4,52 +4,52 @@
 
 @layer base {
   :root {
-    --background: 200 25% 98%;
-    --foreground: 210 30% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 210 30% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 30% 12%;
-    --border: 200 15% 88%;
-    --input: 200 15% 84%;
-    --ring: 190 85% 40%;
-    --primary: 190 90% 32%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 200 18% 94%;
-    --secondary-foreground: 210 25% 16%;
-    --destructive: 6 72% 48%;
-    --destructive-foreground: 0 0% 100%;
-    --muted: 200 20% 95%;
-    --muted-foreground: 210 12% 42%;
-    --accent: 190 60% 92%;
-    --accent-foreground: 190 80% 22%;
-    --success: 158 64% 32%;
-    --success-foreground: 0 0% 100%;
-    --radius: 0.7rem;
+    --background: 43 27% 94%;
+    --foreground: 40 8% 11%;
+    --card: 44 30% 97%;
+    --card-foreground: 40 8% 11%;
+    --popover: 44 30% 97%;
+    --popover-foreground: 40 8% 11%;
+    --border: 40 12% 82%;
+    --input: 40 12% 78%;
+    --ring: 18 55% 48%;
+    --primary: 18 55% 45%;
+    --primary-foreground: 43 30% 97%;
+    --secondary: 42 20% 89%;
+    --secondary-foreground: 40 8% 15%;
+    --destructive: 5 62% 42%;
+    --destructive-foreground: 43 30% 97%;
+    --muted: 42 20% 91%;
+    --muted-foreground: 40 6% 40%;
+    --accent: 18 50% 90%;
+    --accent-foreground: 18 55% 32%;
+    --success: 145 34% 30%;
+    --success-foreground: 43 30% 97%;
+    --radius: 0.35rem;
   }
   .dark {
-    --background: 205 35% 6%;
-    --foreground: 200 25% 94%;
-    --card: 205 28% 9%;
-    --card-foreground: 200 25% 94%;
-    --popover: 205 30% 8%;
-    --popover-foreground: 200 25% 94%;
-    --border: 205 18% 18%;
-    --input: 205 18% 22%;
-    --ring: 187 80% 55%;
-    --primary: 187 85% 48%;
-    --primary-foreground: 205 40% 6%;
-    --secondary: 205 20% 14%;
-    --secondary-foreground: 200 20% 90%;
-    --destructive: 6 65% 52%;
-    --destructive-foreground: 0 0% 100%;
-    --muted: 205 22% 13%;
-    --muted-foreground: 200 12% 64%;
-    --accent: 195 30% 17%;
-    --accent-foreground: 187 80% 70%;
-    --success: 158 65% 45%;
-    --success-foreground: 205 40% 6%;
-    --radius: 0.7rem;
+    --background: 40 8% 8%;
+    --foreground: 43 20% 90%;
+    --card: 40 8% 11%;
+    --card-foreground: 43 20% 90%;
+    --popover: 40 8% 9%;
+    --popover-foreground: 43 20% 90%;
+    --border: 40 7% 20%;
+    --input: 40 7% 24%;
+    --ring: 18 60% 58%;
+    --primary: 18 63% 59%;
+    --primary-foreground: 40 10% 8%;
+    --secondary: 40 7% 15%;
+    --secondary-foreground: 43 15% 85%;
+    --destructive: 5 58% 48%;
+    --destructive-foreground: 43 20% 95%;
+    --muted: 40 7% 14%;
+    --muted-foreground: 40 7% 60%;
+    --accent: 40 8% 17%;
+    --accent-foreground: 18 60% 70%;
+    --success: 145 32% 44%;
+    --success-foreground: 40 10% 8%;
+    --radius: 0.35rem;
   }
   * { @apply border-border; }
   html { color-scheme: light; }
@@ -57,15 +57,19 @@
   body {
     @apply bg-background text-foreground antialiased font-sans;
     background-image:
-      radial-gradient(900px 460px at 12% -12%, hsl(190 60% 62% / 0.12), transparent 70%),
-      radial-gradient(700px 380px at 105% 0%, hsl(38 75% 58% / 0.06), transparent 70%);
+      linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px),
+      radial-gradient(900px 460px at 12% -12%, hsl(18 55% 60% / 0.08), transparent 70%);
+    background-size: 36px 36px, 36px 36px, auto;
     background-attachment: fixed;
     transition: background-color .2s ease, color .2s ease;
   }
   html.dark body {
     background-image:
-      radial-gradient(900px 480px at 15% -10%, hsl(190 70% 50% / 0.12), transparent 70%),
-      radial-gradient(700px 400px at 110% 0%, hsl(38 75% 55% / 0.06), transparent 70%);
+      linear-gradient(hsl(var(--border) / 0.45) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.45) 1px, transparent 1px),
+      radial-gradient(900px 480px at 15% -10%, hsl(18 60% 50% / 0.08), transparent 70%);
+    background-size: 36px 36px, 36px 36px, auto;
   }
   ::selection { @apply bg-primary/25; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }

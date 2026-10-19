@@ -162,7 +162,8 @@ scripts/psu.py web --host 192.168.1.60 --bind 127.0.0.1 --web-port 8765
   恢复后再次异常会重新提醒。
 - 提供：设压设流、输出 ON/OFF（ON 需要浏览器确认 + API `confirm`）、OVP/OCP、
   实时 V/I/P/温度读数、设备信息、序列输出、电压/电流扫描、CSV 下载。
-- 视觉：Geist / Geist Mono 字体，深青绿 + 琥珀高对比仪器配色；输出 ON 为翠绿实心状态。
+- 视觉：Claude 式暖橙/象牙/墨黑 + 工业风网格与直角面板；Geist / Geist Mono 字体；
+  电压用橙色、电流用钢蓝；输出 ON 为实心绿色状态。
 - DP100 的 `/api/state` 用一次 `snapshot()` 合并 HID 读取，不再为每个测量值各读一遍。
 - 服务端同样执行电压/电流上限检查；网页不是绕过安全层的通道。
 

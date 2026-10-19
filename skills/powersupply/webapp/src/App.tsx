@@ -397,7 +397,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1440px] space-y-5 px-5 pb-6 lg:px-8" style={{ paddingTop: headerH + 8 }}>
-        <header ref={headerRef} className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <header ref={headerRef} className="fixed inset-x-0 top-0 z-40 border-t-2 border-t-primary border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="mx-auto max-w-[1440px] px-5 py-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -455,10 +455,10 @@ export default function App() {
         <div className="overflow-hidden border-y border-border">
           <div className="h-px bg-gradient-to-r from-primary/60 via-primary/15 to-transparent" />
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
-            <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#60a5fa" />
-            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#fbbf24" />
-            {caps?.power && <MetricTile label={t.outputPower} value={fmt(data?.measurement.power, 2)} unit="W" sub={`${t.limit} ${data?.limits.max_power ?? "—"} W`} icon={Zap} accent="#34d399" />}
-            {caps?.input_voltage && <MetricTile label={t.inputVoltage} value={fmt(data?.measurement.input_voltage, 2)} unit="V" sub={t.dcInput} icon={Cpu} accent="#a78bfa" />}
+            <MetricTile label={t.outputVoltage} value={fmt(data?.measurement.voltage, 3)} unit="V" sub={`${t.vset} ${fmt(data?.setpoint.voltage, 3)} V`} icon={Gauge} accent="#C96442" />
+            <MetricTile label={t.outputCurrent} value={fmt(data?.measurement.current, 3)} unit="A" sub={`${t.iset} ${fmt(data?.setpoint.current, 3)} A`} icon={Activity} accent="#7F9DB0" />
+            {caps?.power && <MetricTile label={t.outputPower} value={fmt(data?.measurement.power, 2)} unit="W" sub={`${t.limit} ${data?.limits.max_power ?? "—"} W`} icon={Zap} accent="#7C8C5A" />}
+            {caps?.input_voltage && <MetricTile label={t.inputVoltage} value={fmt(data?.measurement.input_voltage, 2)} unit="V" sub={t.dcInput} icon={Cpu} accent="#B08968" />}
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border px-5 py-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><Waves className="h-3 w-3" /> {t.mode} <b className="font-mono text-foreground">{data?.status?.output_mode ?? "—"}</b></span>
@@ -490,10 +490,10 @@ export default function App() {
                 </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant={showV ? "secondary" : "outline"} onClick={() => setShowV(!showV)}>
-                    <span className="h-2 w-2 rounded-full bg-[#0e7490] dark:bg-[#22d3ee]" /> V
+                    <span className="h-2 w-2 rounded-full bg-[#B4532F] dark:bg-[#E08A6A]" /> V
                   </Button>
                   <Button size="sm" variant={showA ? "secondary" : "outline"} onClick={() => setShowA(!showA)}>
-                    <span className="h-2 w-2 rounded-full bg-[#b45309] dark:bg-[#fbbf24]" /> A
+                    <span className="h-2 w-2 rounded-full bg-[#5F7F94] dark:bg-[#9DB4C0]" /> A
                   </Button>
                   <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
                     <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>
@@ -649,7 +649,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute -inset-1 rounded-2xl"
-            style={{ boxShadow: "0 0 24px 4px rgba(16,185,129,0.45)" }}
+            style={{ boxShadow: "0 0 24px 4px rgba(96,140,96,0.45)" }}
             animate={{ opacity: [0.22, 0.55, 0.22] }}
             transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
           <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.035]" />
