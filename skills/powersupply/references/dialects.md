@@ -101,16 +101,8 @@ OUT<n>          # 1 = on, 0 = off
 
 ### 正点原子 DP100（`dp100`，USB HID）
 
-协议参考 `lymzzyh/dp100-mcp`（MIT）与 `weigu1/dp100_manipulator`。
-
-- VID:PID `2e3c:af01`，HID report 64 字节
-- 帧：`FB op 00 len <data> crc_lo crc_hi`；CRC16-Modbus（poly 0xA001，init 0xFFFF）
-- 响应：`FA op 00 len <data> crc`
-- 操作码：`0x10` 设备信息、`0x30` 实时遥测、`0x35` 设定/输出、`0x40` 系统信息
-- 遥测（`0x30`）：`vin, vout, iout, vo_max`（mV/mA），`out_mode`、`work_state`
-- 设定（`0x35`，子命令 `0x20` + 输出位 + `v_mv, i_ma, ovp_mv, ocp_ma`）
-- 最大电压由设备上报的 `vo_max` 决定（本 skill 会先读再限制）
-- 依赖 `hidapi`；Linux 需要 hidraw 权限（udev/plugdev）
+通过 `hidapi` 直接访问，使用 `--hid dp100`。设备枚举、帧格式和命令集
+由设备手册与公开实现提供，本文档不再展开。
 
 ### FNIRSI DPS-150（`dps150`，USB CDC）
 
