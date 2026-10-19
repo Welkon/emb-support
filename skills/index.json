@@ -67,7 +67,7 @@
     {
       "name": "daplink",
       "path": "./daplink",
-      "description": "Flash, verify and debug ARM Cortex-M firmware through DAPLink/CMSIS-DAP probes. Provides 47 subcommands for probe/target discovery, CMSIS-Packs, flashing, hardware and flash breakpoints, conditional breakpoints with on-hit scripts, DWARF CFI backtraces, C expression evaluation, SVD peripherals, RTOS threads, RTT, SWO/ITM, semihosting, multicore, DWT cycle counting, and a rule-based HardFault analyser with self-contained HTML reports. Supports both pyOCD and probe-rs backends with automatic chip-name routing. Use when the user asks to flash or erase a board, attach a debugger, inspect registers/memory, set breakpoints, capture RTT/SWO output, or diagnose a crash/HardFault.",
+      "description": "Flash, verify and debug ARM Cortex-M firmware through DAPLink/CMSIS-DAP probes. Provides 47 subcommands for probe/target discovery, CMSIS-Packs, flashing, hardware and flash breakpoints, conditional breakpoints with on-hit scripts, DWARF CFI backtraces, C expression evaluation, SVD peripherals, RTOS threads, RTT, SWO/ITM, semihosting, multicore, DWT cycle counting, and a rule-based HardFault analyser with self-contained HTML reports. Supports both pyOCD and probe-rs backends with automatic chip-name routing. On WSL it auto-detects Windows-side probes through usbipd and can attach them to the distro. Use when the user asks to flash or erase a board, attach a debugger, inspect registers/memory, set breakpoints, capture RTT/SWO output, or diagnose a crash/HardFault.",
       "detect": {
         "tools": [
           "probe-rs",
@@ -83,10 +83,10 @@
           "*.ioc"
         ]
       },
-      "short_description": "Flash/debug Cortex-M over DAPLink with fault root-cause reports",
+      "short_description": "Flash/debug Cortex-M over DAPLink with fault root-cause reports (WSL-aware)",
       "interface": {
         "display_name": "DAPLink Debug",
-        "short_description": "Flash/debug Cortex-M over DAPLink with fault root-cause reports",
+        "short_description": "Flash/debug Cortex-M over DAPLink with fault root-cause reports (WSL-aware)",
         "default_prompt": "Use $daplink to flash or debug a Cortex-M target, inspect registers and memory, set conditional breakpoints, capture RTT/SWO, or diagnose a HardFault with a root-cause report."
       }
     },

@@ -36,7 +36,11 @@ python3 scripts/dap.py doctor
 `doctor` 输出 JSON，重点看四个字段：
 
 - `probes`：空数组 = 探针不可见。先别改代码，按 `references/troubleshooting.md#探针不可见` 排查。
-- `wsl: true`：WSL 里 USB 探针必须先 `usbipd attach --wsl --busid <id>`，否则永远看不到探针。
+- `wsl: true`：WSL 里 USB 探针必须先挂到 Linux 侧。`doctor` 会自动读 Windows 的 `usbipd list`，
+  在 `windows.probes` 里列出 DAPLink/ST-Link/J-Link 等已知探针及其 busid/状态，并给出可直接执行的命令。
+  - `dap.py wsl status`：只查看 Windows 侧设备
+  - `dap.py wsl attach --busid 2-1`：挂载（设备未 shared 时提示先以管理员运行 `usbipd bind --busid 2-1`）
+  - `dap.py doctor --attach`：自动挂载第一个未挂载的已知探针
 - `targets_cached`：内置 target 数量，0 不代表出错（内置表可能被裁剪），装 pack 即可。
 - `problems`：非空就直接读 `hints`。
 
@@ -227,7 +231,8 @@ scripts/dap.py gdb-batch --elf fw.elf -ex "bt full" -ex "info locals" -ex "p/x *
 
 | 命令 | 作用 | 关键参数 |
 |---|---|---|
-| `doctor` | 环境 + 探针 + target 缓存诊断 | 无 |
+| `doctor` | 环境 + 探针 + target 缓存诊断（WSL 含 Windows 侧探针） | `--attach` |
+| `wsl status/attach/detach` | WSL：探测/挂载 Windows 侧 USB 探针 | `--busid`、`--dry-run` |
 | `engines` | 列出 pyOCD / probe-rs 可用性 | 无 |
 | `setup` | 建 venv、装 pyOCD | `DAPLINK_PYTHON` |
 | `probes` / `connect` / `status` | 探针列表 / 连接并报 target / 运行状态 | `--json` |

@@ -376,6 +376,116 @@ def _find_python() -> str:
     return sys.executable
 
 
+# ------------------------------------------------------------------------ WSL
+
+WSL_PROBE_VIDS = {
+    "0d28": "DAPLink/CMSIS-DAP",
+    "0483": "ST-Link",
+    "1366": "J-Link",
+    "1209": "CMSIS-DAP (pid.codes)",
+    "1fc9": "NXP LPC-Link",
+    "2e8a": "Raspberry Pi",
+    "04d8": "Microchip",
+    "03eb": "Atmel",
+}
+
+
+def is_wsl() -> bool:
+    try:
+        return "microsoft" in Path("/proc/version").read_text().lower()
+    except Exception:
+        return bool(os.environ.get("WSL_DISTRO_NAME"))
+
+
+def usbipd_exe() -> str | None:
+    for cand in (shutil.which("usbipd.exe"),
+                 "/mnt/c/Program Files/usbipd-win/usbipd.exe",
+                 "/mnt/c/Program Files/usbipd-win/usbipd"):
+        if cand and Path(cand).exists():
+            return cand
+    return None
+
+
+def usbipd_devices() -> list[dict]:
+    """Parse `usbipd.exe list` into devices, flagging known debug probes."""
+    exe = usbipd_exe()
+    if not exe:
+        return []
+    rc, out, _ = run([exe, "list"], 25)
+    if rc != 0:
+        return []
+    devices = []
+    for raw in out.splitlines():
+        line = raw.replace("\r", "").strip()
+        m = re.match(r"^(\d+-\d+)\s+([0-9a-fA-F]{4}):([0-9a-fA-F]{4})\s+(.+?)\s{2,}(\S.*)$", line)
+        if not m:
+            continue
+        busid, vid, pid, desc, state = m.groups()
+        low = state.lower()
+        if not (low.startswith(("not shared", "shared", "attached", "not attached"))
+                or "共享" in state or "连接" in state):
+            continue
+        devices.append({"busid": busid, "vid": vid.lower(), "pid": pid.lower(),
+                        "device": desc.strip(), "state": state.strip(),
+                        "probe": WSL_PROBE_VIDS.get(vid.lower())})
+    return devices
+
+
+def wsl_probe_hint() -> str:
+    if not is_wsl():
+        return ""
+    pending = [d for d in usbipd_devices() if d["probe"] and d["state"].lower() != "attached"]
+    if not pending:
+        return ""
+    d = pending[0]
+    return (f"Windows sees {d['probe']} at busid {d['busid']} ({d['state']}); "
+            f"run: dap.py wsl attach --busid {d['busid']}")
+
+
+def cmd_wsl(a) -> None:
+    if not is_wsl():
+        emit({"ok": False, "error": "not running in WSL"}, as_json=True)
+        return
+    exe = usbipd_exe()
+    devices = usbipd_devices()
+    probes = [d for d in devices if d["probe"]]
+    if a.action in (None, "status"):
+        emit({"ok": True, "usbipd": exe, "devices": devices, "probes": probes,
+              "hint": wsl_probe_hint() or None}, as_json=True)
+        return
+    if not exe:
+        die("usbipd.exe not found; install usbipd-win on Windows")
+    targets = [d for d in devices if d["busid"] == a.busid] if a.busid else probes
+    if not targets:
+        die("no matching USB device" + (f" with busid {a.busid}" if a.busid else " (known probe VID)"))
+    d = targets[0]
+    state = d["state"].lower()
+    if a.action == "attach":
+        if state == "attached":
+            emit({"ok": True, "already_attached": True, "device": d}, as_json=True)
+            return
+        if state != "shared":
+            die(f"{d['busid']} is '{d['state']}'. Run once in an elevated PowerShell: "
+                f"usbipd bind --busid {d['busid']}")
+        args = [exe, "attach", "--wsl", "--busid", d["busid"]]
+        if getattr(a, "dry_run", False):
+            emit({"ok": True, "dry_run": True, "command": args, "device": d}, as_json=True)
+            return
+        rc, out, err = run(args, 60)
+        emit({"ok": rc == 0, "rc": rc, "device": d, "stdout": out.strip(), "stderr": err.strip()},
+             as_json=True)
+        sys.exit(rc)
+    if a.action == "detach":
+        args = [exe, "detach", "--busid", d["busid"]]
+        if getattr(a, "dry_run", False):
+            emit({"ok": True, "dry_run": True, "command": args, "device": d}, as_json=True)
+            return
+        rc, out, err = run(args, 60)
+        emit({"ok": rc == 0, "rc": rc, "device": d, "stdout": out.strip(), "stderr": err.strip()},
+             as_json=True)
+        sys.exit(rc)
+
+
 def cmd_doctor(a) -> None:
     ensure_runtime()
     info: dict = {"python": sys.executable, "pyocd_module": None, "pyocd_cli": None,
@@ -384,9 +494,27 @@ def cmd_doctor(a) -> None:
     info["pyocd_module"] = getattr(_m, "__version__", "?")
     rc, out, _ = run([pyocd(), "--version"], timeout=30)
     info["pyocd_cli"] = out.strip() if rc == 0 else None
-    if Path("/proc/version").exists() and "microsoft" in Path("/proc/version").read_text().lower():
+    if is_wsl():
         info["wsl"] = True
-        info["hints"].append("WSL detected: run `usbipd list`, then `usbipd attach --wsl --busid X-Y` on Windows")
+        exe = usbipd_exe()
+        devices = usbipd_devices()
+        probes = [d for d in devices if d["probe"]]
+        info["windows"] = {"interop": bool(shutil.which("powershell.exe") or shutil.which("pwsh.exe")),
+                           "usbipd": exe, "probes": probes,
+                           "attached": [d["busid"] for d in probes if d["state"].lower() == "attached"]}
+        hints = wsl_probe_hint()
+        if hints:
+            info["hints"].append(hints)
+            if getattr(a, "attach", False):
+                pending = [d for d in probes if d["state"].lower() != "attached"]
+                target = (pending[0]["busid"] if pending else None)
+                if target:
+                    wslns = argparse.Namespace(action="attach", busid=target, dry_run=False)
+                    cmd_wsl(wslns)
+        elif probes:
+            info["hints"].append("Windows probes are already attached to WSL")
+        else:
+            info["hints"].append("WSL: no known debug probe found on the Windows side (usbipd)")
     try:
         info["probes"] = pj(["json", "-p"], timeout=30).get("probes", [])
     except SystemExit:
@@ -423,6 +551,16 @@ def cmd_probes(a) -> None:
         emit(data, as_json=True)
         return
     if not data:
+        if is_wsl():
+            win = [d for d in usbipd_devices() if d["probe"]]
+            if a.json:
+                emit({"linux": [], "windows": win, "hint": wsl_probe_hint() or None}, as_json=True)
+                return
+            if win:
+                for d in win:
+                    print(f"windows  {d['busid']}  {d['vid']}:{d['pid']}  {d['device']}  [{d['state']}]")
+                print(f"\n{wsl_probe_hint()}")
+                return
         print("no probes found")
         return
     for p in data:
@@ -2546,7 +2684,7 @@ def cmd_selfcheck(a) -> None:
         except Exception as exc:
             record("hw_breakpoint", False, exc)
         if ei:
-            sp2, frames = _bt_frames(t, ei, 8, 256)
+            _, frames = _bt_frames(t, ei, 8, 256)
             exact = sum(1 for f in frames if f.get("exact"))
             record("cfi_unwind", exact > 0, f"frames={len(frames)} exact={exact}")
             dr = DwarfReader(ei.path)
@@ -3379,7 +3517,9 @@ def main() -> None:
     p = sub.add_parser("setup", help="create venv and install pyOCD")
     p.add_argument("--dev", action="store_true", help="also install pytest for the test suite")
     p.set_defaults(fn=cmd_setup)
-    sub.add_parser("doctor").set_defaults(fn=cmd_doctor)
+    p = sub.add_parser("doctor", help="environment + probe diagnostics")
+    p.add_argument("--attach", action="store_true", help="attach the first Windows-side probe automatically (WSL)")
+    p.set_defaults(fn=cmd_doctor)
 
     p = sub.add_parser("probes"); p.add_argument("--json", action="store_true")
     p.add_argument("--engine", choices=["auto", "pyocd", "probe-rs"]); p.set_defaults(fn=cmd_probes)
@@ -3522,6 +3662,11 @@ def main() -> None:
     p = sub.add_parser("gdb"); p.add_argument("--port", "-p", type=int, default=3333)
     p.add_argument("--persist", action="store_true"); p.add_argument("--detach", action="store_true")
     p.add_argument("--log"); sess(p, 600); p.set_defaults(fn=cmd_gdb)
+
+    p = sub.add_parser("wsl", help="WSL: inspect/attach Windows-side USB probes via usbipd")
+    p.add_argument("action", nargs="?", choices=["status", "attach", "detach"], default="status")
+    p.add_argument("--busid"); p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_wsl)
 
     p = sub.add_parser("engines", help="show available backends")
     p.set_defaults(fn=cmd_engines)
