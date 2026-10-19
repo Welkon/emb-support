@@ -37,7 +37,7 @@ const STR = {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
     presets: "Presets", savePreset: "Save current", presetPlaceholder: "Select a preset…",
-    wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)",
+    wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)", applyHint: "Enter or click away to apply",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
     overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
@@ -77,7 +77,7 @@ const STR = {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
     presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
-    wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）",
+    wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）", applyHint: "回车或移出输入框即应用",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
     overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
@@ -565,6 +565,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   onProtect: () => void; onConfirmOn: () => void;
   presets: Preset[]; onPreset: (p: Preset) => void; onSavePreset: () => void;
 }) {
+  const vFocus = useRef(""); const iFocus = useRef("");
+  const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -577,29 +579,6 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-between gap-4">
         <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="vset">{t.vset}</Label>
-            <div className="relative">
-              <NumberInput id="vset" inputMode="decimal" value={vset} onChange={setVset}
-                step={0.1} min={0} max={data?.limits.max_voltage ?? 30} title={t.wheelHint}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
-                onFocus={() => (editing.current = "v")} onBlur={() => (editing.current = null)} className="pr-8" />
-              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">V</span>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="iset">{t.iset}</Label>
-            <div className="relative">
-              <NumberInput id="iset" inputMode="decimal" value={iset} onChange={setIset}
-                step={0.01} min={0} max={data?.limits.max_current ?? 5} title={t.wheelHint}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); onApply(); } }}
-                onFocus={() => (editing.current = "i")} onBlur={() => (editing.current = null)} className="pr-8" />
-              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">A</span>
-            </div>
-          </div>
-        </div>
-        <Button className="w-full" disabled={busy} onClick={onApply}>{t.apply}</Button>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="preset">{t.presets}</Label>
@@ -625,6 +604,31 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
             <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="vset">{t.vset}</Label>
+            <div className="relative">
+              <NumberInput id="vset" inputMode="decimal" value={vset} onChange={setVset}
+                step={0.1} min={0} max={data?.limits.max_voltage ?? 30} title={t.wheelHint}
+                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                onFocus={() => { editing.current = "v"; vFocus.current = vset; iFocus.current = iset; }}
+                onBlur={() => { editing.current = null; blurApply(); }} className="pr-8" />
+              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">V</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="iset">{t.iset}</Label>
+            <div className="relative">
+              <NumberInput id="iset" inputMode="decimal" value={iset} onChange={setIset}
+                step={0.01} min={0} max={data?.limits.max_current ?? 5} title={t.wheelHint}
+                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                onFocus={() => { editing.current = "i"; vFocus.current = vset; iFocus.current = iset; }}
+                onBlur={() => { editing.current = null; blurApply(); }} className="pr-8" />
+              <span className="pointer-events-none absolute right-3 top-2 text-xs text-muted-foreground">A</span>
+            </div>
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">{t.applyHint}</p>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
           <Button variant="secondary" disabled={busy} onClick={() => onOutput(false)}>{t.off}</Button>
