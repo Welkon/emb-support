@@ -590,14 +590,15 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
   const vFocus = useRef(""); const iFocus = useRef("");
   const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
   return (
-    <Card className={cn("relative flex h-full flex-col transition-colors duration-500", outputOn && "border-success/60")}>
+    <Card className={cn("relative flex h-full flex-col transition-colors duration-500", outputOn && "border-success/40")}>
       {outputOn && (
         <>
           <motion.div aria-hidden
             className="pointer-events-none absolute -inset-1 rounded-2xl"
-            animate={{ boxShadow: ["0 0 0px 0px rgba(34,197,94,0)", "0 0 42px 8px rgba(34,197,94,0.62)", "0 0 0px 0px rgba(34,197,94,0)"] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
-          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.05]" />
+            style={{ boxShadow: "0 0 18px 2px rgba(34,197,94,0.32)" }}
+            animate={{ opacity: [0.16, 0.42, 0.16] }}
+            transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }} />
+          <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg bg-success/[0.025]" />
         </>
       )}
       <CardHeader className="flex-row items-center justify-between space-y-0">
