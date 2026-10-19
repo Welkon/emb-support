@@ -24,7 +24,7 @@ ls /dev/usbtmc*
 
 - 没有 `/dev/usbtmc*`：`sudo modprobe usbtmc`，或确认仪器是 USBTMC 类设备。
 - 有设备但没权限：`scripts/install_udev.sh`，然后拔插。
-- WSL：`doctor` 会自动探测 Windows 侧的 `usbipd.exe`，列出示波器 VID（Tek/Rigol/Siglent/Keysight/LeCroy/R&S/Yokogawa/GW Instek/Hantek/Owon/Micsig），并生成 attach 命令；加 `--attach-usb` 可直接执行。
+- WSL：启动时会自动检测；连接时若本地没有设备，会自动对 Windows 侧已共享的示波器执行 `usbipd attach`（可用 `--no-auto-attach` 关闭）。`doctor` 会自动探测 Windows 侧的 `usbipd.exe`，列出示波器 VID（Tek/Rigol/Siglent/Keysight/LeCroy/R&S/Yokogawa/GW Instek/Hantek/Owon/Micsig），并生成 attach 命令；加 `--attach-usb` 可直接执行。
   `Not shared` 需要管理员先 `usbipd bind --busid X`，然后 `usbipd attach --wsl --busid X`。
 - Windows：需要 VISA runtime（TekVISA / NI-VISA）或 libusb 驱动；见 `tektronix.md` 的位数问题。
 - 资源字符串格式：`USB0::0x0699::0x0368::<serial>::INSTR`。序列号不对会找不到设备。

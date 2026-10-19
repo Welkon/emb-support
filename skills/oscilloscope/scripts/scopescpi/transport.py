@@ -9,6 +9,7 @@ import sys
 import time
 
 from .common import block_bounds, die, is_block, load_config, parse_block
+from .wsl import ensure_scope_attached, is_wsl
 
 class SocketInstrument:
     """Raw SCPI over TCP (port 5025 on most instruments)."""
@@ -179,6 +180,22 @@ class UsbtmcInstrument:
         return parse_block(data) if is_block(data) else data
 
 
+def pick_single_resource(resources: list[str]) -> str | None:
+    """Auto-pick only when exactly one VISA instrument is present."""
+    instruments = [r for r in resources
+                   if "::INSTR" in r and ("USB" in r.upper() or "TCPIP" in r.upper())]
+    return instruments[0] if len(instruments) == 1 else None
+
+
+def _list_resources(backend):
+    try:
+        import pyvisa
+        rm = pyvisa.ResourceManager(backend) if backend else pyvisa.ResourceManager()
+        return list(rm.list_resources())
+    except Exception:
+        return []
+
+
 def connect(a):
     cfg = load_config()
     resource = getattr(a, "resource", None) or cfg.get("resource")
@@ -186,15 +203,44 @@ def connect(a):
     port = int(getattr(a, "port", None) or cfg.get("port") or 5025)
     timeout = float(getattr(a, "timeout", None) or cfg.get("timeout") or 5.0)
     backend = getattr(a, "backend", None) or cfg.get("backend")
+    no_auto_attach = (getattr(a, "no_auto_attach", False)
+                      or os.environ.get("SCOPE_NO_AUTO_ATTACH") == "1")
+
     if getattr(a, "resource", None):
         return VisaInstrument(a.resource, timeout, backend)
     if host:
         return SocketInstrument(host, port, timeout)
     if resource:
         return VisaInstrument(resource, timeout, backend)
+
     devices = sorted(glob.glob("/dev/usbtmc*"))
     if devices:
         return UsbtmcInstrument(devices[0], timeout)
+
+    resources = _list_resources(backend)
+    picked = pick_single_resource(resources)
+    if picked:
+        return VisaInstrument(picked, timeout, backend)
+
+    if is_wsl() and not no_auto_attach:
+        outcome = ensure_scope_attached()
+        devices = sorted(glob.glob("/dev/usbtmc*"))
+        if devices:
+            return UsbtmcInstrument(devices[0], timeout)
+        resources = _list_resources(backend)
+        picked = pick_single_resource(resources)
+        if picked:
+            return VisaInstrument(picked, timeout, backend)
+        if outcome.get("status") == "needs-bind":
+            hints = "; ".join(
+                f'usbipd bind --busid {d["busid"]} (Administrator)' for d in outcome["needs_bind"])
+            die(f"WSL: oscilloscope is connected to Windows but not shared. Run: {hints}")
+        if outcome.get("status") == "no-device":
+            die("WSL: no oscilloscope found on the Windows side. Plug it in, then run doctor --attach-usb")
+        die("WSL: usbipd attach ran but no /dev/usbtmc node appeared; run doctor for details")
+
+    if len(resources) > 1:
+        die("multiple VISA instruments found; pass --resource: " + ", ".join(resources))
     die("no instrument selected: pass --host, --resource, or set a default with config")
 
 

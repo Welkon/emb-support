@@ -31,10 +31,16 @@ from scopescpi.dialects import _q_first, parse_wavedesc  # noqa: F401
 from scopescpi.acquisition import *  # noqa: F401,F403
 from scopescpi.acquisition import _edges  # noqa: F401
 from scopescpi.quality import check as check_quality  # noqa: F401
+from scopescpi.transport import pick_single_resource  # noqa: F401
 from scopescpi.wsl import (  # noqa: F401
-    attach_hint, attach_scope_devices, is_wsl, list_devices, parse_usbipd,
-    usbipd_path, windows_host_ip,
+    attach_hint, attach_scope_devices, ensure_scope_attached, is_wsl,
+    list_devices, parse_usbipd, usbipd_path, windows_host_ip,
 )
+
+# Startup detection: cheap, no usbipd call. The attach happens lazily in connect().
+WSL = is_wsl()
+if WSL:
+    os.environ.setdefault("SCOPE_WSL", "1")
 from scopescpi.cli import main  # noqa: F401
 
 

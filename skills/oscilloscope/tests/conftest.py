@@ -1,5 +1,6 @@
 import importlib.util
 import socket
+import sys
 import socketserver
 import threading
 from pathlib import Path
@@ -180,6 +181,7 @@ def tek(mock_scope):
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "scope.py"
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 @pytest.fixture(scope="session")

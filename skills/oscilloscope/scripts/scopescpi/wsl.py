@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 SCOPE_VENDORS = {
@@ -119,3 +120,46 @@ def windows_host_ip() -> str | None:
         if line.startswith("default via "):
             return line.split()[2]
     return None
+
+
+def scope_devices() -> list[dict]:
+    devices, _ = list_devices()
+    return [d for d in devices if d["vendor"]]
+
+
+def ensure_scope_attached(wait_seconds: float = 8.0) -> dict:
+    """Attach shared scope devices to WSL, then wait for a usbtmc node.
+
+    Never runs `usbipd bind` (that requires Administrator); devices in the
+    "Not shared" state are reported with the exact command instead.
+    """
+    devices, err = list_devices()
+    scopes = [d for d in devices if d["vendor"]]
+    result = {"devices": scopes, "attached": [], "needs_bind": [], "error": err}
+    if not scopes:
+        result["status"] = "no-device"
+        return result
+    if any(d["attached"] for d in scopes):
+        result["status"] = "already-attached"
+        return result
+    exe = usbipd_path()
+    for dev in scopes:
+        if dev["state"] != "Shared" or exe is None:
+            result["needs_bind"].append(dev)
+            continue
+        p = subprocess.run([exe, "attach", "--wsl", "--busid", dev["busid"]],
+                           capture_output=True, text=True, timeout=30)
+        entry = {"busid": dev["busid"], "vendor": dev["vendor"],
+                 "rc": p.returncode, "stderr": p.stderr.strip()[-300:]}
+        result["attached"].append(entry)
+    if not result["attached"]:
+        result["status"] = "needs-bind"
+        return result
+
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        if Path("/dev/usbtmc0").exists() or any(Path("/dev").glob("usbtmc*")):
+            break
+        time.sleep(0.2)
+    result["status"] = "attached" if any(Path("/dev").glob("usbtmc*")) else "attached-no-node"
+    return result

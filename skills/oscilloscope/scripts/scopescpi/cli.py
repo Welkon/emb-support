@@ -538,6 +538,8 @@ def add_conn(p):
     p.add_argument("--port", type=int, default=None, help="SCPI port (default 5025)")
     p.add_argument("--resource", help="VISA resource string (USB/VXI-11/serial)")
     p.add_argument("--backend", help="pyvisa backend (@py, auto, or a VISA library path)")
+    p.add_argument("--no-auto-attach", action="store_true",
+                   help="WSL: do not attach scope USB devices automatically")
     p.add_argument("--family", choices=sorted(FAMILIES), help="override auto-detected dialect")
     p.add_argument("--timeout", type=float, default=None)
     p.add_argument("--json", action="store_true")
