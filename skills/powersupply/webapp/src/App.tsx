@@ -36,7 +36,7 @@ const STR = {
   en: {
     title: "Power Supply", live: "live", connecting: "connecting", noDevice: "no device",
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
-    presets: "Presets", savePreset: "Save current",
+    presets: "Presets", savePreset: "Save current", presetPlaceholder: "Select a preset…",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
     overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
@@ -75,7 +75,7 @@ const STR = {
   zh: {
     title: "数控电源", live: "在线", connecting: "连接中", noDevice: "未连接设备",
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
-    presets: "预设", savePreset: "保存当前",
+    presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
     overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
@@ -198,7 +198,8 @@ export default function App() {
   const lastAlertRef = useRef("");
   const headerRef = useRef<HTMLElement>(null);
   const [headerH, setHeaderH] = useState(72);
-  const [dismissedAlert, setDismissedAlert] = useState("");
+  const [toast, setToast] = useState<{ title: string; detail: string } | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
   const [presets, setPresets] = useState<Preset[]>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem("psu-presets") || "null");
@@ -282,7 +283,10 @@ export default function App() {
   const applyPreset = (preset: Preset) => {
     setVset(fmt(preset.v, 3));
     setIset(fmt(preset.i, 3));
-    if (!on) run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }));
+    // Optimistically move the UI so the selection is visible immediately.
+    setData((prev) => prev ? { ...prev, setpoint: { voltage: preset.v, current: preset.i } } : prev);
+    // Presets are explicit user intent: apply both setpoints even while output is ON.
+    run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }));
   };
   const savePreset = () => {
     const v = parseFloat(vset), i = parseFloat(iset);
@@ -314,6 +318,19 @@ export default function App() {
   useEffect(() => {
     document.title = alert ? `⚠ ${alert.title} · ${t.title}` : t.title;
   }, [alert?.title, t.title]);
+
+  useEffect(() => {
+    // Keep the visual toast for at least 10 s; persistent faults keep it until recovery.
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    if (alert) {
+      setToast(alert);
+      const severe = fault || (!connected && !!data) || overtemp;
+      if (!severe) toastTimer.current = window.setTimeout(() => setToast(null), 10_000);
+    } else if (toast) {
+      toastTimer.current = window.setTimeout(() => setToast(null), 10_000);
+    }
+    return () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); };
+  }, [alert?.title, alert?.detail, fault, connected, overtemp]);
 
   useEffect(() => {
     // Pop a native alert once per distinct severe condition; reset after recovery.
@@ -491,16 +508,16 @@ export default function App() {
           </DialogContent>
         </Dialog>
 
-        {alert && dismissedAlert !== `${alert.title}|${alert.detail}` && (
+        {toast && (
           <div role="alert"
             className="fixed bottom-5 right-5 z-50 flex w-[min(380px,calc(100vw-2.5rem))] items-start gap-2.5 rounded-xl border border-destructive/40 bg-card/95 p-3.5 text-sm text-destructive shadow-lg backdrop-blur">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">{alert.title}</div>
-              <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{alert.detail}</div>
+              <div className="font-semibold">{toast.title}</div>
+              <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{toast.detail}</div>
             </div>
             <button className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => setDismissedAlert(`${alert.title}|${alert.detail}`)} title="Dismiss">
+              onClick={() => setToast(null)} title="Dismiss">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -554,21 +571,27 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           </div>
         </div>
         <Button className="w-full" disabled={busy} onClick={onApply}>{t.apply}</Button>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">{t.presets}</span>
+            <Label htmlFor="preset">{t.presets}</Label>
             <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={onSavePreset}>
               <Plus /> {t.savePreset}
             </Button>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {presets.filter((p) => p.v <= (data?.limits.max_voltage ?? 30) && p.i <= (data?.limits.max_current ?? 5)).map((p) => (
-              <Button key={`${p.v}-${p.i}`} size="sm" variant="outline" className="h-7 px-2 font-mono text-[11px]"
-                onClick={() => onPreset(p)} title={`${p.v} V / ${p.i} A`}>
+          <select id="preset" aria-label={t.presets}
+            value={(() => {
+              const idx = presets.findIndex((p) => Math.abs((parseFloat(vset) || 0) - p.v) < 1e-6 && Math.abs((parseFloat(iset) || 0) - p.i) < 1e-6);
+              return idx >= 0 ? String(idx) : "";
+            })()}
+            onChange={(e) => { const p = presets[Number(e.target.value)]; if (p) onPreset(p); }}
+            className="h-9 w-full rounded-md border border-border bg-background px-2.5 font-mono text-xs text-foreground outline-none focus:ring-1 focus:ring-ring">
+            <option value="" disabled>{t.presetPlaceholder}</option>
+            {presets.map((p, idx) => (
+              <option key={`${p.v}-${p.i}-${idx}`} value={idx} disabled={p.v > (data?.limits.max_voltage ?? 30) || p.i > (data?.limits.max_current ?? 5)}>
                 {p.v} V / {p.i} A
-              </Button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <Button variant="success" disabled={busy} onClick={onConfirmOn}><Power /> {t.on}</Button>
