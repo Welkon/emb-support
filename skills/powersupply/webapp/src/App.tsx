@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, AlertTriangle, Ban, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
   Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Waves, X, Zap,
@@ -364,6 +365,9 @@ export default function App() {
                   <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
                   {connected ? t.connected : data ? t.disconnected : t.connecting}
                 </Badge>
+                <Badge variant={on ? "success" : "outline"} className="gap-1.5 px-3">
+                  <Power className="h-3 w-3" /> {data?.output ? `${t.output} ${data.output}` : `${t.output} —`}
+                </Badge>
               </div>
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{data?.idn ?? t.noDevice}</p>
             </div>
@@ -371,14 +375,16 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-1.5">
             <div className="mr-1 inline-flex h-8 items-center rounded-lg bg-muted/70 p-1 text-muted-foreground">
               {(["basic", "advanced"] as const).map((key) => (
-                <button key={key} onClick={() => setTab(key)}
-                  className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                    tab === key ? "bg-background text-foreground shadow-sm" : "hover:text-foreground")}>
-                  {t[key]}
-                </button>
+                <motion.button key={key} onClick={() => setTab(key)} whileTap={{ scale: 0.97 }}
+                  className="relative rounded-md px-3 py-1 text-xs font-medium">
+                  {tab === key && (
+                    <motion.span layoutId="psu-tab-pill" className="absolute inset-0 rounded-md bg-background shadow-sm"
+                      transition={{ type: "spring", stiffness: 520, damping: 38 }} />
+                  )}
+                  <span className={cn("relative z-10 transition-colors", tab === key ? "text-foreground" : "hover:text-foreground")}>{t[key]}</span>
+                </motion.button>
               ))}
             </div>
-            <Badge variant={on ? "success" : "outline"} className="px-3"><Power className="h-3 w-3" /> {data?.output ? `${t.output} ${data.output}` : `${t.output} —`}</Badge>
             {fault && <Badge variant="destructive"><AlertTriangle className="h-3 w-3" /> {workName}</Badge>}
             <Button variant="outline" size="sm" onClick={() => setLang(lang === "en" ? "zh" : "en")} title="Language"><Languages /> {lang === "en" ? "中文" : "EN"}</Button>
             <Button variant="outline" size="sm" onClick={() => setDark(!dark)} title="Theme">{dark ? <Sun /> : <Moon />} {dark ? t.light : t.dark}</Button>
@@ -413,8 +419,11 @@ export default function App() {
 
         )}
 
+        <AnimatePresence mode="wait" initial={false}>
         {tab === "basic" ? (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <motion.div key="basic" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: "easeOut" }}
+            className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
             <Card className="h-full min-w-0">
               <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                 <CardTitle>{t.history}</CardTitle>
@@ -460,9 +469,10 @@ export default function App() {
                 onApply={setpoints} onOutput={output} onAllOff={allOff} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
                 presets={presets} onPreset={applyPreset} onSavePreset={savePreset} />
             </aside>
-          </div>
+          </motion.div>
         ) : (
-          <div className="space-y-8">
+          <motion.div key="advanced" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: "easeOut" }} className="space-y-8">
             <SequencePanel t={t} channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
               onState={applyState} setError={setError} />
             <div className="grid gap-8 border-t border-border pt-8 xl:grid-cols-2">
@@ -497,8 +507,9 @@ export default function App() {
                 </div>
               </section>
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         <Dialog open={confirmOn} onOpenChange={setConfirmOn}>
           <DialogContent>
@@ -511,8 +522,10 @@ export default function App() {
           </DialogContent>
         </Dialog>
 
+        <AnimatePresence>
         {toast && (
-          <div role="alert"
+          <motion.div role="alert" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.97 }} transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className="fixed bottom-5 right-5 z-50 flex w-[min(380px,calc(100vw-2.5rem))] items-start gap-2.5 rounded-xl border border-destructive/40 bg-card/95 p-3.5 text-sm text-destructive shadow-lg backdrop-blur">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
@@ -523,8 +536,9 @@ export default function App() {
               onClick={() => setToast(null)} title="Dismiss">
               <X className="h-3.5 w-3.5" />
             </button>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );
