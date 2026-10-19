@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import threading
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .common import die, load_config
 from .drivers import open_device
 from .wsl import is_wsl, open_browser
+
+DIST = Path(__file__).resolve().parents[2] / "webapp" / "dist"
 
 
 INDEX_HTML = """<!doctype html>
@@ -200,10 +204,21 @@ class PsuWebServer:
             "output": self.device.output_state(ch),
             "setpoint": {"voltage": self.device.get_voltage(ch),
                          "current": self.device.get_current(ch)},
-            "measurement": {"voltage": self.device.measure_voltage(ch),
-                            "current": self.device.measure_current(ch),
-                            "power": self.device.measure_power(ch)
-                            if self.device.supports_power else None},
+            "measurement": {
+                "voltage": self.device.measure_voltage(ch),
+                "current": self.device.measure_current(ch),
+                "power": self.device.measure_power(ch) if self.device.supports_power else None,
+                "input_voltage": self.device.measure_input_voltage(ch)
+                if self.device.supports_input_voltage else None,
+            },
+            "status": self.device.status(ch) if hasattr(self.device, "status") else None,
+            "capabilities": {
+                "power": self.device.supports_power,
+                "ovp": self.device.supports_ovp,
+                "ocp": self.device.supports_ocp,
+                "output_state": self.device.supports_output_state,
+                "input_voltage": self.device.supports_input_voltage,
+            },
             "limits": {**{"max_voltage": self.max_voltage, "max_current": self.max_current},
                         **(getattr(self.device, "limits", None) or {})},
         }
@@ -226,11 +241,33 @@ class PsuWebServer:
             def _json(self, code, payload):
                 self._send(code, json.dumps(payload, default=str))
 
+            def _file(self, path: Path, content_type: str | None = None):
+                data = path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", content_type
+                                 or mimetypes.guess_type(str(path))[0] or "application/octet-stream")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
             def do_GET(self):
                 parsed = urlparse(self.path)
+                if parsed.path == "/" and (DIST / "index.html").exists():
+                    self._file(DIST / "index.html", "text/html; charset=utf-8")
+                    return
                 if parsed.path == "/":
                     self._send(200, INDEX_HTML, "text/html; charset=utf-8")
                     return
+                if parsed.path.startswith("/assets/"):
+                    target = (DIST / parsed.path.lstrip("/")).resolve()
+                    try:
+                        target.relative_to(DIST.resolve())
+                    except ValueError:
+                        self._json(404, {"ok": False, "error": "not found"})
+                        return
+                    if target.is_file():
+                        self._file(target)
+                        return
                 if parsed.path == "/api/state":
                     try:
                         ch = int(parse_qs(parsed.query).get("ch", ["1"])[0])

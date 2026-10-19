@@ -14,6 +14,7 @@ class FakeDevice:
     supports_ovp = True
     supports_ocp = True
     supports_output_state = True
+    supports_input_voltage = True
 
     def __init__(self):
         self.v = {1: 0.0, 2: 0.0}
@@ -28,6 +29,8 @@ class FakeDevice:
     def measure_voltage(self, ch): return self.v[ch]
     def measure_current(self, ch): return self.i[ch]
     def measure_power(self, ch): return self.v[ch] * self.i[ch]
+    def measure_input_voltage(self, ch): return 12.0
+    def status(self, ch): return {"output_mode": "ON" if self.out[ch] else "OFF", "work_state": 0}
     def output(self, ch, on): self.out[ch] = on
     def output_state(self, ch): return "ON" if self.out[ch] else "OFF"
     def set_ovp(self, ch, v): self.ovp = v

@@ -32,6 +32,7 @@ class Device:
     supports_ovp = False
     supports_ocp = False
     supports_output_state = False
+    supports_input_voltage = False
 
     def close(self):
         pass
@@ -43,6 +44,8 @@ class Device:
     def measure_voltage(self, ch): raise NotImplementedError
     def measure_current(self, ch): raise NotImplementedError
     def measure_power(self, ch): return None
+    def measure_input_voltage(self, ch): return None
+    def status(self, ch): return None
     def output(self, ch, on): raise NotImplementedError
     def output_state(self, ch): return None
     def set_ovp(self, ch, v): raise NotImplementedError
@@ -184,6 +187,7 @@ class Dp100Device(Device):
     """
 
     family = "dp100"
+    supports_input_voltage = True
     MAX_VOLTAGE = 30.0
     MAX_CURRENT = 5.0
     MAX_OVP = 30.5
@@ -320,6 +324,15 @@ class Dp100Device(Device):
     def measure_power(self, ch):
         b = self._basic()
         return b["vout_mv"] * b["iout_ma"] / 1e6
+
+    def measure_input_voltage(self, ch):
+        b = self._basic()
+        return b["vin_mv"] / 1000
+
+    def status(self, ch):
+        b = self._basic()
+        return {"output_mode": {0: "OFF", 1: "ON"}.get(b["out_mode"], b["out_mode"]),
+                "work_state": b["work_state"]}
 
     def output(self, ch, on):
         self._out = bool(on)
