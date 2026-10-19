@@ -647,8 +647,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
     <div className="relative h-full">
       {outputOn && (
         <motion.div aria-hidden
-          className="pointer-events-none absolute -inset-1 rounded-xl bg-success/35 blur-[20px]"
-          animate={{ opacity: [0.25, 0.95, 0.25] }}
+          className="pointer-events-none absolute -inset-px rounded-lg bg-success/40 blur-[6px]"
+          animate={{ opacity: [0.3, 0.95, 0.3] }}
           transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }} />
       )}
       <Card className="relative flex h-full flex-col">
