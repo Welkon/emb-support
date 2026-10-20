@@ -28,7 +28,8 @@ const VDIV = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
 const IDIV = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2];
 
 const DEFAULT_PRESETS: Preset[] = [
-  { v: 3.3, i: 0.5 }, { v: 5, i: 0.5 }, { v: 9, i: 1 }, { v: 12, i: 1 }, { v: 24, i: 0.5 },
+  { v: 1.8, i: 0.5 }, { v: 3.3, i: 0.5 }, { v: 5, i: 0.5 }, { v: 8, i: 0.5 },
+  { v: 9, i: 1 }, { v: 12, i: 1 }, { v: 24, i: 0.5 },
 ];
 
 type State = {
@@ -221,8 +222,8 @@ export default function App() {
   const [showV, setShowV] = useState(() => localStorage.getItem("psu-show-v") !== "0");
   const [showA, setShowA] = useState(() => localStorage.getItem("psu-show-a") !== "0");
   const [windowMs, setWindowMs] = useState(() => {
-    const saved = Number(localStorage.getItem("psu-window"));
-    return [10000, 30000, 60000].includes(saved) ? saved : 10000;
+    const saved = Number(localStorage.getItem("psu-window-v2"));
+    return [10000, 30000, 60000].includes(saved) ? saved : 30000;
   });
   const [cache, setCache] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -303,7 +304,7 @@ export default function App() {
     setHeaderH(el.getBoundingClientRect().height);
     return () => ro.disconnect();
   }, []);
-  useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
+  useEffect(() => { localStorage.setItem("psu-window-v2", String(windowMs)); }, [windowMs]);
   useEffect(() => { localStorage.setItem("psu-chart-settings", JSON.stringify(chartSettings)); }, [chartSettings]);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -989,17 +990,22 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
           <div className="relative">
             <select id="preset" aria-label={t.presets}
               value={(() => {
-                const idx = presets.findIndex((p) => Math.abs((parseFloat(vset) || 0) - p.v) < 1e-6 && Math.abs((parseFloat(iset) || 0) - p.i) < 1e-6);
+                const idx = presets.findIndex((p) => Math.abs((parseFloat(vset) || 0) - p.v) < 1e-6
+                  && Math.abs((parseFloat(iset) || 0) - p.i) < 1e-6
+                  && p.v <= (data?.limits.max_voltage ?? 30) && p.i <= (data?.limits.max_current ?? 5));
                 return idx >= 0 ? String(idx) : "";
               })()}
               onChange={(e) => { const p = presets[Number(e.target.value)]; if (p) onPreset(p); }}
               className="h-9 w-full appearance-none rounded-md border border-border bg-background px-2.5 pr-8 font-mono text-xs text-foreground outline-none focus:ring-1 focus:ring-ring">
               <option value="" disabled>{t.presetPlaceholder}</option>
-              {presets.map((p, idx) => (
-                <option key={`${p.v}-${p.i}-${idx}`} value={idx} disabled={p.v > (data?.limits.max_voltage ?? 30) || p.i > (data?.limits.max_current ?? 5)}>
-                  {p.v} V / {p.i} A
-                </option>
-              ))}
+              {presets
+                .map((p, idx) => ({ p, idx }))
+                .filter(({ p }) => p.v <= (data?.limits.max_voltage ?? 30) && p.i <= (data?.limits.max_current ?? 5))
+                .map(({ p, idx }) => (
+                  <option key={`${p.v}-${p.i}-${idx}`} value={idx}>
+                    {p.v} V / {p.i} A
+                  </option>
+                ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
