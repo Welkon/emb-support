@@ -9,8 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
-	"github.com/Welkon/emb-support/skills/powersupply/go/internal/hid"
+	"github.com/Welkon/emb-support/skills/powersupply/go/internal/driver"
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/server"
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/webassets"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -33,53 +32,40 @@ func externalWebDir() string {
 	return ""
 }
 
-func openAll() ([]server.Unit, []*dp100.Device, error) {
-	paths, err := hid.Paths(0x2E3C, 0xAF01)
-	if err != nil {
-		return nil, nil, err
+func openAll() ([]server.Unit, error) {
+	found, err := driver.Discover()
+	if err != nil && len(found) == 0 {
+		return nil, err
 	}
 	var units []server.Unit
-	var devices []*dp100.Device
 	seen := make(map[string]bool)
-	for _, path := range paths {
-		t, err := hid.OpenPath(path)
+	for _, f := range found {
+		u, err := driver.Open(f)
 		if err != nil {
-			log.Printf("skip %s: %v", path, err)
+			log.Printf("skip %s: %v", f.Device.Address, err)
 			continue
 		}
-		dev, err := dp100.Open(t)
-		if err != nil {
-			t.Close()
-			log.Printf("skip %s: %v", path, err)
+		if seen[u.ID] {
+			u.Dev.Close()
 			continue
 		}
-		info := dev.DeviceInfo()
-		id := info.SerialHex
-		if id == "" {
-			id = path
-		}
-		if seen[id] {
-			dev.Close()
-			continue
-		}
-		seen[id] = true
-		units = append(units, server.Unit{ID: id, Name: info.Model, Dev: dev})
-		devices = append(devices, dev)
+		seen[u.ID] = true
+		units = append(units, *u)
 	}
 	if len(units) == 0 {
-		return nil, nil, fmt.Errorf("no DP100 found on %d HID path(s)", len(paths))
+		return nil, fmt.Errorf("no power supply found")
 	}
-	return units, devices, nil
+	return units, nil
 }
 
 func main() {
-	units, devices, err := openAll()
+	units, err := openAll()
 	if err != nil {
-		log.Fatal("DP100: ", err)
+		log.Fatal("PSU: ", err)
 	}
 	defer func() {
-		for _, dev := range devices {
-			dev.Close()
+		for _, u := range units {
+			u.Dev.Close()
 		}
 	}()
 

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/hid"
+	"github.com/Welkon/emb-support/skills/powersupply/go/internal/psu"
 )
 
 const (
@@ -27,13 +28,8 @@ type Status struct {
 	WorkState  byte   `json:"work_state"`
 }
 
-type Measurement struct {
-	Voltage      float64 `json:"voltage"`
-	Current      float64 `json:"current"`
-	Power        float64 `json:"power"`
-	InputVoltage float64 `json:"input_voltage"`
-	Temperature  float64 `json:"temperature"`
-}
+// Measurement is shared with every driver.
+type Measurement = psu.Measurement
 
 type Snapshot struct {
 	Output      string      `json:"output"`
@@ -94,6 +90,12 @@ func (d *Device) Setpoints() (float64, float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.V, d.I
+}
+
+func (d *Device) Protection() (float64, float64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.OVP, d.OCP
 }
 
 func (d *Device) OutputOn() bool {

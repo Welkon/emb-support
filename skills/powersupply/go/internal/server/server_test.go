@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
+	"github.com/Welkon/emb-support/skills/powersupply/go/internal/psu"
 )
 
 type fakeDev struct {
@@ -56,16 +57,21 @@ func (f *fakeDev) Snapshot() (dp100.Snapshot, error) {
 		Status:      dp100.Status{OutputMode: mode},
 	}, nil
 }
-func (f *fakeDev) Measurement() (dp100.Measurement, error) {
+func (f *fakeDev) Measurement() (psu.Measurement, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return dp100.Measurement{Voltage: f.v, Current: f.i, Power: f.v * f.i, InputVoltage: 12, Temperature: 30}, nil
+	return psu.Measurement{Voltage: f.v, Current: f.i, Power: f.v * f.i, InputVoltage: 12, Temperature: 30}, nil
 }
 func (f *fakeDev) SetVoltage(v float64) error { f.mu.Lock(); f.v = v; f.mu.Unlock(); return nil }
 func (f *fakeDev) SetCurrent(a float64) error { f.mu.Lock(); f.i = a; f.mu.Unlock(); return nil }
 func (f *fakeDev) SetOutput(on bool) error    { f.mu.Lock(); f.out = on; f.mu.Unlock(); return nil }
 func (f *fakeDev) SetOVP(v float64) error     { f.mu.Lock(); f.ovp = v; f.mu.Unlock(); return nil }
 func (f *fakeDev) SetOCP(a float64) error     { f.mu.Lock(); f.ocp = a; f.mu.Unlock(); return nil }
+func (f *fakeDev) Protection() (float64, float64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.ovp, f.ocp
+}
 func (f *fakeDev) DeviceInfo() dp100.Info {
 	return dp100.Info{Model: "FAKE", App: 1.4, SerialHex: "SN"}
 }
@@ -258,5 +264,59 @@ func TestMultipleDevices(t *testing.T) {
 	res.Body.Close()
 	if a.out || b.out {
 		t.Fatal("all-off did not turn off both devices")
+	}
+}
+
+func TestUnitMetadataIsDriverNeutral(t *testing.T) {
+	f := &fakeDev{v: 12, i: 1}
+	s := NewMulti([]Unit{{
+		ID: "scpi-1", Name: "Bench Supply", Family: "scpi", Model: "Generic 60V",
+		Serial: "ABC123", Channels: []int{1, 2},
+		Caps:   Capabilities{Power: true, OVP: true, OCP: true, OutputState: true},
+		Limits: Limits{MaxVoltage: 60, MaxCurrent: 3, MaxOVP: 66, MaxOCP: 3.3, MaxPower: 180},
+		Dev:    f,
+	}}, Options{SampleHz: 100})
+	defer s.Close()
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Family       string       `json:"family"`
+		Channels     []int        `json:"channels"`
+		Capabilities Capabilities `json:"capabilities"`
+		Limits       Limits       `json:"limits"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if state.Family != "scpi" || len(state.Channels) != 2 {
+		t.Fatalf("metadata = %+v", state)
+	}
+	if !state.Capabilities.Power || state.Capabilities.Temperature || state.Capabilities.InputVoltage {
+		t.Fatalf("capabilities = %+v", state.Capabilities)
+	}
+	if state.Limits.MaxOVP != 66 || state.Limits.MaxPower != 180 {
+		t.Fatalf("limits = %+v", state.Limits)
+	}
+
+	res, err = http.Get(ts.URL + "/api/devices")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var devices struct {
+		Devices []struct {
+			Family   string `json:"family"`
+			Channels []int  `json:"channels"`
+		} `json:"devices"`
+	}
+	json.NewDecoder(res.Body).Decode(&devices)
+	res.Body.Close()
+	if len(devices.Devices) != 1 || devices.Devices[0].Family != "scpi" || len(devices.Devices[0].Channels) != 2 {
+		t.Fatalf("devices = %+v", devices.Devices)
 	}
 }

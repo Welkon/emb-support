@@ -15,19 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
+	"github.com/Welkon/emb-support/skills/powersupply/go/internal/psu"
 )
 
 type Backend interface {
-	Snapshot() (dp100.Snapshot, error)
 	Status() (mode, work byte)
-	Measurement() (dp100.Measurement, error)
+	Measurement() (psu.Measurement, error)
 	SetVoltage(float64) error
 	SetCurrent(float64) error
 	SetOutput(bool) error
 	SetOVP(float64) error
 	SetOCP(float64) error
-	DeviceInfo() dp100.Info
+	Protection() (ovp, ocp float64)
 	Setpoints() (voltage, current float64)
 	OutputOn() bool
 	Limits() (maxV, maxI float64)
@@ -54,20 +53,58 @@ type Options struct {
 
 // Unit is one connected power supply. ID must be stable for the lifetime of the
 // process; the DP100 serial number is the natural choice.
+type Capabilities struct {
+	Power        bool `json:"power"`
+	OVP          bool `json:"ovp"`
+	OCP          bool `json:"ocp"`
+	OutputState  bool `json:"output_state"`
+	InputVoltage bool `json:"input_voltage"`
+	Temperature  bool `json:"temperature"`
+}
+
+type Limits struct {
+	MaxVoltage float64 `json:"max_voltage"`
+	MaxCurrent float64 `json:"max_current"`
+	MaxOVP     float64 `json:"max_ovp"`
+	MaxOCP     float64 `json:"max_ocp"`
+	MaxPower   float64 `json:"max_power"`
+}
+
+// Unit is one connected power supply. A unit may come from any driver.
+// ID must be stable for the lifetime of the process. Metadata is optional;
+// when it is zero, the server falls back to the DP100 defaults.
 type Unit struct {
-	ID   string
-	Name string
-	Dev  Backend
+	ID       string
+	Name     string
+	Family   string
+	IDN      string
+	Model    string
+	Serial   string
+	Hardware string
+	Firmware string
+	Channels []int
+	Caps     Capabilities
+	Limits   Limits
+	Dev      Backend
 }
 
 type deviceState struct {
-	id    string
-	name  string
-	dev   Backend
-	mu    sync.RWMutex
-	devMu sync.Mutex
-	hist  []Sample
-	stop  chan struct{}
+	id       string
+	name     string
+	family   string
+	idn      string
+	model    string
+	serial   string
+	hardware string
+	firmware string
+	channels []int
+	caps     Capabilities
+	limits   Limits
+	dev      Backend
+	mu       sync.RWMutex
+	devMu    sync.Mutex
+	hist     []Sample
+	stop     chan struct{}
 }
 
 type Server struct {
@@ -80,10 +117,10 @@ type Server struct {
 
 func normalizeOptions(opt Options) Options {
 	if opt.MaxVoltage == 0 {
-		opt.MaxVoltage = dp100.MaxVoltage
+		opt.MaxVoltage = 30.0
 	}
 	if opt.MaxCurrent == 0 {
-		opt.MaxCurrent = dp100.MaxCurrent
+		opt.MaxCurrent = 5.0
 	}
 	if opt.SampleHz == 0 {
 		opt.SampleHz = 20
@@ -93,7 +130,7 @@ func normalizeOptions(opt Options) Options {
 
 // New keeps the single-device API. Multiple devices use NewMulti.
 func New(dev Backend, opt Options) *Server {
-	return NewMulti([]Unit{{ID: "default", Dev: dev}}, opt)
+	return NewMulti([]Unit{{ID: "default", Family: "dp100", Dev: dev}}, opt)
 }
 
 func NewMulti(units []Unit, opt Options) *Server {
@@ -114,7 +151,40 @@ func NewMulti(units []Unit, opt Options) *Server {
 		if name == "" {
 			name = id
 		}
-		u := &deviceState{id: id, name: name, dev: unit.Dev, stop: make(chan struct{})}
+		family := unit.Family
+		if family == "" {
+			family = "unknown"
+		}
+		channels := unit.Channels
+		if len(channels) == 0 {
+			channels = []int{1}
+		}
+		caps := unit.Caps
+		if family == "dp100" && caps == (Capabilities{}) {
+			caps = Capabilities{Power: true, OVP: true, OCP: true, OutputState: true, InputVoltage: true, Temperature: true}
+		}
+		limits := unit.Limits
+		if limits.MaxVoltage == 0 {
+			limits.MaxVoltage = 30.0
+		}
+		if limits.MaxCurrent == 0 {
+			limits.MaxCurrent = 5.0
+		}
+		if limits.MaxOVP == 0 {
+			limits.MaxOVP = 30.5
+		}
+		if limits.MaxOCP == 0 {
+			limits.MaxOCP = 5.05
+		}
+		if limits.MaxPower == 0 {
+			limits.MaxPower = 100
+		}
+		u := &deviceState{
+			id: id, name: name, family: family, idn: unit.IDN, model: unit.Model,
+			serial: unit.Serial, hardware: unit.Hardware, firmware: unit.Firmware,
+			channels: channels, caps: caps, limits: limits,
+			dev: unit.Dev, stop: make(chan struct{}),
+		}
 		s.units = append(s.units, u)
 		s.byID[id] = u
 		if s.defaultID == "" {
@@ -220,14 +290,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 func (s *Server) devices(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(s.units))
 	for _, u := range s.units {
-		info := u.dev.DeviceInfo()
-		out = append(out, map[string]any{
-			"id": u.id, "name": u.name,
-			"idn":   fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
-			"model": info.Model, "serial_number_hex": info.SerialHex,
-			"app_version": info.App, "hardware_version": info.Hardware,
-			"output": map[bool]string{false: "OFF", true: "ON"}[u.dev.OutputOn()],
-		})
+		out = append(out, s.deviceJSON(u))
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "devices": out, "default": s.defaultID})
 }
@@ -241,8 +304,22 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	s.writeState(w, u)
 }
 
+func (s *Server) deviceJSON(u *deviceState) map[string]any {
+	idn := u.idn
+	if idn == "" {
+		idn = fmt.Sprintf("%s,%s", u.name, u.serial)
+	}
+	return map[string]any{
+		"id": u.id, "name": u.name, "family": u.family, "idn": idn,
+		"model": u.model, "serial_number_hex": u.serial,
+		"firmware_version": u.firmware, "hardware": u.hardware,
+		"channels": u.channels, "capabilities": u.caps, "limits": u.limits,
+		"output": map[bool]string{false: "OFF", true: "ON"}[u.dev.OutputOn()],
+	}
+}
+
 func (s *Server) writeState(w http.ResponseWriter, u *deviceState) {
-	ch := 1
+	ch := u.channels[0]
 	u.mu.RLock()
 	var last Sample
 	have := len(u.hist) > 0
@@ -252,7 +329,6 @@ func (s *Server) writeState(w http.ResponseWriter, u *deviceState) {
 	u.mu.RUnlock()
 
 	u.devMu.Lock()
-	info := u.dev.DeviceInfo()
 	vset, iset := u.dev.Setpoints()
 	out := u.dev.OutputOn()
 	maxV, _ := u.dev.Limits()
@@ -282,20 +358,24 @@ func (s *Server) writeState(w http.ResponseWriter, u *deviceState) {
 		modeName = "OFF"
 	}
 	status := map[string]any{"output_mode": modeName, "work_state": work}
+	idn := u.idn
+	if idn == "" {
+		idn = fmt.Sprintf("%s,%s", u.name, u.serial)
+	}
+	limits := u.limits
+	if maxV > 0 {
+		limits.MaxVoltage = maxV
+	}
 	writeJSON(w, 200, map[string]any{
-		"ok": true, "device": u.id, "device_name": u.name,
-		"idn":    fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
-		"family": "dp100", "device_info": map[string]any{
-			"model": info.Model, "hardware_version": info.Hardware, "app_version": info.App,
-			"bootloader_version": info.Bootloader, "serial_number_hex": info.SerialHex,
+		"ok": true, "device": u.id, "device_name": u.name, "family": u.family,
+		"idn": idn, "device_info": map[string]any{
+			"model": u.model, "firmware_version": u.firmware, "hardware": u.hardware,
+			"serial_number_hex": u.serial,
 		},
-		"channels": []int{ch}, "ch": ch, "output": output,
+		"channels": u.channels, "ch": ch, "output": output,
 		"setpoint":    map[string]any{"voltage": vset, "current": iset},
 		"measurement": measurement, "status": status,
-		"capabilities": map[string]bool{"power": true, "ovp": true, "ocp": true,
-			"output_state": true, "input_voltage": true, "temperature": true},
-		"limits": map[string]any{"max_voltage": maxV, "max_current": dp100.MaxCurrent,
-			"max_ovp": dp100.MaxOVP, "max_ocp": dp100.MaxOCP, "max_power": 100.0},
+		"capabilities": u.caps, "limits": limits,
 	})
 }
 
@@ -395,11 +475,18 @@ func (s *Server) set(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	if body.Voltage != nil && (*body.Voltage < 0 || *body.Voltage > s.opt.MaxVoltage) {
+	maxV, maxI := u.limits.MaxVoltage, u.limits.MaxCurrent
+	if maxV <= 0 {
+		maxV = s.opt.MaxVoltage
+	}
+	if maxI <= 0 {
+		maxI = s.opt.MaxCurrent
+	}
+	if body.Voltage != nil && (*body.Voltage < 0 || *body.Voltage > maxV) {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": "voltage limit"})
 		return
 	}
-	if body.Current != nil && (*body.Current < 0 || *body.Current > s.opt.MaxCurrent) {
+	if body.Current != nil && (*body.Current < 0 || *body.Current > maxI) {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": "current limit"})
 		return
 	}

@@ -13,8 +13,9 @@ Prototype of the Go power-supply core.
 - CLI: `list`, `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`, `web`.
 - HTTP API: `/api/devices`, `/api/state`, `/api/history`, `/api/stream` (SSE),
   `/api/set`, `/api/output`, `/api/protect`, `/api/all-off`.
-- Multiple DP100 devices. Each unit is sampled independently at 20 Hz and keeps
-  its own 4-minute history. API requests select a unit with `device=<serial>`.
+- Multiple units, including units from different drivers. Each unit is sampled
+  independently at 20 Hz and keeps its own 4-minute history. API requests select
+  a unit with `device=<id>`.
 - The desktop UI shows one tab per connected unit. Both units stay active while
   you switch tabs. `All off` turns off every output.
 - Static React UI and optional CORS for a standalone single-file build.
@@ -22,7 +23,35 @@ Prototype of the Go power-supply core.
 - Desktop chart polling through `/api/history`; the browser keeps SSE.
 - React UI embedded in the executable.
 - External `web/current` or `PSU_WEB_DIR` overrides the embedded UI.
+- Driver registry so mixed models can share the server and UI.
 - Golden-frame, fake-transport, and server tests.
+
+## Drivers
+
+The server and the UI do not know any model details. A driver provides
+discovery, opening, and a `server.Unit` with metadata:
+
+- `family`
+- channels
+- capabilities
+- limits
+
+`server.Unit` also carries the display name and IDN. The server uses the
+metadata for `/api/devices`, `/api/state`, validation, and the UI tabs.
+
+Current registry:
+
+- `dp100`: USB HID, implemented in `internal/driver/dp100.go`.
+
+To add a model:
+
+1. Implement `driver.Driver` with `Discover` and `Open`.
+2. Return a `server.Unit` with the correct family, channels, capabilities, and
+   limits.
+3. Register the driver from `init`.
+4. Add a driver test. The server, CLI, and UI need no model-specific changes.
+
+SCPI, serial, and LAN drivers can use this path. They are not implemented yet.
 
 ## Verified on hardware
 
@@ -37,7 +66,7 @@ Windows, pure Go HID, CGO disabled:
 
 - Config, logging, tray icon, and signed updater.
 - Hot-plug detection after the app starts.
-- Windows signing and updater.
+- Signed updater.
 
 ## Build
 

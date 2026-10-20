@@ -12,8 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
-	"github.com/Welkon/emb-support/skills/powersupply/go/internal/hid"
+	"github.com/Welkon/emb-support/skills/powersupply/go/internal/driver"
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/server"
 )
 
@@ -62,104 +61,92 @@ type selector struct {
 
 func addSelector(fs *flag.FlagSet) *selector {
 	sel := &selector{}
-	fs.StringVar(&sel.serial, "serial", "", "DP100 serial number")
-	fs.StringVar(&sel.path, "path", "", "HID device path")
+	fs.StringVar(&sel.serial, "serial", "", "device serial number")
+	fs.StringVar(&sel.path, "path", "", "driver-specific address or path")
 	return sel
 }
 
-func (s *selector) open() (*dp100.Device, error) {
-	paths, err := hid.Paths(0x2E3C, 0xAF01)
+func describe(f driver.Found) string {
+	d := f.Device
+	addr := d.Address
+	if addr == "" {
+		addr = d.Key
+	}
+	return fmt.Sprintf("%s\t%s\t%s\t%s", d.ID, d.Model, d.Family, addr)
+}
+
+func (s *selector) find() (driver.Found, error) {
+	found, err := driver.Discover()
+	if err != nil && len(found) == 0 {
+		return driver.Found{}, err
+	}
+	var matches []driver.Found
+	for _, f := range found {
+		if s.path != "" && f.Device.Key != s.path && f.Device.Address != s.path {
+			continue
+		}
+		if s.serial != "" && !strings.EqualFold(f.Device.ID, s.serial) && !strings.EqualFold(f.Device.Serial, s.serial) {
+			continue
+		}
+		matches = append(matches, f)
+	}
+	if s.path == "" && s.serial == "" && len(matches) > 1 {
+		var names []string
+		for _, f := range matches {
+			names = append(names, describe(f))
+		}
+		return driver.Found{}, fmt.Errorf("multiple devices found:\n%s\nuse --serial or --path", strings.Join(names, "\n"))
+	}
+	if len(matches) == 0 {
+		return driver.Found{}, fmt.Errorf("no matching device")
+	}
+	return matches[0], nil
+}
+
+func (s *selector) open() (*server.Unit, error) {
+	f, err := s.find()
 	if err != nil {
 		return nil, err
 	}
-	if s.path != "" {
-		return openPath(s.path)
-	}
-	if s.serial != "" {
-		for _, path := range paths {
-			d, err := openPath(path)
-			if err != nil {
-				continue
-			}
-			if strings.EqualFold(d.Info.SerialHex, s.serial) {
-				return d, nil
-			}
-			d.Close()
-		}
-		return nil, fmt.Errorf("no DP100 with serial %q", s.serial)
-	}
-	if len(paths) == 0 {
-		return nil, fmt.Errorf("no DP100 found")
-	}
-	if len(paths) > 1 {
-		var found []string
-		for _, path := range paths {
-			d, err := openPath(path)
-			if err != nil {
-				continue
-			}
-			found = append(found, d.Info.SerialHex)
-			d.Close()
-		}
-		return nil, fmt.Errorf("multiple DP100 devices found (%s); use --serial", strings.Join(found, ", "))
-	}
-	return openPath(paths[0])
+	return driver.Open(f)
 }
 
-func (s *selector) openAll() ([]server.Unit, []*dp100.Device, error) {
+func (s *selector) openAll() ([]server.Unit, error) {
 	if s.serial != "" || s.path != "" {
-		d, err := s.open()
+		u, err := s.open()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		return []server.Unit{{ID: d.Info.SerialHex, Name: d.Info.Model, Dev: d}}, []*dp100.Device{d}, nil
+		return []server.Unit{*u}, nil
 	}
-	paths, err := hid.Paths(0x2E3C, 0xAF01)
-	if err != nil {
-		return nil, nil, err
+	found, err := driver.Discover()
+	if err != nil && len(found) == 0 {
+		return nil, err
 	}
 	var units []server.Unit
-	var devices []*dp100.Device
 	seen := make(map[string]bool)
-	for _, path := range paths {
-		d, err := openPath(path)
+	for _, f := range found {
+		u, err := driver.Open(f)
 		if err != nil {
 			continue
 		}
-		id := d.Info.SerialHex
-		if id == "" {
-			id = path
-		}
+		id := u.ID
 		if seen[id] {
-			d.Close()
+			u.Dev.Close()
 			continue
 		}
 		seen[id] = true
-		units = append(units, server.Unit{ID: id, Name: d.Info.Model, Dev: d})
-		devices = append(devices, d)
+		units = append(units, *u)
 	}
 	if len(units) == 0 {
-		return nil, nil, fmt.Errorf("no DP100 found")
+		return nil, fmt.Errorf("no devices found")
 	}
-	return units, devices, nil
+	return units, nil
 }
 
-func openPath(path string) (*dp100.Device, error) {
-	t, err := hid.OpenPath(path)
-	if err != nil {
-		return nil, err
-	}
-	d, err := dp100.Open(t)
-	if err != nil {
-		t.Close()
-		return nil, err
-	}
-	return d, nil
-}
-
-func closeAll(devices []*dp100.Device) {
-	for _, d := range devices {
-		d.Close()
+func closeAll(units []server.Unit) {
+	for _, u := range units {
+		u.Dev.Close()
 	}
 }
 
@@ -170,12 +157,6 @@ func emit(v any, asJSON *bool) {
 		return
 	}
 	switch x := v.(type) {
-	case dp100.Info:
-		fmt.Printf("%s fw=%.1f hw=%.1f serial=%s\n", x.Model, x.App, x.Hardware, x.SerialHex)
-	case dp100.Snapshot:
-		fmt.Printf("%s V=%.3f I=%.3f P=%.3f Vin=%.3f T=%.1f VSet=%.3f ISet=%.3f\n",
-			x.Output, x.Measurement.Voltage, x.Measurement.Current, x.Measurement.Power,
-			x.Measurement.InputVoltage, x.Measurement.Temperature, x.VSet, x.ISet)
 	case map[string]any:
 		for k, val := range x {
 			fmt.Printf("%s=%v ", k, val)
@@ -190,29 +171,24 @@ func cmdList(args []string) error {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
 	fs.Parse(args)
-	paths, err := hid.Paths(0x2E3C, 0xAF01)
-	if err != nil {
+	found, err := driver.Discover()
+	if err != nil && len(found) == 0 {
 		return err
 	}
-	var out []dp100.Info
-	for _, path := range paths {
-		d, err := openPath(path)
-		if err != nil {
-			continue
-		}
-		out = append(out, d.Info)
-		d.Close()
-	}
 	if *asJSON {
+		out := make([]driver.Device, 0, len(found))
+		for _, f := range found {
+			out = append(out, f.Device)
+		}
 		b, _ := json.MarshalIndent(out, "", "  ")
 		fmt.Println(string(b))
 		return nil
 	}
-	for _, info := range out {
-		fmt.Printf("%s %s fw=%.1f hw=%.1f\n", info.SerialHex, info.Model, info.App, info.Hardware)
+	for _, f := range found {
+		fmt.Println(describe(f))
 	}
-	if len(out) == 0 {
-		fmt.Println("no DP100 found")
+	if len(found) == 0 {
+		fmt.Println("no devices found")
 	}
 	return nil
 }
@@ -222,12 +198,15 @@ func cmdIDN(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	emit(d.Info, asJSON)
+	defer u.Dev.Close()
+	emit(map[string]any{
+		"id": u.ID, "idn": u.IDN, "family": u.Family, "model": u.Model,
+		"serial": u.Serial, "hardware": u.Hardware, "firmware": u.Firmware,
+	}, asJSON)
 	return nil
 }
 
@@ -236,12 +215,13 @@ func cmdGet(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	emit(map[string]any{"voltage": d.V, "current": d.I, "output": d.Out}, asJSON)
+	defer u.Dev.Close()
+	v, i := u.Dev.Setpoints()
+	emit(map[string]any{"voltage": v, "current": i, "output": u.Dev.OutputOn()}, asJSON)
 	return nil
 }
 
@@ -250,12 +230,12 @@ func cmdMeasure(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	m, err := d.Measurement()
+	defer u.Dev.Close()
+	m, err := u.Dev.Measurement()
 	if err != nil {
 		return err
 	}
@@ -269,16 +249,28 @@ func cmdSnapshot(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	s, err := d.Snapshot()
+	defer u.Dev.Close()
+	m, err := u.Dev.Measurement()
 	if err != nil {
 		return err
 	}
-	emit(s, asJSON)
+	v, i := u.Dev.Setpoints()
+	mode, work := u.Dev.Status()
+	limitV, limitI := u.Dev.Limits()
+	emit(map[string]any{
+		"device": u.ID, "family": u.Family, "model": u.Model, "serial": u.Serial,
+		"output": map[bool]string{false: "OFF", true: "ON"}[u.Dev.OutputOn()],
+		"vset":   v, "iset": i,
+		"measurement": map[string]any{"voltage": m.Voltage, "current": m.Current,
+			"power": m.Power, "input_voltage": m.InputVoltage, "temperature": m.Temperature},
+		"status":      map[string]any{"output_mode": map[byte]string{0: "CC", 1: "CV", 2: "OFF"}[mode], "work_state": work},
+		"max_voltage": limitV, "max_current": limitI,
+		"limits": u.Limits,
+	}, asJSON)
 	return nil
 }
 
@@ -289,22 +281,23 @@ func cmdSet(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer u.Dev.Close()
 	if *voltage >= 0 {
-		if err := d.SetVoltage(*voltage); err != nil {
+		if err := u.Dev.SetVoltage(*voltage); err != nil {
 			return err
 		}
 	}
 	if *current >= 0 {
-		if err := d.SetCurrent(*current); err != nil {
+		if err := u.Dev.SetCurrent(*current); err != nil {
 			return err
 		}
 	}
-	emit(map[string]any{"voltage": d.V, "current": d.I}, asJSON)
+	v, i := u.Dev.Setpoints()
+	emit(map[string]any{"voltage": v, "current": i}, asJSON)
 	return nil
 }
 
@@ -345,16 +338,16 @@ func cmdOutput(args []string) error {
 	if on && !yes {
 		return fmt.Errorf("output ON requires --yes")
 	}
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	if err := d.SetOutput(on); err != nil {
+	defer u.Dev.Close()
+	if err := u.Dev.SetOutput(on); err != nil {
 		return err
 	}
 	state := "off"
-	if d.Out {
+	if u.Dev.OutputOn() {
 		state = "on"
 	}
 	emit(map[string]any{"state": state}, &asJSON)
@@ -368,22 +361,23 @@ func cmdProtect(args []string) error {
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := sel.open()
+	u, err := sel.open()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer u.Dev.Close()
 	if *ovp >= 0 {
-		if err := d.SetOVP(*ovp); err != nil {
+		if err := u.Dev.SetOVP(*ovp); err != nil {
 			return err
 		}
 	}
 	if *ocp >= 0 {
-		if err := d.SetOCP(*ocp); err != nil {
+		if err := u.Dev.SetOCP(*ocp); err != nil {
 			return err
 		}
 	}
-	emit(map[string]any{"ovp": d.OVP, "ocp": d.OCP}, asJSON)
+	ov, oc := u.Dev.Protection()
+	emit(map[string]any{"ovp": ov, "ocp": oc}, asJSON)
 	return nil
 }
 
@@ -401,11 +395,11 @@ func cmdWeb(args []string) error {
 	if root == "" {
 		root = findWebapp()
 	}
-	units, devices, err := sel.openAll()
+	units, err := sel.openAll()
 	if err != nil {
 		return err
 	}
-	defer closeAll(devices)
+	defer closeAll(units)
 	srv := server.NewMulti(units, server.Options{DistDir: root, AllowOrigin: *allowOrigin})
 	defer srv.Close()
 	addr := net.JoinHostPort(*bind, fmt.Sprint(*port))

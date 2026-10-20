@@ -34,7 +34,7 @@ const DEFAULT_PRESETS: Preset[] = [
 
 type Device = {
   id: string; name: string; idn: string; model: string; serial_number_hex: string;
-  app_version: number; hardware_version: number; output: string;
+  family?: string; firmware_version?: string; hardware?: string; output: string;
 };
 type State = {
   ok: boolean; idn: string; family: string; channels: number[]; ch: number; device?: string; device_name?: string;
@@ -568,7 +568,7 @@ export default function App() {
                 <span className="h-1.5 w-1.5 rounded-full bg-primary/80" />
                 Power Supply
                 <span className="font-normal text-border">/</span>
-                <span className="font-mono font-normal normal-case tracking-normal">DP100</span>
+                <span className="font-mono font-normal normal-case tracking-normal">{devices.find((d) => d.id === deviceId)?.model ?? data?.family ?? "PSU"}</span>
               </div>
               <div className="flex items-center gap-0.5" style={{ "--wails-draggable": "no-drag" } as CSSProperties}>
                 <button type="button" aria-label="Minimise" title="Minimise"
