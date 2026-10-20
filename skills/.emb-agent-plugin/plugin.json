@@ -3,9 +3,7 @@
   "version": "0.1.0",
   "description": "Installable skill bundle source for emb-agent external support assets.",
   "skills": [
-    "./xc8-build/SKILL.md",
     "./altium-pcb/SKILL.md",
-    "./cachip/SKILL.md",
     "./mcu-debug/SKILL.md",
     "./oscilloscope/SKILL.md",
     "./powersupply/SKILL.md"

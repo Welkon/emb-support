@@ -1,3 +1,3 @@
 display_name: MCU Debug
-short_description: Flash and debug Cortex-M over DAPLink/CMSIS-DAP, with fault root-cause analysis.
-default_prompt: Use $mcu-debug to flash or debug a Cortex-M target over DAPLink/CMSIS-DAP, inspect a HardFault, capture RTT/SWO output, or generate a post-mortem report.
+short_description: Debug/flash Cortex-M, build XC8 firmware, and burn/calibrate CACHIP touch MCUs.
+default_prompt: Use $mcu-debug to debug/flash a Cortex-M target, build SCMCU/PIC firmware with XC8, or burn/calibrate a CACHIP CA51 touch MCU.

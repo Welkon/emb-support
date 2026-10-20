@@ -101,7 +101,7 @@ function runTest(algorithmName, algorithmPath, vectorRaw) {
 }
 
 function runXc8BuildScriptTests() {
-  const scriptPath = path.resolve(__dirname, '..', 'skills', 'xc8-build', 'scripts', 'build_xc8.py');
+  const scriptPath = path.resolve(__dirname, '..', 'skills', 'mcu-debug', 'scripts', 'xc8', 'build_xc8.py');
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-support-xc8-test-'));
   const fakeToolchain = path.join(tempRoot, 'SCMCU_IDE');
   const cfgDir = path.join(fakeToolchain, 'mcu', 'config');

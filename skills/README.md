@@ -42,6 +42,13 @@ See [docs/kicad-cad-delegation.md](../docs/kicad-cad-delegation.md) for the lice
 position — this repository is Apache-2.0 and Konnect is AGPL-3.0, so it is a reference
 and not a copy — and for what emb-agent publishes on the reading side.
 
+## Merged skills
+
+`cachip` and `xc8-build` were merged into `mcu-debug` (2026-10): their scripts
+live under `skills/mcu-debug/scripts/cachip/` and `skills/mcu-debug/scripts/xc8/`,
+their docs under `references/`, and they are routed from the top of
+`skills/mcu-debug/SKILL.md`. Install `mcu-debug` instead.
+
 ## Adding a skill
 
 1. Create `skills/<name>/SKILL.md` (frontmatter needs `name` and `description`).
