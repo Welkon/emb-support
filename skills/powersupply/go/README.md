@@ -10,8 +10,12 @@ Prototype of the Go power-supply core.
 - Limits: 30 V, 5 A, OVP 30.5 V, OCP 5.05 A.
 - Pure-Go Windows HID transport (SetupAPI + overlapped I/O).
 - Linux hidraw transport.
-- CLI: `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`.
-- Golden-frame and fake-transport tests.
+- CLI: `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`, `web`.
+- HTTP API: `/api/state`, `/api/history`, `/api/stream` (SSE), `/api/set`,
+  `/api/output`, `/api/protect`, `/api/all-off`.
+- Background 20 Hz sampler with a 4-minute ring buffer.
+- Static React UI and optional CORS for a standalone single-file build.
+- Golden-frame, fake-transport, and server tests.
 
 ## Verified on hardware
 
@@ -24,7 +28,6 @@ Windows, pure Go HID, CGO disabled:
 
 ## Not yet
 
-- HTTP/SSE server.
 - Wails v3 desktop shell.
 - Config, logging, sequences, scans, presets.
 - Windows signing and updater.
@@ -47,4 +50,5 @@ psu set --voltage 3.3 --current 0.5
 psu output on --yes
 psu output off
 psu protect --ovp 30.5 --ocp 5.05
+psu web --open
 ```

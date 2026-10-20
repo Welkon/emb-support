@@ -86,22 +86,31 @@ func Open(t hid.Transport) (*Device, error) {
 
 func (d *Device) Close() error { return d.t.Close() }
 
+func (d *Device) DeviceInfo() Info              { return d.Info }
+func (d *Device) Setpoints() (float64, float64) { return d.V, d.I }
+func (d *Device) OutputOn() bool                { return d.Out }
+func (d *Device) Limits() (maxV, maxI float64)  { return d.MaxV, d.MaxI }
+
 func (d *Device) exchange(op byte, payload []byte) ([]byte, error) {
 	if err := d.t.Write(Encode(op, payload)); err != nil {
 		return nil, err
 	}
-	raw, err := d.t.Read(64, 1000)
-	if err != nil {
-		return nil, err
+	var last byte
+	for attempt := 0; attempt < 4; attempt++ {
+		raw, err := d.t.Read(64, 1000)
+		if err != nil {
+			return nil, err
+		}
+		f, err := Decode(raw)
+		if err != nil {
+			return nil, err
+		}
+		if f.Op == op {
+			return f.Payload, nil
+		}
+		last = f.Op // unsolicited Basic frame, read the next report
 	}
-	f, err := Decode(raw)
-	if err != nil {
-		return nil, err
-	}
-	if f.Op != op {
-		return nil, fmt.Errorf("unexpected opcode 0x%02x, want 0x%02x", f.Op, op)
-	}
-	return f.Payload, nil
+	return nil, fmt.Errorf("unexpected opcode 0x%02x, want 0x%02x", last, op)
 }
 
 func (d *Device) readInfo() (Info, error) {
