@@ -1,11 +1,15 @@
 ---
 name: powersupply
-description: Control programmable bench power supplies over LAN (SCPI socket), USB (USBTMC/VISA) or serial — Rigol DP800, Keysight E36xx, Siglent SPD, Rohde & Schwarz HMC, GW Instek, BK Precision, Owon, Aim-TTi and Korad. Use this skill whenever the user mentions a power supply, PSU, bench supply, programmable source, SCPI voltage/current setpoints, OVP/OCP, output enable, voltage ramp, or asks to set/measure/log supply rails — including 可编程电源 / 直流电源 / 设电压 / 设电流 / 开输出 / 限流保护 / 电源老化记录 — even if they do not name the model. Also use it for safe output control and power-rail logging.
+description: Control programmable bench power supplies over LAN (SCPI socket), USB (USBTMC or VISA), or serial. Supports Rigol DP800, Keysight E36xx, Siglent SPD, Rohde & Schwarz HMC, GW Instek, BK Precision, Owon, Aim-TTi, Korad, ALIENTEK DP100, FNIRSI DPS-150, and B&K 168x. Use this skill when the user mentions a power supply, PSU, bench supply, programmable source, SCPI voltage or current setpoints, OVP, OCP, output enable, voltage ramp, or supply-rail logging. Use it also for safe output control and long power-rail records.
 ---
 
 # Programmable Power Supply
 
-通用可编程电源 CLI。结构：**传输层**（LAN socket / pyvisa / usbtmc / 串口）、**方言层**（按品牌生成 SCPI 或 Korad 串口命令）、**安全层**（电压/电流上限、输出联锁、回读校验）。
+This skill controls programmable power supplies. The code has three layers:
+
+- Transport: LAN socket, VISA, USBTMC, serial port, or USB HID.
+- Dialect: brand-specific SCPI or serial commands.
+- Safety: voltage and current limits, output interlocks, and readback checks.
 
 ```bash
 scripts/psu.py idn --host 192.168.1.60
@@ -14,175 +18,166 @@ scripts/psu.py output --host 192.168.1.60 --ch 1 on --yes
 scripts/psu.py measure --host 192.168.1.60 --ch 1
 ```
 
-## 0. 安全第一
+## 0. Safety first
 
-电源比示波器危险，所有会让输出变化的操作都有保护：
+A power supply is more dangerous than an oscilloscope. The tool protects output changes.
 
-- **默认上限**：`max_voltage=30 V`、`max_current=5 A`，超出直接拒绝。
-  改上限：`--max-voltage 60` 或 `config set max_voltage 60`。
-- **开输出必须 `--yes`**，否则拒绝执行。
-- **`all-off`** 无需确认，用于紧急关闭所有通道。
-- `ramp` / `sequence` 也必须 `--yes`；异常时会按 `safe_off`（默认开）关闭输出。
-- `set` 只改设定值，不会自动开输出。
-- 保护值（OVP/OCP）不替代硬件限流，先确认电源的物理量程。
+- The default limits are 30 V and 5 A. The tool rejects larger values. Change a limit with --max-voltage 60 or config set max_voltage 60.
+- Output ON requires --yes. The tool rejects the command without it.
+- all-off needs no confirmation. Use it for an emergency stop on all channels.
+- ramp and sequence require --yes. On an error, they turn the output off when safe_off is enabled.
+- set changes setpoints only. It does not enable the output.
+- OVP and OCP do not replace a hardware current limit. Check the physical rating first.
 
-## 1. 环境
+## 1. Environment
 
 ```bash
-scripts/psu.py doctor --host 192.168.1.60     # pyvisa / usbtmc / 串口 / 连通性
-scripts/psu.py discover                       # VISA 资源
-scripts/psu.py discover --scan 192.168.1.0/24 # 扫 5025 端口
-scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/pyserial
+scripts/psu.py doctor --host 192.168.1.60
+scripts/psu.py discover
+scripts/psu.py discover --scan 192.168.1.0/24
+scripts/psu.py setup
 ```
 
-- LAN 用原生 socket，零依赖。
-- USB 走 pyvisa（或 Linux `/dev/usbtmc*`）。
-- Korad 等串口电源：`--serial /dev/ttyUSB0 --baud 9600`。
-- DP100（USB HID）：`--hid dp100`（自动枚举设备）。
-- DPS-150（USB CDC）：`--serial /dev/ttyACM0 --family dps150`。
-- B&K 168x / Manson：`--serial /dev/ttyUSB0 --family bk168x`（1685B 加 `--current-decimals 2`）。
-- Linux/WSL 权限：`sudo bash scripts/install_udev.sh`（安装后重新 replug 或重新 `usbipd attach`）。
-- WSL 会自动检测：启动时识别 WSL；连接时若本地没有设备，会对 Windows 侧
-  **已 Shared** 的电源自动执行 `usbipd attach`；`doctor --attach-usb` 可手动触发。
+- LAN uses a native socket. It has no extra dependency.
+- USB uses VISA or Linux /dev/usbtmc*.
+- Serial supplies such as Korad use --serial /dev/ttyUSB0 --baud 9600.
+- ALIENTEK DP100 uses USB HID: --hid dp100.
+- FNIRSI DPS-150 uses USB CDC: --serial /dev/ttyACM0 --family dps150.
+- B&K 168x and Manson use --serial /dev/ttyUSB0 --family bk168x. Add --current-decimals 2 for the 1685B.
+- Linux and WSL permissions: run sudo bash scripts/install_udev.sh. Replug the device or run usbipd attach again after the install.
+- WSL detection: the tool detects WSL at start. If no local device exists, it attaches a Shared Windows supply with usbipd attach. Use doctor --attach-usb to attach manually.
 
-## 2. 品牌与方言
+## 2. Families and dialects
 
-| family | 典型型号 | 命令风格 |
+| family | Typical model | Command style |
 |---|---|---|
-| `rigol` | DP832 / DP800 | `:CHANnel<n>:VOLTage`、`:OUTPut CHANnel<n>,ON` |
-| `keysight` | E36312A / E3631A / E364xA | `:INSTrument:NSELect` + `:VOLTage` / `:OUTPut` |
-| `siglent` | SPD3303X / SPD3303X-E | `:CH<n>:VOLT`、`:OUTP CH<n>,ON` |
-| `rns` | HMC8041/2/3 | `:INSTrument:NSELect` + `:OUTPut:CHANnel<n>:STATe` |
-| `korad` | KA3005P / Tenma | 串口 `VSET1:` / `ISET1:` / `OUT1` |
-| `gwinstek` | GPP/GPD | 通道选择 + `:VOLT` / `:OUTP` |
-| `bkprecision` | 9130B / 9200 | 通道选择 + `:VOLT` / `:OUTP` |
-| `owon` | SPE/SPD 系列 | `:CH<n>:VOLT`、`:OUTP CH<n>,ON` |
-| `aimtti` | PL/CPX 系列 | 通用 `:VOLT` / `:CURR` / `:OUTP` |
-| `itech` | IT6300/IT6900 | `:INSTrument:NSELect` + `:VOLTage` / `:OUTPut` |
-| `generic` | 其它 SCPI | `:VOLTage` / `:CURRent` / `:OUTPut` |
-| `dp100` | 正点原子 DP100（0–30 V / 0–5 A / 100 W） | **USB HID**（hidapi） |
-| `dps150` | FNIRSI DPS-150 | **USB CDC 串口**，F1/F0 帧 + float32 寄存器 |
-| `bk168x` | B&K 1685B/1687B/1688B、Manson HCS-3xxx | 串口 ASCII（`VOLT123` / `GETD` / `SOUT0`） |
+| rigol | DP832, DP800 | :CHANnel<n>:VOLTage, :OUTPut CHANnel<n>,ON |
+| keysight | E36312A, E3631A, E364xA | :INSTrument:NSELect and :VOLTage / :OUTPut |
+| siglent | SPD3303X, SPD3303X-E | :CH<n>:VOLT, :OUTP CH<n>,ON |
+| rns | HMC8041/2/3 | :INSTrument:NSELect and :OUTPut:CHANnel<n>:STATe |
+| korad | KA3005P, Tenma | serial VSET1:, ISET1:, OUT1 |
+| gwinstek | GPP, GPD | channel select and :VOLT / :OUTP |
+| bkprecision | 9130B, 9200 | channel select and :VOLT / :OUTP |
+| owon | SPE, SPD | :CH<n>:VOLT, :OUTP CH<n>,ON |
+| aimtti | PL, CPX | :VOLT, :CURR, :OUTP |
+| itech | IT6300, IT6900 | :INSTrument:NSELect and :VOLTage / :OUTPut |
+| generic | other SCPI | :VOLTage, :CURRent, :OUTPut |
+| dp100 | ALIENTEK DP100 (0-30 V, 0-5 A, 100 W) | USB HID with hidapi |
+| dps150 | FNIRSI DPS-150 | USB CDC, F1/F0 frames and float32 registers |
+| bk168x | B&K 1685B/1687B/1688B, Manson HCS-3xxx | serial ASCII: VOLT123, GETD, SOUT0 |
 
-细节与来源见 `references/dialects.md`；排错见 `references/troubleshooting.md`。
+See references/dialects.md for details and sources. See references/troubleshooting.md for faults.
 
-## 3. 标准工作流
+## 3. Standard workflow
 
 ```bash
-# 识别
+# Identify the supply.
 scripts/psu.py idn --host <ip> --json
-scripts/psu.py channels --host <ip>            # 通道数与能力
+scripts/psu.py channels --host <ip>
 
-# 设限值（只改设定，不开输出）
+# Set limits. This does not enable the output.
 scripts/psu.py set --host <ip> --ch 1 --voltage 5 --current 1 --verify
 
-# 开输出（必须 --yes），再测量
+# Enable the output. Use --yes. Then measure.
 scripts/psu.py output --host <ip> --ch 1 on --yes
 scripts/psu.py measure --host <ip> --ch 1
 
-# 记录 V/I/P
+# Record V, I, and P.
 scripts/psu.py log --host <ip> --ch 1 --duration 30 --interval 0.5 --out rail.csv
 
-# 关闭
+# Disable one channel.
 scripts/psu.py output --host <ip> --ch 1 off
-# 或紧急全关
+
+# Emergency stop on all channels.
 scripts/psu.py all-off --host <ip>
 ```
 
-## 4. 电压斜坡与序列
+## 4. Voltage ramp and sequence
 
 ```bash
-# 软件斜坡：0 V -> 12 V，每步 0.5 V，间隔 0.2 s
+# Software ramp: 0 V to 12 V, step 0.5 V, delay 0.2 s.
 scripts/psu.py ramp --host <ip> --ch 1 --start 0 --to 12 --step 0.5 --delay 0.2 --yes
 
-# JSON 序列
-cat > seq.json <<'EOF'
+# JSON sequence.
+cat > seq.json <<'JSON'
 {"steps": [
   {"voltage": 3.3, "current": 0.5, "delay": 1},
   {"voltage": 5.0, "current": 0.5, "delay": 2},
   {"voltage": 0.0, "current": 0.5, "delay": 0}
 ]}
-EOF
+JSON
 scripts/psu.py sequence seq.json --host <ip> --ch 1 --yes
 ```
 
-序列里每一步都会检查 `max_voltage/max_current`；异常时按 `safe_off` 关闭输出。
+The tool checks max_voltage and max_current at each step. On an error, it turns the output off when safe_off is enabled.
 
-## 5. 命令速查
+## 5. Command reference
 
-| 命令 | 作用 | 关键参数 |
+| Command | Function | Key options |
 |---|---|---|
-| `idn` / `channels` | 识别与通道能力 | `--family` |
-| `set` | 设电压/电流设定值 | `--ch`、`--voltage`、`--current`、`--verify` |
-| `get` | 读设定值 | `--ch` |
-| `measure` | 测 V/I/P | `--items voltage,current,power` |
-| `output` | 开/关输出 | `on` 需 `--yes` |
-| `all-off` | 关闭所有通道 | 无 |
-| `protect` | OVP/OCP | `--ovp`、`--ocp` |
-| `ramp` | 软件斜坡 | `--to`、`--start`、`--step`、`--delay`、`--yes` |
-| `sequence` | JSON 序列 | 文件、`--yes` |
-| `log` | V/I/P 记录 | `--duration`、`--interval`、`--out` |
-| `web` | 本地网页 UI + 实时曲线 | `--bind`、`--web-port`、`--open` |
-| `scpi` / `query` / `write` | 原始 SCPI（非 SCPI 设备会拒绝） | `--query` |
-| `config` | 默认值与上限 | `host/resource/serial/max_voltage/max_current/safe_off` |
+| idn, channels | Identify the supply and its channels | --family |
+| set | Set voltage and current | --ch, --voltage, --current, --verify |
+| get | Read setpoints | --ch |
+| measure | Measure V, I, and P | --items voltage,current,power |
+| output | Enable or disable the output | on requires --yes |
+| all-off | Disable all channels | none |
+| protect | Set OVP and OCP | --ovp, --ocp |
+| ramp | Software voltage ramp | --to, --start, --step, --delay, --yes |
+| sequence | Run a JSON sequence | file, --yes |
+| log | Record V, I, and P | --duration, --interval, --out |
+| web | Local Web UI and live chart | --bind, --web-port, --open |
+| scpi, query, write | Raw SCPI | --query |
+| config | Defaults and limits | host, resource, serial, max_voltage, max_current, safe_off |
 
-通用连接参数：`--host`、`--port 5025`、`--resource`、`--serial`、`--baud`、`--backend`、`--family`、`--timeout`、`--max-voltage`、`--max-current`。
+Common connection options: --host, --port 5025, --resource, --serial, --baud, --backend, --family, --timeout, --max-voltage, and --max-current.
 
-## 5.5 网页 UI（独立使用）
+## 5.5 Web UI
 
 ```bash
 scripts/psu.py web --hid dp100 --open
 scripts/psu.py web --host 192.168.1.60 --bind 127.0.0.1 --web-port 8765
 ```
 
-- 默认只绑定 `127.0.0.1`，不对外网开放；`--bind 0.0.0.0` 会暴露到局域网（无鉴权，谨慎）。
-- WSL 下 `--open` 会用 **Windows 浏览器** 打开（通过 `cmd.exe start`/PowerShell）；
-  地址用 `localhost`，WSL2 会自动转发。
-- 页面是 **React + Tailwind + shadcn 风格**组件（已预构建在 `webapp/dist`），按设备
-  `capabilities` 自动显示/隐藏 OVP、OCP、功率、输入电压和通道 tabs。
-- 支持 **中/英** 与 **亮/暗** 主题切换（记忆到 localStorage）；实时曲线用
-  **ECharts**（Canvas、双 Y 轴），**一张图同时显示电压和电流**，可用 V/A 按钮
-  独立显隐；时间窗 10/30/60 秒可选；采样率自动适配（DP100 20 Hz，其他设备 10 Hz）。
-  DP100 HID 需要约 20–50ms 帧间隔，过高会掉线。
-- 首屏数据未返回时显示骨架卡片；输出 OFF 时图表不绘制曲线，只显示“输出未开启”。
-- 实时数据走 **SSE**（`/api/stream`），DP100 每个采样只读一次 HID；服务端后台
-  采样线程维护最近 4 分钟环形缓冲，`/api/history` 在页面打开时预填曲线，避免“刚打开没线”。
-- 曲线默认**不缓存**：只保留当前时间窗（内部为支持 60 秒切换保留最近 62 秒）；
-  可手动开缓存（最多 1 小时）用于 CSV 导出。刷新页面会清空，长期记录用 `log`。
-- 图表右侧有示波器式旋钮（V/div、V 位置、A/div、A 位置）；AUTO 只做一次自动量程，
-  计算后保存为 MAN，之后全部手动。
-- 顶部标题栏固定，Basic/Advanced 在标题栏内切换；用 **Framer Motion** 做 Tab 滑块、
-  页面淡入、告警滑入等轻量动画（遵循系统“减少动态效果”）；
-  Advanced 使用无卡片的分区布局，
-  顶部指标条也做成扁平分隔条；时间窗、采样率、V/A 显隐会记住；
-  控制区顶部是预设下拉框，选择电压+电流组合（3.3/5/9/12/24 V 默认组），可“保存当前”
-  自定义；VSET/ISET 按 Enter 或移出输入框自动应用，聚焦后滚轮微调（Shift ×10、Alt ×0.1）；
-  曲线可暂停，悬停显示该时刻 V/A 数值。
-- 输出开启时控制卡有柔和外发光 + 内部淡绿呼吸，标题绿点同步呼吸；输出标徽为实心绿色并带脉冲提示。
-- Web Audio 音效：输出 ON/OFF 双音、设备故障低音提示；顶部扬声器按钮可静音（记忆设置）。
-- 设备异常（断连、OVP/OCP/OPP/OTP/反接/欠压、温度 ≥60 °C）会弹出原生 `alert()`，
-  并在右下角显示不改变页面布局的浮层告警（至少 10 秒），同时把浏览器标题改成 `⚠ ...`；
-  恢复后再次异常会重新提醒。
-- 提供：设压设流、输出 ON/OFF（ON 需要浏览器确认 + API `confirm`）、OVP/OCP、
-  实时 V/I/P/温度读数、设备信息、序列输出、电压/电流扫描、CSV 下载。
-- 视觉：Claude 式暖橙/象牙/墨黑 + 工业风网格与直角面板；Geist / Geist Mono 字体；
-  电压用橙色、电流用钢蓝；输出 ON 为实心绿色状态。
-- DP100 的 `/api/state` 用一次 `snapshot()` 合并 HID 读取，不再为每个测量值各读一遍。
-- 服务端同样执行电压/电流上限检查；网页不是绕过安全层的通道。
+- The default bind address is 127.0.0.1. The UI is not open to the network.
+- --bind 0.0.0.0 opens the UI to the LAN. The UI has no authentication. Use it with care.
+- On WSL, --open starts a Windows browser through cmd.exe start or PowerShell. Use localhost. WSL2 forwards the port.
+- The UI uses React, Tailwind, and shadcn-style components. The prebuilt files are in webapp/dist.
+- The UI reads device capabilities. It hides OVP, OCP, power, input voltage, or channel controls when the device does not support them.
+- The UI supports Chinese and English, and light and dark themes. Settings persist in localStorage.
+- The live chart uses ECharts on a canvas with two Y axes. One chart shows voltage and current. The V and A buttons show or hide each series.
+- The time window is 10, 30, or 60 seconds. The default is 30 seconds.
+- The sample rate adapts to the device: DP100 uses 20 Hz. Other devices use 10 Hz. DP100 HID needs a 20-50 ms frame interval. A shorter interval can cause a disconnect.
+- The UI shows skeleton cards until the first state arrives. The chart draws no curve while the output is off.
+- Live data uses SSE at /api/stream. The DP100 reads one HID report per sample. A background sampler keeps a 4-minute ring buffer. /api/history pre-fills the chart.
+- Chart cache is off by default. The chart keeps the current window. You can enable cache for CSV export. The cache limit is 1 hour.
+- The right side of the chart has scope knobs for V/div, V position, A/div, and A position. AUTO calculates the range one time. It saves the result as MAN.
+- The title bar is fixed. Basic and Advanced share the same title bar.
+- Framer Motion animates the tab indicator, page changes, and alerts. It obeys reduced-motion settings.
+- The Advanced view has no cards. It contains sequence output, voltage scanning, and current scanning.
+- The control panel starts with a preset list. You can save the current voltage and current as a preset. Presets that exceed the device limits are hidden.
+- Press Enter or leave a setpoint field to apply it. The field also applies after a short delay. Use the mouse wheel on a focused field to change the last displayed digit.
+- Pause freezes the chart. The Cache button controls the chart buffer. Hover shows V and A values.
+- The output ON state uses a solid green badge. A green dot pulses in the CONTROL title.
+- Web Audio plays two tones for output ON/OFF and a low tone for a device fault. The speaker button mutes the sound and saves the setting.
+- Device faults include disconnect, OVP, OCP, OPP, OTP, reverse polarity, input under-voltage, and temperature of 60 degrees C or more. The UI shows a native alert() and a floating warning. The warning does not move the page layout. It stays for at least 10 seconds. The browser title also changes to a warning symbol.
+- The UI provides setpoint control, output ON/OFF, OVP/OCP, live V/I/P and temperature, device information, sequence output, voltage and current scans, and CSV export.
+- Visual style: warm orange, ivory, and ink colors. Industrial grid and square panels. Geist and Geist Mono fonts. Voltage is orange. Current is steel blue.
+- The DP100 /api/state call uses one snapshot() read. It does not read each value separately.
+- The server also enforces voltage and current limits. The UI is not a path around the safety layer.
 
-## 6. 安全边界
+## 6. Safety limits
 
-- 开输出、斜坡、序列必须 `--yes`；`set` 不会自动开输出。
-- 任何设定先过电压/电流上限；`sequence` 逐步检查。
-- `ramp`/`sequence` 异常时默认关输出（`safe_off`）。
-- OVP/OCP 只是软件保护，不能替代硬件限流和保险丝。
-- 带电池/电容负载时，关闭输出后端子仍可能有电压。
+- Output ON, ramp, and sequence require --yes. set does not enable the output.
+- The tool checks voltage and current limits before each setpoint. sequence checks each step.
+- On an error, ramp and sequence turn the output off when safe_off is enabled.
+- OVP and OCP are software functions. They do not replace a hardware current limit or a fuse.
+- A battery or a large capacitor can keep voltage on the terminals after output OFF.
 
-## 7. 自测
+## 7. Self-test
 
 ```bash
 ~/.local/share/psu/venv/bin/python -m pytest tests -q
 scripts/psu.py setup --dev
 ```
 
-测试使用本地 mock SCPI 电源（Rigol DP832 风格），不接触真实硬件。
+The tests use a local mock SCPI supply with a Rigol DP832 command style. The tests do not touch real hardware.

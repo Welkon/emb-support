@@ -1,8 +1,9 @@
-# 方言与命令差异
+# Dialects and Command Differences
 
-`idn` 自动识别品牌；`--family` 可覆盖。所有命令都能用 `psu.py scpi "<命令>" --query` 绕过方言层。
+`idn` detects the brand automatically. Use `--family` to override the result.
+All commands can bypass the dialect layer with `psu.py scpi "<command>" --query`.
 
-## Rigol DP800（`rigol`）
+## Rigol DP800 (`rigol`)
 
 ```
 :CHANnel<n>:VOLTage <v>        :CHANnel<n>:VOLTage?
@@ -14,12 +15,12 @@
 :CHANnel<n>:OVP <v>            :CHANnel<n>:OCP <a>
 ```
 
-通道 1–3。DP832 的 CH3 通常是小电流通道。
+Channels 1 to 3. CH3 on the DP832 is usually the low-current channel.
 
-## Keysight E36xx（`keysight`）
+## Keysight E36xx (`keysight`)
 
 ```
-:INSTrument:NSELect <n>        # 选择输出
+:INSTrument:NSELect <n>        # Select an output.
 :VOLTage <v>                   :VOLTage?
 :CURRent <a>                   :CURRent?
 :OUTPut ON|OFF                 :OUTPut?
@@ -27,9 +28,10 @@
 :OUTPut:OVP:VOLTage <v>
 ```
 
-E36312A 有三个输出；E3631A/E364xA 类似。OCP 因型号而异，本 skill 对 Keysight 只映射 OVP。
+The E36312A has three outputs. The E3631A and E364xA are similar.
+OCP depends on the model. This skill maps OVP only for Keysight supplies.
 
-## Siglent SPD3303X（`siglent`）
+## Siglent SPD3303X (`siglent`)
 
 ```
 :CH<n>:VOLT <v>                :CH<n>:VOLT?
@@ -39,9 +41,9 @@ E36312A 有三个输出；E3631A/E364xA 类似。OCP 因型号而异，本 skill
 :MEAS:POW? CH<n>
 ```
 
-通道 1–2；第三路（tracking）通常随 CH1/CH2。
+Channels 1 and 2. The third tracking channel usually follows CH1 or CH2.
 
-## R&S HMC804x（`rns`）
+## R&S HMC804x (`rns`)
 
 ```
 :INSTrument:NSELect <n>
@@ -50,9 +52,10 @@ E36312A 有三个输出；E3631A/E364xA 类似。OCP 因型号而异，本 skill
 :MEASure:VOLTage? / :MEASure:CURRent?
 ```
 
-HMC8041/2/3 的通道数分别为 1/2/3（本 skill 默认给出 1–4，超出会报错）。
+The HMC8041, HMC8042, and HMC8043 have 1, 2, and 3 channels.
+This skill lists channels 1 to 4 by default. An invalid channel returns an error.
 
-## Korad / Tenma（`korad`，串口）
+## Korad and Tenma (`korad`, serial)
 
 ```
 VSET<n>:<v>     ISET<n>:<a>
@@ -61,80 +64,81 @@ VOUT<n>?        IOUT<n>?
 OUT<n>          # 1 = on, 0 = off
 ```
 
-9600 8N1；不支持 OVP/OCP/Power 查询，功率由 V×I 计算。
-`psu.py ... --serial /dev/ttyUSB0 --baud 9600`。
+Use 9600 8N1. The supply does not support OVP, OCP, or power queries.
+The tool calculates power as V x I.
+Use `psu.py ... --serial /dev/ttyUSB0 --baud 9600`.
 
-## GW Instek / BK Precision / Aim-TTi / Owon
+## GW Instek, BK Precision, Aim-TTi, and Owon
 
-这些型号的通道选择命令因系列而异，当前实现：
+The channel selection command depends on the series. The current implementation uses:
 
-- `gwinstek` / `bkprecision`：`:INSTrument:NSELect` + 通用 `:VOLT`/`:CURR`/`:OUTP`
-- `owon`：`:CH<n>:VOLT` / `:OUTP CH<n>,ON`
-- `aimtti`：通用 `:VOLT` / `:CURR` / `:OUTP`
+- `gwinstek` and `bkprecision`: `:INSTrument:NSELect` plus `:VOLT`, `:CURR`, and `:OUTP`.
+- `owon`: `:CH<n>:VOLT` and `:OUTP CH<n>,ON`.
+- `aimtti`: `:VOLT`, `:CURR`, and `:OUTP`.
 
-首次使用建议先 `idn` + `channels`，再用 `scpi` 核对关键命令。
+For the first use, run `idn` and `channels`. Then use `scpi` to check the key commands.
 
-## 新增品牌
+## Add a new brand
 
-在 `scripts/psuscpi/dialects.py` 继承 `Dialect`，覆盖：
+Create a subclass of `Dialect` in `scripts/psuscpi/dialects.py`. Override these methods:
 
 - `channels`
-- `set_voltage` / `set_current` / `get_voltage` / `get_current`
-- `measure_voltage` / `measure_current` / `measure_power`（没有就返回 `None`）
-- `output` / `output_state`（没有就返回 `None`）
-- `ovp` / `ocp`（不支持返回 `None`）
-- 多输出且需要选择的型号：`selected = True` + `select(n)`
+- `set_voltage`, `set_current`, `get_voltage`, and `get_current`
+- `measure_voltage`, `measure_current`, and `measure_power`. Return `None` if a value is not available.
+- `output` and `output_state`. Return `None` if the state is not available.
+- `ovp` and `ocp`. Return `None` if the function is not supported.
+- For a multi-output model that needs selection, set `selected = True` and define `select(n)`.
 
-注册到 `FAMILIES` 和 `detect_family()`，并补一条命令生成测试。
+Register the class in `FAMILIES` and `detect_family()`. Add one command-generation test.
 
-## 来源
+## Sources
 
 - Rigol DP800 Programming Guide
-- Keysight E36312A / E3631A / E364xA programming guides
+- Keysight E36312A, E3631A, and E364xA programming guides
 - Siglent SPD3303X programming guide
 - R&S HMC804x SCPI reference
 - Korad KA3005P serial protocol
-- `pymeasure` 的 Keysight E36xx 驱动（交叉验证）
+- The Keysight E36xx driver in `pymeasure` for cross-checking
 
+## Non-SCPI drivers
 
-## 非 SCPI 驱动
+### ALIENTEK DP100 (`dp100`, USB HID)
 
-### 正点原子 DP100（`dp100`，USB HID）
+Use `--hid dp100`. The driver uses `hidapi` directly.
+The device manual and public implementations define the device enumeration,
+frame format, and command set. This document does not repeat them.
 
-通过 `hidapi` 直接访问，使用 `--hid dp100`。设备枚举、帧格式和命令集
-由设备手册与公开实现提供，本文档不再展开。
+### FNIRSI DPS-150 (`dps150`, USB CDC)
 
-### FNIRSI DPS-150（`dps150`，USB CDC）
+The protocol follows `PROTOCOL.md` from `nasheed-x/dps150_api`.
 
-协议参考 `nasheed-x/dps150_api` 的 `PROTOCOL.md`。
+- USB CDC, 115200 8N1, RTS asserted.
+- Frame: `F1/F0 | cmd | reg | len | data | checksum`. `checksum = (reg + len + sum(data)) & 0xFF`.
+- Commands: `0xC1` session, `0xB1` write register, and `0xA1` read register.
+- Key registers:
+  - `0xC1` voltage setpoint (float32 LE).
+  - `0xC2` current setpoint (float32 LE).
+  - `0xC3` measured V, I, and P (three float32 values).
+  - `0xD1` and `0xD2` OVP and OCP.
+  - `0xDB` output switch (uint8).
+  - `0xDE` and `0xE0` model and firmware strings.
+  - `0xE2` and `0xE3` maximum voltage and current.
+- Send the session frame `F1 C1 00 01 01 02` after you open the port.
 
-- USB CDC，115200 8N1，RTS 置位
-- 帧：`F1/F0 | cmd | reg | len | data | checksum`，`checksum = (reg+len+sum(data)) & 0xFF`
-- 命令：`0xC1` 会话、`0xB1` 写寄存器、`0xA1` 读寄存器
-- 关键寄存器：
-  - `0xC1` 设定电压（float32 LE）
-  - `0xC2` 设定电流（float32 LE）
-  - `0xC3` 实测 V/I/P（3×float32）
-  - `0xD1/0xD2` OVP/OCP
-  - `0xDB` 输出开关（uint8）
-  - `0xDE/0xE0` 型号/固件字符串
-  - `0xE2/0xE3` 最大电压/电流
-- 打开后先发会话包 `F1 C1 00 01 01 02`
+### B&K 168x and Manson HCS-3xxx (`bk168x`, serial)
 
-### B&K 168x / Manson HCS-3xxx（`bk168x`，串口）
+The protocol follows `JacobBeningo/devpsu` (MIT).
 
-协议参考 `JacobBeningo/devpsu`（MIT）。
+- 9600 8N1. End each command with CR. Each response ends with an `OK` line.
+- `VOLT123` sets 12.3 V. Use three digits and one decimal place.
+- `CURR050` sets 5.0 A. The 1685B uses two decimal places. Add `--current-decimals 2`.
+- `GETS` reads setpoints. `GETD` reads measurements and the CV/CC flag.
+- `SOUT0` enables the output. `SOUT1` disables the output. The logic is inverted.
+- `SOVP` and `SOCP` set protection. `GMAX` reads the model range.
 
-- 9600 8N1，命令以 CR 结尾，响应以 `OK` 行结束
-- `VOLT123` = 12.3 V（3 位 + 1 位小数）
-- `CURR050` = 5.0 A（1685B 用两位小数，需 `--current-decimals 2`）
-- `GETS` → 设定值；`GETD` → 实测值 + CV/CC 标志
-- `SOUT0` 开输出、`SOUT1` 关输出（注意是反的）
-- `SOVP`/`SOCP` 设置保护；`GMAX` 读型号量程
+### ITECH (`itech`, SCPI)
 
-### ITECH（`itech`，SCPI）
-
-来自 ITECH IT6300 Programming Guide：
+The commands follow the ITECH IT6300 Programming Guide.
 
 ```
 :INSTrument:NSELect <n>
@@ -144,4 +148,4 @@ OUT<n>          # 1 = on, 0 = off
 :VOLTage:PROTection <v>;:VOLTage:PROTection:STATe ON
 ```
 
-通道 1–3；IT6900 系列命令族相同。
+Channels 1 to 3. The IT6900 series uses the same command family.
