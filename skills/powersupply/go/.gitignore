@@ -1,4 +1,4 @@
-psu
-psu.exe
+/psu
+/psu.exe
 *.test
-psu-desktop.exe
+/psu-desktop.exe
