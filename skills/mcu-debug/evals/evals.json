@@ -1,0 +1,121 @@
+{
+  "skill_name": "mcu-debug",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a DAPLink probe and a STM32F103RCT6 board. Flash build/fw.elf and check the first word at 0x08000000.",
+      "expected_output": "Run doctor or probes first. Resolve the pyOCD target name (stm32f103rc, not STM32F103RCT6). Flash with verify, reset, then read 4 bytes at 0x08000000 with mem read and report the value.",
+      "files": [],
+      "expectations": [
+        "Runs doctor or probes to confirm the probe",
+        "Resolves the target with targets --search",
+        "Uses the flash command with the pyOCD target name",
+        "Reads 0x08000000 after the flash",
+        "Does not build a raw pyocd command line"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The board hard-faults at random. Give me the root cause and a report I can send to a colleague.",
+      "expected_output": "Run diagnose with the ELF and write an HTML report. Explain the top ranked hypothesis with its evidence (for example BFAR in the DEVICE region: peripheral clock disabled), mention exact vs heuristic frames, and give the report path.",
+      "files": [],
+      "expectations": [
+        "Uses diagnose instead of only reading registers",
+        "Produces ranked hypotheses with evidence",
+        "Writes an HTML report and reports its path",
+        "Separates exact CFI frames from heuristic frames"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Stop in main only when r0 is 3. Print r0 and the backtrace on each hit, then continue. Stop after 5 hits.",
+      "expected_output": "Set a breakpoint on main with --cond \"r0==3\" and an on-hit script \"print r0; bt; continue\", with --max-hits 5 and --wait.",
+      "files": [],
+      "expectations": [
+        "Uses bp set with --cond",
+        "Uses --on-hit with print, bt and continue",
+        "Sets --max-hits 5",
+        "Passes --elf so main resolves"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "The firmware prints through ITM/SWO. Show the output in my terminal.",
+      "expected_output": "Use swo with the CPU and SWO frequencies and a duration. If the probe has no SWO support, explain that CMSIS-DAP v1 HID usually cannot do it and suggest RTT or a probe-rs itm path.",
+      "files": [],
+      "expectations": [
+        "Uses swo with --cpu-freq and --swo-freq",
+        "Sets a bounded --duration",
+        "Explains the probe limitation when SWO init fails"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I am in WSL. The probe is plugged into Windows and pyOCD cannot see it. Handle it.",
+      "expected_output": "Run wsl status or doctor to list Windows-side probes. Attach an already-shared probe with wsl attach --busid or let the automatic attach run on the next connect. If the device is not shared, tell the user to run usbipd bind as administrator once.",
+      "files": [],
+      "expectations": [
+        "Detects WSL and reads the Windows usbipd list",
+        "Attaches a shared probe or explains the one-time bind step",
+        "Does not tell the user to reinstall pyOCD"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Build the SCMCU firmware with build name rom-check and tell me the ROM and RAM usage.",
+      "expected_output": "Use references/xc8-build.md and run scripts/xc8/build_xc8.py -BuildName rom-check. Report build status, Program space and Data space, and the artifact directory build/xc8/rom-check/.",
+      "files": [],
+      "expectations": [
+        "Runs the bundled XC8 script from scripts/xc8/",
+        "Uses build/xc8/<build-name>/ for artifacts",
+        "Reports ROM and RAM usage from the summary or map",
+        "Does not write artifacts to the repository root"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Burn target.hex to the CA51M550S1B and then calibrate the TK3 touch threshold.",
+      "expected_output": "Use references/cachip.md. Burn with scripts/cachip/cachip_burner.py, then run ai_tune.py or set the threshold with 0x59 and verify it. Mention that the threshold write is a run-time setting.",
+      "files": [],
+      "expectations": [
+        "Uses the CACHIP burner for CA51, not the ARM flash path",
+        "Checks the voltage and the status byte",
+        "Runs touch calibration or writes the threshold online",
+        "Notes that a reboot restores the firmware default threshold"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "probe-rs is installed. Flash fw.elf to STM32F103RC and keep RTT running for 10 seconds.",
+      "expected_output": "Use --engine probe-rs with --chip STM32F103RC. Verify that auto routing picks probe-rs when the chip resolves, or pass the engine explicitly. Capture RTT with attach for 10 seconds.",
+      "files": [],
+      "expectations": [
+        "Passes --engine probe-rs and --chip STM32F103RC",
+        "Uses the RTT command with a 10 second limit",
+        "Does not pass pyOCD target names to probe-rs"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Erase the whole chip so I can reflash the bootloader.",
+      "expected_output": "Treat this as irreversible. Confirm the probe and target, explain that erase --chip-erase removes the bootloader and calibration data, and wait for explicit confirmation before running it.",
+      "files": [],
+      "expectations": [
+        "Explains the effect of --chip-erase before running it",
+        "Confirms probe and target first",
+        "Does not run a full erase without confirmation"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Show the value of g_state.mode and head->next->val without reading raw addresses.",
+      "expected_output": "Use vars print with the C expressions and the ELF. If the target is running, halt it or note that locals need a halted target. Report the typed values.",
+      "files": [],
+      "expectations": [
+        "Uses vars print instead of manual mem read and offset math",
+        "Passes --elf",
+        "Handles the halted/running state correctly"
+      ]
+    }
+  ]
+}
