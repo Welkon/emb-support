@@ -10,6 +10,8 @@ SAMPLE = (
 
 
 def fake_usbipd(dap, monkeypatch, output=SAMPLE, rc=0):
+    # The WSL paths must not depend on the host: CI runs on a plain Linux runner.
+    monkeypatch.setattr(dap, "is_wsl", lambda: True)
     monkeypatch.setattr(dap, "usbipd_exe", lambda: "/fake/usbipd.exe")
     monkeypatch.setattr(dap, "run", lambda *a, **k: (rc, output, ""))
 
