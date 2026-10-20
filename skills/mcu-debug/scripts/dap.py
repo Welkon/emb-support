@@ -478,7 +478,7 @@ def usbipd_devices() -> list[dict]:
         busid, vid, pid, desc, state = m.groups()
         low = state.lower()
         if not (low.startswith(("not shared", "shared", "attached", "not attached"))
-                or "共享" in state or "连接" in state):
+                or "\u5171\u4eab" in state or "\u8fde\u63a5" in state):  # localized: shared / attached
             continue
         devices.append({"busid": busid, "vid": vid.lower(), "pid": pid.lower(),
                         "device": desc.strip(), "state": state.strip(),

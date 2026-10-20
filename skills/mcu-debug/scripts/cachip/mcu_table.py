@@ -1,5 +1,5 @@
-# CACHIP MCU 型号表 (从 CACHIP_TOOL_4.1.3.exe 内置 mcu.xml 提取)
-# 型号名 → model ID
+# CACHIP MCU model table (extracted from mcu.xml in CACHIP_TOOL_4.1.3.exe)
+# Model name to model ID
 MODELS = {
     "CA1020L2": 0x8022,
     "CA1020N5": 0x8021,
@@ -163,7 +163,7 @@ MODELS = {
     "CA69F32S6": 0x201C,
 }
 
-# 家族 → flashSize (KB)
+# Family to flash size (KB)
 FAMILIES = {
     "CA1020": 32768,
     "CA32F0012": 24,

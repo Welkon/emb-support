@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-CACHIP Tool 协议驱动 — 完整版 (Linux/Windows)
+CACHIP Tool protocol driver, full version (Linux/Windows).
 =============================================
-基于 CACHIP_TOOL_4.1.3.exe 完整逆向 + 实测验证 (2025)
+Based on a full reverse engineering and tests of CACHIP_TOOL_4.1.3.exe (2025).
 
-✅ 已验证: 完整烧录流程, OLED 显示"烧录成功 100%"
-✅ 官方工具校验通过 (The verification was successful)
+Verified: full burn flow. The OLED showed "burn success 100%".
+The official tool check passed ("The verification was successful").
 
-依赖: pip install hidapi pyserial (Linux 需 udev 规则)
+Requires: pip install hidapi pyserial. On Linux, add a udev rule.
 """
 
 import struct
@@ -15,17 +15,17 @@ import time
 from mcu_table import MODELS, FAMILIES
 
 # ============================================================
-# 常量
+# Constants
 # ============================================================
 VID, PID = 0xFFCA, 0x0125
 
-# TEA 加密密钥 (官方 exe 内嵌)
+# TEA key (embedded in the official exe)
 TEA_KEY = bytes.fromhex("135a64305a5a1766b0500f664d0a075f")
 _K0, _K1, _K2, _K3 = struct.unpack('<4I', TEA_KEY)
 _DELTA = 0x9E3779B9
 
 # ============================================================
-# TEA 加密
+# TEA encryption
 # ============================================================
 def _tea_encrypt_block(v0, v1):
     sm = 0
@@ -36,7 +36,7 @@ def _tea_encrypt_block(v0, v1):
     return v0, v1
 
 def encrypt_frame(plain: bytes) -> bytes:
-    """明文帧 → 填充到 64 → TEA ECB 加密 (8 块)"""
+    """Pad the plaintext frame to 64 B, then encrypt 8 blocks with TEA ECB."""
     padded = plain.ljust(64, b"\x00")[:64]
     out = b""
     for i in range(0, 64, 8):
@@ -46,7 +46,7 @@ def encrypt_frame(plain: bytes) -> bytes:
     return out
 
 # ============================================================
-# Checksum (官方算法: sum(固件+0xFF填充到flashSize) + flashSize*2 + 1)
+# Checksum (official algorithm: sum(firmware padded with 0xFF to flashSize) + flashSize*2 + 1)
 # ============================================================
 def calc_checksum(fw: bytes, flash_size_kb: int) -> int:
     size = flash_size_kb * 1024
@@ -54,27 +54,27 @@ def calc_checksum(fw: bytes, flash_size_kb: int) -> int:
     return (sum(padded) + size * 2 + 1) & 0xFFFFFFFF
 
 def find_model(name: str):
-    """查型号: 返回 (model_id, flash_size_kb)"""
+    """Look up the model. Return (model_id, flash_size_kb)."""
     if name not in MODELS:
-        raise RuntimeError(f"未知型号: {name}")
+        raise RuntimeError(f"Unknown model: {name}")
     model = MODELS[name]
-    # 找家族 (型号名前缀匹配)
+    # Find the family by model name prefix.
     fs = None
     for fam, size in FAMILIES.items():
         if name.startswith(fam):
             fs = size
             break
     if fs is None:
-        raise RuntimeError(f"找不到 {name} 的家族")
+        raise RuntimeError(f"Cannot find the family of {name}")
     return model, fs
 
 # ============================================================
-# Intel HEX 解析 (官方行为: 空洞填 0x00, 尾部 0xFF)
+# Intel HEX parser (official behavior: fill gaps with 0x00, pad the tail with 0xFF)
 # ============================================================
 def parse_hex(path: str) -> bytes:
-    """解析 Intel HEX
-    固件内空洞(未定义地址)填 0x00
-    返回固件数据
+    """Parse an Intel HEX file.
+    Fill undefined gaps with 0x00.
+    Return the firmware data.
     """
     data = bytearray()
     base = 0
@@ -104,18 +104,18 @@ def parse_hex(path: str) -> bytes:
     return bytes(data)
 
 def prepare_firmware(fw: bytes, chunk=32) -> list:
-    """固件 → 数据块列表
-    每块 32 字节, 尾部补 0xFF, 加一块全 0xFF (官方行为)
+    """Split the firmware into data blocks.
+    Each block is 32 B. Pad the tail with 0xFF. Add one block of 0xFF (official behavior).
     """
     blocks = []
     for i in range(0, len(fw), chunk):
         blk = fw[i:i+chunk].ljust(chunk, b'\xff')
         blocks.append(blk)
-    blocks.append(b'\xff' * chunk)  # 补一块 (0xD80)
+    blocks.append(b'\xff' * chunk)  # add one block (0xD80)
     return blocks
 
 # ============================================================
-# HID 传输 (中断端点, 官方通道)
+# HID transport (interrupt endpoint, official channel)
 # ============================================================
 class HidTransport:
     def __init__(self):
@@ -137,46 +137,46 @@ class HidTransport:
                 path = d['path'].decode() if isinstance(d['path'], bytes) else d['path']
                 break
         if not path:
-            raise RuntimeError("CACHIP Tool 未连接!")
+            raise RuntimeError("CACHIP Tool is not connected!")
         self.h = self.kernel32.CreateFileW(path, 0xC0000000, 0x3, None, 3, 0, None)
-        # hidapi 设备 (读响应用!)
+        # hidapi device. Use it to read responses.
         self._hid_dev = hid.device()
         self._hid_dev.open(VID, PID)
 
     def send_cmd(self, plain: bytes):
-        """加密发送命令帧"""
+        """Send an encrypted command frame."""
         enc = encrypt_frame(plain)
         frame = (bytes([0x00]) + enc).ljust(65, b"\x00")[:65]
         written = self._ctypes.wintypes.DWORD()
         ok = self.kernel32.WriteFile(self.h, frame, 65, self._ctypes.byref(written), None)
         if not ok:
-            raise RuntimeError(f"WriteFile 失败 err={self.kernel32.GetLastError()}")
-        time.sleep(0.01)  # 块间节奏
+            raise RuntimeError(f"WriteFile failed, err={self.kernel32.GetLastError()}")
+        time.sleep(0.01)  # delay between blocks
 
     def command(self, plain: bytes, timeout=3000) -> bytes:
-        """发送 + 读响应 + 校验状态, 返回响应明文 (64B)"""
+        """Send a command, read the response, check the status, return the 64 B plaintext."""
         import hid as _hid
-        # 用 hidapi 读 (Windows 重叠 IO 由 hidapi 处理!)
+        # Read with hidapi. hidapi handles Windows overlapped IO.
         d = self._hid_dev
         d.write(bytes([0x00]) + encrypt_frame(plain))
         r = bytes(d.read(65, timeout_ms=timeout))
         if len(r) < 64:
-            raise RuntimeError(f"读响应超时/短: {len(r)}")
+            raise RuntimeError(f"Response timeout or short read: {len(r)}")
         from cachip_touch_debug import decrypt as _dec
         resp = _dec(r[-64:])
-        # 校验: 响应 cmd 匹配!
+        # Check that the response command matches.
         if resp[0] != plain[0]:
-            raise RuntimeError(f"响应错位: 请求={plain[0]:02X} 响应={resp[0]:02X}")
-        # 状态检查 (心跳 00/电源 11 特殊: 心跳带版本, 电源带电压!)
+            raise RuntimeError(f"Response mismatch: request={plain[0]:02X} response={resp[0]:02X}")
+        # Status check. Heartbeat (00) and power (11) are special: heartbeat carries the version, power carries the voltage.
         if plain[0] not in (0x00, 0x11) and len(plain) > 1 and resp[1] != 0x00:
-            raise RuntimeError(f"命令 0x{plain[0]:02X} 失败: 状态={resp[1]:02X}")
+            raise RuntimeError(f"Command 0x{plain[0]:02X} failed: status={resp[1]:02X}")
         return resp
 
     def close(self):
         self.kernel32.CloseHandle(self.h)
 
 # ============================================================
-# 烧录器
+# Burner
 # ============================================================
 class CachipBurner:
     def __init__(self, transport=None):
@@ -186,8 +186,8 @@ class CachipBurner:
         return self.t.command(plain, timeout)
 
     def burn(self, fw_path: str, model_name: str = "CA51M550S1B", chunk=32):
-        """完整烧录 (官方流程, 全自动)
-        model_name: 型号名 (如 CA51M550S1B)
+        """Run the full burn (official flow, automatic).
+        model_name: model name (for example CA51M550S1B).
         """
         model, flash_kb = find_model(model_name)
         fw = parse_hex(fw_path)
@@ -195,90 +195,90 @@ class CachipBurner:
         blocks = prepare_firmware(fw, chunk)
         total = len(blocks)
 
-        print(f"型号: {model_name} (ID=0x{model:04X}, Flash={flash_kb}KB)")
-        print(f"固件: {len(fw)} bytes, {total} 块, Checksum=0x{checksum:08X}")
+        print(f"Model: {model_name} (ID=0x{model:04X}, Flash={flash_kb}KB)")
+        print(f"Firmware: {len(fw)} bytes, {total} blocks, Checksum=0x{checksum:08X}")
 
-        # 1. 初始化
-        self._cmd(bytes([0x00, 0x04]))              # 心跳
+        # 1. Initialize
+        self._cmd(bytes([0x00, 0x04]))              # heartbeat
         self._cmd(bytes([0x10, 0x00]))
         self._cmd(bytes([0x10, 0x01]) + struct.pack('<I', checksum))
         self._cmd(bytes([0x10, 0x02, 0x01]))
         self._cmd(bytes([0x10, 0x04, 0x01]))
 
-        # 2. Connect (检查目标芯片!)
+        # 2. Connect (checks the target chip)
         conn = (bytes([0x08]) + struct.pack('<H', model) + b'5M'
                 + model_name.encode() + bytes(5)
                 + model_name.encode() + bytes(5))
-        r = self._cmd(conn, timeout=10000)   # Connect 响应慢 (目标检测)!
+        r = self._cmd(conn, timeout=10000)   # Connect is slow (target detection)
         got_model = struct.unpack('<H', r[2:4])[0]
         if got_model != model:
-            raise RuntimeError(f"目标芯片型号不匹配! 期望 0x{model:04X} 检测到 0x{got_model:04X}")
-        print(f"  ✓ 目标芯片已连接 (0x{got_model:04X})")
+            raise RuntimeError(f"Target model mismatch! Expected 0x{model:04X}, detected 0x{got_model:04X}")
+        print(f"  target chip connected (0x{got_model:04X})")
 
-        # 3. 供电 + 检查电压!
+        # 3. Power on and check the voltage
         r = self._cmd(bytes([0x11, 0x03]))          # TargetPower
         v = struct.unpack('<H', r[1:3])[0] / 100.0
         if v < 2.0:
-            raise RuntimeError(f"目标电压异常: {v:.2f}V (目标板供电?)")
-        print(f"  ✓ 目标电压: {v:.2f}V")
+            raise RuntimeError(f"Target voltage is out of range: {v:.2f} V (target board power?)")
+        print(f"  target voltage: {v:.2f} V")
         self._cmd(bytes([0x13, 0x01]))              # WriteEvent
         self._cmd(bytes([0x10, 0x02, 0x04]))
-        self._cmd(bytes([0x10, 0x03, 0x00]))        # 进度 0
+        self._cmd(bytes([0x10, 0x03, 0x00]))        # progress 0
 
-        # 4. 擦除
+        # 4. Erase
         r = self._cmd(bytes([0x0B, 0x02, 0, 0, 0, 0, 0, 0]), timeout=8000)
-        print("  ✓ 擦除完成")
+        print("  erase done")
         time.sleep(1.0)
 
-        # 5. 写入循环 (0F 缓存 + 0C 写Flash)
+        # 5. Write loop (0F cache + 0C write flash)
         addr = 0
         for i, blk in enumerate(blocks):
-            self._cmd(bytes([0x0F, 0, 0, 0, 0, 0x20]) + blk)   # 写缓存
+            self._cmd(bytes([0x0F, 0, 0, 0, 0, 0x20]) + blk)   # write cache
             self._cmd(bytes([0x0C]) + struct.pack('<I', addr) + struct.pack('<I', 0) + bytes([0x20, 0x00]))
             addr += chunk
             pct = min((i + 1) * 100 // total, 100)
             self._cmd(bytes([0x10, 0x03, pct]))
-        print("写入完成")
+        print("Write done")
 
-        # 6. 切换校验
+        # 6. Switch to verify
         self._cmd(bytes([0x10, 0x03, 100]))
         time.sleep(0.2)
-        self._cmd(bytes([0x10, 0x02, 0x07]))        # 校验中
+        self._cmd(bytes([0x10, 0x02, 0x07]))        # verifying
         time.sleep(0.2)
-        self._cmd(bytes([0x10, 0x03, 0x00]))        # 进度 0
+        self._cmd(bytes([0x10, 0x03, 0x00]))        # progress 0
         time.sleep(0.2)
 
-        # 7. 校验循环 (0D + 期望数据)
+        # 7. Verify loop (0D plus expected data)
         addr = 0
         for i, blk in enumerate(blocks):
             self._cmd(bytes([0x0D]) + struct.pack('<I', addr) + bytes([0x20]) + blk)
             addr += chunk
             pct = min((i + 1) * 100 // total, 100)
             self._cmd(bytes([0x10, 0x03, pct]))
-        print("校验完成")
+        print("Verify done")
 
-        # 8. 完成
+        # 8. Finish
         self._cmd(bytes([0x10, 0x03, 100]))
         time.sleep(0.3)
         self._cmd(bytes([0x09]))                    # Disconnect
         time.sleep(0.3)
         self._cmd(bytes([0x10, 0x02, 0x05]))
         time.sleep(0.3)
-        self._cmd(bytes([0x11, 0x00]))              # 断电
-        print("烧录完成!")
+        self._cmd(bytes([0x11, 0x00]))              # power off
+        print("Burn complete!")
 
     def close(self):
         self.t.close()
 
 # ============================================================
-# 主程序
+# Main
 # ============================================================
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="CACHIP Tool Linux 烧录工具")
-    p.add_argument("hex", help="固件文件 (Intel HEX)")
-    p.add_argument("--name", default="CA51M550S1B", help="MCU 型号名 (如 CA51M550S1B)")
-    p.add_argument("--list", action="store_true", help="列出所有支持型号")
+    p = argparse.ArgumentParser(description="CACHIP Tool Linux burner")
+    p.add_argument("hex", help="firmware file (Intel HEX)")
+    p.add_argument("--name", default="CA51M550S1B", help="MCU model name (for example CA51M550S1B)")
+    p.add_argument("--list", action="store_true", help="list all supported models")
     args = p.parse_args()
 
     if args.list:

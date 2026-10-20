@@ -1,68 +1,70 @@
-# 能力对照：本 skill vs cmsis-dap-mcp
+# Feature comparison: this skill and cmsis-dap-mcp
 
-cmsis-dap-mcp（`guohj2021/CMSIS-DAP-MCP`，44 个 MCP 工具，npm `npx -y cmsis-dap-mcp`）是 DAPLink 协议下工具面最全的现成实现。本 skill 以 pyOCD 为后端复刻它的能力面，差异如下。
+`cmsis-dap-mcp` (`guohj2021/CMSIS-DAP-MCP`) is a ready-made MCP server for
+DAPLink probes. It has 44 MCP tools and installs with `npx -y cmsis-dap-mcp`.
+This skill uses pyOCD and copies that feature surface. The table below shows the
+differences.
 
-## 已齐平（40/44）
+## Equal features
 
-| cmsis-dap-mcp | 本 skill | 说明 |
+| cmsis-dap-mcp | This skill | Notes |
 |---|---|---|
-| `list_probes` / `get_probe_info` | `probes` / `doctor` | 输出含序列号、板名、target override |
-| `connect` / `disconnect` | `connect` / `status` | 无长驻会话，每条命令独立连接；`blocking=False` |
-| `get_target_info` | `info` / `connect` | part number、状态、PC |
-| `read_memory` / `write_memory` | `mem read` / `mem write` | `--width 8/16/32`、`--count`，输出 hex |
-| `verify_memory` | `verify FILE` | 直接比 ELF/HEX/BIN 与目标内存，报首个不一致地址 |
-| `read_core_register` / `write_core_register` / `list_core_registers` | `regs` + `mem`/`svd` | 读全部核心寄存器；写用 `dapreg`/`mem` |
-| `get_core_status` | `status` | state + halt reason + PC |
-| `halt` / `resume` / `step` / `reset` | `halt` / `resume` / `step` / `reset` | `step --count N` |
-| `set_breakpoint` / `clear_breakpoints` / `list_breakpoints` | `bp set/clear/list` | hw/sw/auto；`--wait` 一次完成"下断点→运行→等命中" |
-| `set_watchpoint` / `clear_watchpoints` / `list_watchpoints` | `wp set/clear/list` | `--size`、`--type r/w/rw` |
-| `erase_flash` / `program_flash` | `erase` / `flash` | flash 由 pyOCD CLI 执行，默认带校验 |
-| `load_svd` / `list_peripherals` / `read_peripheral` / `write_peripheral` | `svd attach/list/read/write` | 用 pyOCD 自带 SVD 解析器；另有 `svd field` 位域读写 |
-| `read_dap` / `write_dap` | `dapreg read/write` | 底层 `target.dp.read_reg/write_reg` |
-| `read_option_bytes` / `write_option_bytes` | `option read/write --addr` | 必须显式给地址；写入需 `--yes` |
-| `get_config` / `update_config` / `reload_config` | `config get/set/unset/list` | 持久化到 `~/.local/share/mcu-debug/config.json` |
-| `define_chip` | `pack install` / `--pack` | 走 CMSIS-Pack；不支持无中生有定义芯片 |
-| （无对应工具，CLI 有）RTT | `rtt` | pyOCD 原生 SEGGER RTT Viewer |
-| （无对应工具）GDB server | `gdb` | `--detach` 后台运行 |
+| `list_probes`, `get_probe_info` | `probes`, `doctor` | Output includes the serial number, board name and target override. |
+| `connect`, `disconnect` | `connect`, `status` | No long-running session. Each command connects on its own with `blocking=False`. |
+| `get_target_info` | `info`, `connect` | Part number, state and PC. |
+| `read_memory`, `write_memory` | `mem read`, `mem write` | `--width 8/16/32` and `--count`. Output is hex. |
+| `verify_memory` | `verify FILE` | Compares ELF, HEX or BIN with target memory. Reports the first mismatch. |
+| `read_core_register`, `write_core_register`, `list_core_registers` | `regs` plus `mem` or `svd` | Reads all core registers. Use `regset` to write one register. |
+| `get_core_status` | `status` | State, halt reason and PC. |
+| `halt`, `resume`, `step`, `reset` | `halt`, `resume`, `step`, `reset` | `step --count N`. |
+| `set_breakpoint`, `clear_breakpoints`, `list_breakpoints` | `bp set/clear/list` | Hardware, software or auto. `--wait` runs the target and waits for the hit. |
+| `set_watchpoint`, `clear_watchpoints`, `list_watchpoints` | `wp set/clear/list` | `--size` and `--type r/w/rw`. |
+| `erase_flash`, `program_flash` | `erase`, `flash` | pyOCD runs the flash operation. Verification is on by default. |
+| `load_svd`, `list_peripherals`, `read_peripheral`, `write_peripheral` | `svd attach/list/read/write` | Uses the pyOCD SVD parser. `svd field` reads or writes one bit field. |
+| `read_dap`, `write_dap` | `dapreg read/write` | Calls `target.dp.read_reg` and `write_reg`. |
+| `read_option_bytes`, `write_option_bytes` | `option read/write --addr` | An explicit address is required. A write needs `--yes`. |
+| `get_config`, `update_config`, `reload_config` | `config get/set/unset/list` | Stored in `~/.local/share/mcu-debug/config.json`. |
+| `define_chip` | `pack install` or `--pack` | Uses CMSIS-Packs. It does not define a chip from scratch. |
+| Not an MCP tool: RTT | `rtt` | Native pyOCD SEGGER RTT viewer. |
+| Not an MCP tool: GDB server | `gdb` | `--detach` runs it in the background. |
 
-额外多出来的：
+## Extra features in this skill
 
-- `diagnose`：规则推理出按置信度排序的根因（空指针/外设时钟/栈溢出/执行数据/非精确总线错误…）+ 自包含 HTML 可视化报告（内存映射、反汇编高亮、栈 hex、回溯）。cmsis-dap-mcp 无等价能力。
-- `fault`：一次给出 CFSR/HFSR/DFSR 解码、异常栈帧（faulting PC/LR）、回溯和栈用量 —— cmsis-dap-mcp 的 `dump_cpu_state` 只到寄存器。
-- `bt`：DWARF CFI 精确回溯（寄存器逐帧重建）；缺 CFI 时才退回帧指针/栈扫描。
-- `vars print`：完整 C 表达式求值（`.` `->` `[]` `*` `&`、算术位运算比较、类型强转、枚举）。
-- `watch`：表达式时间序列监视（Live Watch）。
-- `disasm` / `sym`：反汇编、符号与地址/行号互查。
-- `vars globals/locals/print`：DWARF 类型化变量查看（结构体/数组/枚举/指针）。
-- `bp set file.c:42`：按源码行下断点。
-- `--cond` / `--log` / `--max-hits` / `--continue`：条件断点与命中日志。
-- `step --over/--out/--line`：跨函数、跳到下一行。
-- `rtos`：FreeRTOS/RTX5/ThreadX/Zephyr 任务列表。
-- `snapshot save/load/diff`：RAM 快照对比。
-- `gdb-batch`：有 GDB 时直接跑 `bt full` / `info locals` / 任意表达式。
-- `wait`：resume 后轮询到命中，返回 halt reason。
-- `verify`：不写只比，适合 CI/回归。
-- `pack search/install`：器件包管理。
+- `diagnose`: ranks root causes and writes a self-contained HTML report. The report includes the memory map, decoded fault flags, backtrace, disassembly at the fault address and a stack hex dump. `cmsis-dap-mcp` has no equivalent.
+- `fault`: decodes CFSR, HFSR and DFSR, shows the exception frame and backtrace, and reports stack use.
+- `bt`: exact DWARF CFI unwinding. It falls back to frame-pointer or stack scan only when CFI is missing.
+- `vars print`: evaluates C expressions with `.`, `->`, `[]`, `*`, `&`, arithmetic, bit operations, comparisons, casts and enum names.
+- `watch`: samples an expression and returns a time series.
+- `bp set file.c:42`: sets a breakpoint on a source line.
+- `--cond`, `--log`, `--max-hits`, `--continue`: conditional breakpoints and hit logs.
+- `step --over`, `--out`, `--line`: step over calls, run to return, or run to the next line.
+- `rtos`: lists FreeRTOS, RTX5, ThreadX or Zephyr tasks.
+- `snapshot save/load/diff`: saves, restores or compares a RAM region.
+- `gdb-batch`: runs `bt full`, `info locals` or any GDB command when a GDB binary is available.
+- `wait`: resumes the target, waits for a hit and reports the halt reason.
+- `verify`: compares without writing. Useful for CI and regression runs.
+- `pack search/install`: installs device packs.
+- `repl`: keeps one session for many commands.
+- `semi`: serves the ARM semihosting console.
+- `selfcheck`: runs a non-destructive on-board acceptance check.
+- `--engine probe-rs`: uses probe-rs for RTT, SWO/ITM, profiling and faster flashing.
+- WSL support: detects Windows probes through `usbipd` and attaches them automatically.
 
-## 未齐平（4 项，均有明确原因）
+## Remaining differences
 
-| 缺失 | 原因 | 替代 |
-|---|---|---|
-| `set_flash_breakpoint` | 已实现，但会擦写整个扇区（含备份/恢复），需 `--yes` | `bp set <addr> --type flash --yes` |
-| `run_script`（J-Link/OpenOCD 脚本） | 已由 `repl` + `source FILE` 覆盖 | `dap.py repl -c ...` / `source cmds.txt` |
-| `define_chip`（运行时定义芯片） | pyOCD 只认 CMSIS-Pack | `pack install`，或换 OpenOCD cfg |
+| Missing feature | Status |
+|---|---|
+| Flash breakpoints | Implemented. The command rewrites a whole sector and keeps a backup. Use `--yes`. |
+| Command scripts | Covered by `repl` and `source FILE`. |
+| Runtime chip definition | pyOCD uses CMSIS-Packs only. Use `pack install` or OpenOCD. |
+| ETM instruction trace | Not available. This needs ETM hardware and a decoder. Use SWO periodic PC or the probe-rs ITM path. |
+| Inline frames at `-O2` | Not unwound. `bt` can show fewer frames but does not fail. |
+| On-board validation | The self-check and the acceptance matrix are ready. Real hardware is still required. See `validation.md`. |
 
-## 已闭环的差距
+## Choosing a tool
 
-- SWO/ITM：用 pyOCD 的 `SWVReader` 实时解码（探针需支持 SWO），不是 OpenOCD。
-- 长驻会话：`repl` 一次连接执行全部命令，断点/状态/core 在会话内保持。
-- 多核：`cores` + 全局 `--core`。
-- 性能：`cycles`（DWT CYCCNT）、`profile`（PC 采样）。
+- Need many small reads and writes in one agent session, such as live watch or bit-field polling: an MCP server with a persistent session uses fewer resources.
+- Need auditable, replayable commands that fit into a script: this skill.
+- You can use both. Use the MCP server for interactive inspection and this skill for flash, regression and CI.
 
-## 用不用 MCP 的判断
-
-- 需要 agent 在一次会话里做几十次细粒度读写（live watch、位域轮询）→ MCP 常驻会话更省开销。
-- 需要可审计、可重放、可写进脚本的命令 → 本 skill。
-- 两者可以共存：MCP 做交互式探查，本 skill 做烧录/回归/CI。
-
-安全差异：cmsis-dap-mcp 的 `program_flash`/`erase`/`write_option_bytes` 无二次确认；本 skill 对 `option write` 要求 `--yes`，对 `erase --chip-erase` 在文档中要求用户确认。
+Safety difference: `cmsis-dap-mcp` runs `program_flash`, `erase` and `write_option_bytes` without a second confirmation. This skill requires `--yes` for `option write` and asks for user confirmation before `erase --chip-erase`.
