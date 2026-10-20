@@ -4,6 +4,8 @@ go 1.25.0
 
 require golang.org/x/sys v0.46.0
 
+require go.bug.st/serial v1.8.0
+
 require (
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
