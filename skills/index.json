@@ -3,34 +3,6 @@
   "generated_at_utc": "2026-04-22T08:00:00Z",
   "skills": [
     {
-      "name": "xc8-build",
-      "path": "./xc8-build",
-      "description": "Build firmware with the repo-local Python XC8 build script. The script stays generic by defaulting to SCMCU project-file metadata, while still allowing explicit overrides for chip, source files, and image prefix when an agent or user needs to drive a custom build. Keep artifacts under build/xc8/<build-name>/ and inspect cmscerr.err plus map output for ROM/RAM usage, warnings, and function sizes. Use when the user asks to compile, rebuild, verify code size, inspect map output, or produce a named build output set.",
-      "detect": {
-        "mcu_family": [
-          "PIC10",
-          "PIC12",
-          "PIC16",
-          "PIC18",
-          "PIC24",
-          "dsPIC"
-        ],
-        "project_files": [
-          "*.scw"
-        ],
-        "tools": [
-          "xc8-cc",
-          "xc8"
-        ]
-      },
-      "short_description": "Build firmware and inspect ROM/RAM/map output",
-      "interface": {
-        "display_name": "XC8 Build",
-        "short_description": "Build firmware and inspect ROM/RAM/map output",
-        "default_prompt": "Use $xc8-build to run the repo-local XC8 build flow, inspect build status, and report ROM/RAM usage plus key artifacts."
-      }
-    },
-    {
       "name": "altium-pcb",
       "path": "./altium-pcb",
       "description": "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, prepare Altium MCP live-apply commands, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise.",
@@ -49,25 +21,9 @@
       }
     },
     {
-      "name": "cachip",
-      "path": "./cachip",
-      "description": "CACHIP MCU 烧录器工具链 — 通过 TFT 仿真下载器(STM32F103, USB HID VID 0xFFCA/PID 0x0125)烧录 CA51M550S1B 等触摸 MCU、触摸调试(TK3 实时数据/门限标定)、Writer/软件槽管理、下载器固件升级与定制、AI 自动调参。Use when the user asks to burn a target MCU, calibrate touch channels, manage firmware slots, or update/customize the CACHIP downloader firmware.",
-      "detect": {
-        "mcu_family": [
-          "CA51"
-        ]
-      },
-      "short_description": "CACHIP MCU 烧录/触摸调试/固件管理工具链",
-      "interface": {
-        "display_name": "CACHIP Toolchain",
-        "short_description": "CACHIP MCU 烧录/触摸调试/固件管理工具链",
-        "default_prompt": "Use $cachip to burn target firmware with the CACHIP downloader, calibrate touch channels, manage Writer firmware slots, or update the downloader firmware."
-      }
-    },
-    {
       "name": "mcu-debug",
       "path": "./mcu-debug",
-      "description": "Flash, verify and debug ARM Cortex-M firmware through DAPLink/CMSIS-DAP probes. Provides 47 subcommands for probe/target discovery, CMSIS-Packs, flashing, hardware and flash breakpoints, conditional breakpoints with on-hit scripts, DWARF CFI backtraces, C expression evaluation, SVD peripherals, RTOS threads, RTT, SWO/ITM, semihosting, multicore, DWT cycle counting, and a rule-based HardFault analyser with self-contained HTML reports. Supports both pyOCD and probe-rs backends with automatic chip-name routing. On WSL it auto-detects Windows-side probes through usbipd and can attach them to the distro. Use when the user asks to flash or erase a board, attach a debugger, inspect registers/memory, set breakpoints, capture RTT/SWO output, or diagnose a crash/HardFault.",
+      "description": "Flash, verify and debug ARM Cortex-M firmware through DAPLink/CMSIS-DAP probes. Provides 47 subcommands for probe/target discovery, CMSIS-Packs, flashing, hardware and flash breakpoints, conditional breakpoints with on-hit scripts, DWARF CFI backtraces, C expression evaluation, SVD peripherals, RTOS threads, RTT, SWO/ITM, semihosting, multicore, DWT cycle counting, and a rule-based HardFault analyser with self-contained HTML reports. Supports both pyOCD and probe-rs backends with automatic chip-name routing. On WSL it auto-detects Windows-side probes through usbipd and can attach them to the distro. Use when the user asks to flash or erase a board, attach a debugger, inspect registers/memory, set breakpoints, capture RTT/SWO output, or diagnose a crash/HardFault. Also builds SCMCU/PIC firmware with the bundled XC8 flow and drives the CACHIP USB HID programmer for CA51 touch MCUs (burning, touch calibration, firmware slots, downloader updates).",
       "detect": {
         "tools": [
           "probe-rs",
@@ -80,14 +36,18 @@
           "*.hex",
           "*.axf",
           "*.uvprojx",
-          "*.ioc"
+          "*.ioc",
+          "*.scw"
+        ],
+        "mcu_family": [
+          "CA51"
         ]
       },
-      "short_description": "Flash/debug Cortex-M over DAPLink/ST-Link/J-Link with fault root-cause reports",
+      "short_description": "Debug/flash Cortex-M, build XC8 firmware, burn/calibrate CACHIP touch MCUs",
       "interface": {
         "display_name": "MCU Debug",
-        "short_description": "Flash/debug Cortex-M over DAPLink/ST-Link/J-Link with fault root-cause reports",
-        "default_prompt": "Use $mcu-debug to flash or debug a Cortex-M target over DAPLink/CMSIS-DAP/ST-Link/J-Link, inspect registers and memory, set conditional breakpoints, capture RTT/SWO, or diagnose a HardFault with a root-cause report."
+        "short_description": "Debug/flash Cortex-M, build XC8 firmware, burn/calibrate CACHIP touch MCUs",
+        "default_prompt": "Use $mcu-debug to flash or debug a Cortex-M target, build SCMCU/PIC firmware with XC8, or burn/calibrate a CACHIP CA51 touch MCU."
       }
     },
     {

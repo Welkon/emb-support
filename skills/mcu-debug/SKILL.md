@@ -1,11 +1,11 @@
 ---
 name: mcu-debug
 metadata:
-  short-description: "Flash and debug Cortex-M over DAPLink/CMSIS-DAP with fault root-cause analysis"
-description: Control DAPLink / CMSIS-DAP debug probes over SWD or JTAG for ARM Cortex-M — enumerate probes, install CMSIS-Packs, flash ELF/HEX/BIN with verify, chip/sector erase, reset, read/write memory and core registers, capture SEGGER RTT logs, and run a GDB server. Use this skill whenever the user mentions DAPLink, CMSIS-DAP, DAP, SWD, SWDIO/SWCLK, pyOCD, or a CMSIS-DAP-compatible probe (ST-Link, LPC-Link, NXP/Infineon onboard debugger), or asks to 烧录 / 下载固件 / 刷板子 / 擦除 flash / 看寄存器 / 读内存 / 抓 RTT 日志 / 查 HardFault, or reports "no probe found", "target not found", "flash failed", "SWD error", even when they never name the probe. Do not use it for J-Link-native flows that depend on JLinkExe-only features (RTT Viewer, J-Link scripts) — use the jlink skill instead — and do not use it for ESP32/ESP8266 UART flashing.
+  short-description: "Debug/flash Cortex-M, build XC8 firmware, and burn/calibrate CACHIP touch MCUs"
+description: Control DAPLink / CMSIS-DAP debug probes over SWD or JTAG for ARM Cortex-M — enumerate probes, install CMSIS-Packs, flash ELF/HEX/BIN with verify, chip/sector erase, reset, read/write memory and core registers, capture SEGGER RTT logs, and run a GDB server. Use this skill whenever the user mentions DAPLink, CMSIS-DAP, DAP, SWD, SWDIO/SWCLK, pyOCD, or a CMSIS-DAP-compatible probe (ST-Link, LPC-Link, NXP/Infineon onboard debugger), or asks to 烧录 / 下载固件 / 刷板子 / 擦除 flash / 看寄存器 / 读内存 / 抓 RTT 日志 / 查 HardFault, or reports "no probe found", "target not found", "flash failed", "SWD error", even when they never name the probe. Also builds SCMCU/PIC firmware with the bundled XC8 flow and drives the CACHIP USB HID programmer for CA51 touch MCUs (burning, touch calibration, firmware slots and downloader updates). Do not use it for J-Link-native flows that depend on JLinkExe-only features (RTT Viewer, J-Link scripts) — use the jlink skill instead — and do not use it for ESP32/ESP8266 UART flashing.
 ---
 
-# MCU 调试（DAPLink / CMSIS-DAP / ST-Link / J-Link）
+# MCU 工具台：调试 / 烧录 / 构建
 
 所有硬件操作都通过 `scripts/dap.py` 完成。它是 pyOCD 的薄封装：pyOCD 负责探针枚举、flash 算法、CMSIS-Packs、RTT 和 gdbserver，脚本只负责参数归一化和输出结构化 JSON，避免每次手工拼 pyOCD 命令时踩参数顺序、target 命名和阻塞等待的坑。
 
@@ -14,7 +14,20 @@ description: Control DAPLink / CMSIS-DAP debug probes over SWD or JTAG for ARM C
 - `pyocd json -p/-t` 的输出是嵌套结构，脚本已解析成扁平列表。
 - 错误信息会附上对应的排查建议，省掉一轮猜测。
 
-## 0. 先分类：这个任务真的该用本 skill 吗
+## 0. 任务分流（先做这一步）
+
+本 skill 覆盖三类互不相干的工具链，按任务只读对应资料：
+
+| 任务 / 关键词 | 入口 |
+|---|---|
+| CA51 / CA51M550S1B / TK3 触摸 / TFT 仿真下载器 / CACHIP / Writer 槽 / 下载器固件升级 | `references/cachip.md` + `scripts/cachip/`（Windows + `hidapi`） |
+| PIC / SCMCU / XC8 / `.scw` / SCMCU IDE / 编译、ROM/RAM、map | `references/xc8-build.md` + `scripts/xc8/build_xc8.py`（Windows + XC8 工具链） |
+| ARM Cortex-M / DAPLink / CMSIS-DAP / ST-Link / J-Link / SWD / RTT / HardFault / probe-rs | 本文余下部分 + `scripts/dap.py` |
+
+不要把 CACHIP/XC8 的流程套到 ARM 上，也不要拿 pyOCD 去连 CA51/PIC。
+
+## 0.1 探针任务分类：是否该用 ARM 调试流程
+
 
 | 情况 | 走哪条路 |
 |---|---|

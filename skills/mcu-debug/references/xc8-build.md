@@ -1,3 +1,143 @@
+# XC8 build flow (merged from the former `xc8-build` skill)
+
+The canonical script is `scripts/xc8/build_xc8.py`.
+
+<codex_skill_adapter>
+- This skill is invoked by mentioning `$xc8-build`.
+- If the user gives a build name, reuse it.
+- If the user asks to compile but gives no build name, choose a short purpose-based name such as `rom-check`, `stage1`, `fix-check`, or `user-test`.
+</codex_skill_adapter>
+
+<objective>
+Run the repository's tested command-line XC8 build flow.
+
+Use the bundled skill scripts instead of inventing a new compiler command line.
+Keep all new command-line artifacts in:
+
+`build/xc8/<build-name>/`
+</objective>
+
+<when_to_use>
+- User asks to compile, build, or rebuild firmware.
+- User asks whether the firmware still compiles after a change.
+- User asks for ROM usage, RAM usage, compiler warnings, or map output.
+- User asks for a named build output set that can be compared or shared across the team.
+</when_to_use>
+
+<files_to_check>
+- `BUILD.md`
+- `scripts/build_xc8.py`
+- `references/toolchain.env.sample`
+</files_to_check>
+
+<process>
+1. If you need to confirm toolchain path, output layout, or file naming, read `BUILD.md`.
+
+2. The canonical implementation is:
+
+```bash
+python3 scripts/xc8/build_xc8.py -BuildName <build-name>
+```
+
+The script auto-discovers a single `.scw` file at project root.
+If the repository has multiple SCMCU project files, pass one explicitly:
+
+```bash
+python3 scripts/xc8/build_xc8.py -BuildName <build-name> -ProjectFile <project-file>.scw
+```
+
+If an agent or user needs to override project metadata explicitly, use:
+
+```bash
+python3 scripts/xc8/build_xc8.py -BuildName <build-name> -Chip <chip> -IncludeDir <include-dir> -Define <name=value> -SourceFile <file1> -SourceFile <file2>
+```
+
+Optional override behavior:
+
+- `-Chip` overrides `Device=...` for command-line verification only
+- `-SourceFile` replaces the project-file source list
+- `-AppendSourceFile` appends extra files after the project-file source list
+- `-IncludeDir` appends project-local include directories
+- `-Define` appends C preprocessor defines, with or without the `-D` prefix
+- `-ImagePrefix` overrides the default output prefix
+
+SCMCU IDE caution:
+
+- Do not assume a `-Chip` override means the `.scw` device must be changed. Some projects intentionally keep a debug/erasable `.scw` device while command-line verification targets the production-compatible part. `build_summary.json` reports `chip_relation`; project-level `.emb-agent/project.json` `chip_substitutes` entries override built-in known SCMCU debug substitutes such as `SC8P062BD` / `SC8F072`.
+- Do not assume the command-line HEX is what the user flashes. If `.emb-agent/project.json` sets `flash_flow: official_ide_only`, report source/project setting changes; use the build output as verification evidence.
+- Inspect `build_summary.json` `scw_config`, `scw_config_decode`, `hex_config`, and `config_words_emitted` when WDT, reset-pin mode, LVR, or sleep behavior depends on configuration bits. For SCMCU `.cfg` files that are present under the IDE root, the summary decodes critical fields such as `WDT` and `EXT_RESET`.
+
+3. If working from Windows PowerShell instead, use:
+
+```powershell
+py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName <build-name>
+```
+
+Toolchain path override order:
+
+- explicit `-Xc8Exe`
+- environment variable `XC8_EXE`
+- explicit `-ToolchainRoot`
+- environment variable `SCMCU_IDE_ROOT`
+- automatic probe of common SCMCU IDE install paths
+
+There is no hardcoded machine-local toolchain path in this skill flow.
+The user or CI environment must provide one of the overrides above.
+If Python is not on `PATH`, call the interpreter with its full path instead of adding a repo-level wrapper.
+Project metadata priority is: explicit CLI overrides, then SCMCU project file, then minimal generic defaults for build policy fields only.
+
+If you need to inspect what the script can auto-detect on the current machine, use:
+
+```bash
+python3 scripts/xc8/build_xc8.py -ListToolchainCandidates
+```
+
+If the user asks for a shell or CI sample, point them to `references/toolchain.env.sample`.
+
+4. After a successful build, inspect:
+- `build/xc8/<build-name>/cmscerr.err`
+- `build/xc8/<build-name>/<project-stem>_<build-name>.map`
+- `build/xc8/<build-name>/build_summary.json`
+- configuration-bit fields in `build_summary.json` when sleep/wake/reset behavior is under review
+
+The script clears only the previous command-line `cmscerr.err` / map / HEX for this exact build name before retrying, then treats post-cleanup existence as freshness proof (wall-clock mtime is diagnostic only because WSL filesystems can be skewed). `success` requires zero recognized compiler errors as well as the fresh artifacts, and summary failure produces a non-zero script exit. Read `flash_readiness`: `ide_config_required` means the command-line HEX omitted `.scw` configuration words and must not be presented as the final flash image.
+
+5. Report at least:
+- build succeeded or failed
+- any compiler errors, or the most relevant warnings
+- `Program space`
+- `Data space`
+- the output directory
+- the `cmscerr.err` path
+- the `.map` path
+- the `build_summary.json` path
+
+6. If the user asks about code size or hot spots, use the `.map` file to extract:
+- total program usage
+- total data usage
+- estimated function sizes for changed modules
+The script now emits a parsed summary JSON after each build so an agent can read build status, warning/error counts, memory usage, and top function estimates without reparsing raw files.
+
+7. Do not write new command-line build artifacts to the repository root or to ad-hoc folders such as `output_stage1/`.
+
+8. Do not delete or rewrite the legacy `output/` directory unless the user explicitly asks.
+
+9. If the user asks how to configure the compiler path for their machine, prefer `XC8_EXE` or `SCMCU_IDE_ROOT` over a repo `.env` file. This is machine-local toolchain config, not shared project config.
+</process>
+
+<output_expectations>
+Default answer shape:
+
+- one short line for build result
+- one short line for ROM/RAM summary
+- one short line for artifact location
+
+If the build fails, include the key error lines and stop there.
+</output_expectations>
+
+
+---
+
 # Build Notes
 
 ## Goal
@@ -51,7 +191,7 @@ Reference-only env sample:
 
 Canonical implementation lives in the repo-local skill:
 
-- `.codex/skills/xc8-build/scripts/build_xc8.py`
+- `scripts/xc8/build_xc8.py`
 
 The script reads project metadata from a SCMCU `.scw` file:
 
@@ -87,25 +227,25 @@ Project metadata priority:
 WSL / Linux:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1
+python3 scripts/xc8/build_xc8.py -BuildName stage1
 ```
 
 List autodetected toolchains:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -ListToolchainCandidates
+python3 scripts/xc8/build_xc8.py -ListToolchainCandidates
 ```
 
 WSL / Linux with explicit project file:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1 -ProjectFile gdss.scw
+python3 scripts/xc8/build_xc8.py -BuildName stage1 -ProjectFile gdss.scw
 ```
 
 WSL / Linux with explicit chip and source files:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1 -Chip SC8F072 -SourceFile src/bt3l.c -SourceFile src/ir.c
+python3 scripts/xc8/build_xc8.py -BuildName stage1 -Chip SC8F072 -SourceFile src/bt3l.c -SourceFile src/ir.c
 ```
 
 Windows PowerShell:
@@ -133,14 +273,14 @@ WSL / Linux with direct compiler path:
 
 ```bash
 export XC8_EXE=/mnt/d/path/to/xc8.exe
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1
+python3 scripts/xc8/build_xc8.py -BuildName stage1
 ```
 
 WSL / Linux with IDE root:
 
 ```bash
 export SCMCU_IDE_ROOT=/mnt/d/path/to/SCMCU_IDE
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1
+python3 scripts/xc8/build_xc8.py -BuildName stage1
 ```
 
 Explicit parameter override:
@@ -162,7 +302,7 @@ $xc8-build
 Direct skill script entrypoint:
 
 ```bash
-python3 .codex/skills/xc8-build/scripts/build_xc8.py -BuildName stage1
+python3 scripts/xc8/build_xc8.py -BuildName stage1
 ```
 
 ## Output Files

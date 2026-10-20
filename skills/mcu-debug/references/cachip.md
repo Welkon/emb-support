@@ -1,7 +1,7 @@
----
-name: cachip
-description: CACHIP MCU 烧录器工具链 — 通过 TFT 仿真下载器(STM32F103, VID 0xFFCA/PID 0x0125)烧录 CA51M550S1B 等触摸 MCU、触摸调试(TK3 实时数据/门限)、Writer/软件槽管理、下载器固件升级与定制(版本字符串)、AI 自动调参。Use when the user asks to burn flash a target MCU, touch-channel debugging/calibration (baseline/raw/threshold), firmware slot management, or update/customize the CACHIP downloader firmware.
----
+# CACHIP toolchain (merged from the former `cachip` skill)
+
+Scripts live in `scripts/cachip/`. Requires `hidapi` and a CACHIP USB HID
+downloader (VID 0xFFCA / PID 0x0125).
 
 # CACHIP 烧录器工具链
 
@@ -27,19 +27,19 @@ description: CACHIP MCU 烧录器工具链 — 通过 TFT 仿真下载器(STM32F
 
 ```bash
 # 烧录(先 Connect 目标板;hex 或 bin 均可)
-python cachip_burner.py target.hex --name CA51M550S1B
+python scripts/cachip/cachip_burner.py target.hex --name CA51M550S1B
 
 # 触摸调试(实时数据流)
-python cachip_touch_debug.py --count 10 --interval 0.1
+python scripts/cachip/cachip_touch_debug.py --count 10 --interval 0.1
 
 # AI 标定(用户配合: 第一步手拿开, 提示后按 TK3 三次, 每次1秒)
-python ai_tune.py
+python scripts/cachip/ai_tune.py
 
 # Writer 软件槽列表/删除/创建
-python fw_manager.py list
+python scripts/cachip/fw_manager.py list
 
 # 下载器固件更新(升级/还原/定制后刷入)
-python fw_update.py update CACHIP_TOOL_v1.1.0.8_20260507.bin
+python scripts/cachip/fw_update.py update CACHIP_TOOL_v1.1.0.8_20260507.bin
 ```
 
 ## 协议要点(实测验证)
@@ -69,6 +69,6 @@ python fw_update.py update CACHIP_TOOL_v1.1.0.8_20260507.bin
 
 ## 目标板触摸标定(标准流程)
 
-1. `python ai_tune.py` 一键标定(基线 σ<5 为优;触摸差值/2 + 噪声裕量 = 建议门限)。
+1. `python scripts/cachip/ai_tune.py` 一键标定(基线 σ<5 为优;触摸差值/2 + 噪声裕量 = 建议门限)。
 2. 门限写入为**运行时设置**(重启恢复固件默认 500);固化需改固件默认门限表或研究 SPI Flash 保存机制。
 3. 验证: 读门限(0x58 00 ch)→按 TK3→看 key flag=1 且差值>门限。
