@@ -48,6 +48,12 @@ class FakeDp100:
     def read(self, n):
         return self.queue.pop(0)
 
+    def open(self, *args):
+        self.opened = args
+
+    def open_path(self, path):
+        self.opened = path
+
     def close(self):
         pass
 
@@ -77,6 +83,8 @@ def test_dp100_driver(monkeypatch):
     assert snap["setpoint"] == {"voltage": 5.0, "current": 1.0}
     assert snap["measurement"]["input_voltage"] == pytest.approx(12.0)
     assert snap["measurement"]["power"] == pytest.approx(5.0)
+    assert snap["status"]["output_mode"] == "OFF"
+    assert dev.output_state(1) == "ON"
     assert dev.limits["max_voltage"] == 30.0
     assert dev.limits["max_ovp"] == 30.5
     dev.set_ovp(1, 30.5)
@@ -206,3 +214,17 @@ def test_dp100_golden_frames():
     assert _dp_frame(0x10).hex() == "fb10000030c5"
     assert _dp_frame(0x30).hex() == "fb300000310f"
     assert _dp_frame(0x35, b"\x80").hex() == "fb35000180ce28"
+
+
+def test_dp100_hidapi_lowercase_device(monkeypatch):
+    fake = FakeDp100()
+    hid = types.SimpleNamespace(
+        device=lambda: fake,
+        enumerate=lambda vid, pid: [{"serial_number": "SN123456789"}],
+    )
+    monkeypatch.setitem(sys.modules, "hid", hid)
+    from psuscpi.drivers import Dp100Device
+    dev = Dp100Device()
+    assert fake.opened == (0x2E3C, 0xAF01)
+    assert dev.measure_voltage(1) == pytest.approx(5.0)
+    dev.close()

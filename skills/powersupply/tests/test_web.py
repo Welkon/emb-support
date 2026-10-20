@@ -66,8 +66,10 @@ def _post(port, path, body):
 
 def test_index_and_state(server):
     srv, dev = server
-    status, body = _get(srv.port, "/")
-    assert status == 200 and b"<title>Power Supply</title>" in body
+    with urllib.request.urlopen(f"http://127.0.0.1:{srv.port}/", timeout=3) as r:
+        body = r.read()
+        assert r.status == 200 and r.headers.get("Cache-Control") == "no-cache"
+    assert b"<title>Power Supply</title>" in body
     status, body = _get(srv.port, "/api/state?ch=1")
     data = json.loads(body)
     assert data["family"] == "fake" and data["channels"] == [1, 2]
@@ -98,3 +100,48 @@ def test_limits_enforced(server):
         _post(srv.port, "/api/set", {"ch": 1, "voltage": 40})
     assert e.value.code == 400
     assert dev.v[1] == 0.0
+
+
+def test_state_is_reentrant(server):
+    """The handler holds srv.lock while _state() reads history/snapshot."""
+    srv, _ = server
+    result = {}
+    done = threading.Event()
+
+    def worker():
+        with srv.lock:
+            result["state"] = srv._state(1)
+        done.set()
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    assert done.wait(2), "state() deadlocked under the server lock"
+    assert result["state"]["ch"] == 1
+
+
+def test_history_endpoint(server):
+    import time
+    srv, _ = server
+    now = int(time.time() * 1000)
+    srv.history[1].append({"t": now - 250, "voltage": 5.0, "current": 0.5, "power": 2.5})
+    srv.history[1].append({"t": now, "voltage": 5.1, "current": 0.5, "power": 2.55})
+    status, body = _get(srv.port, "/api/history?ch=1&seconds=2")
+    data = json.loads(body)
+    assert status == 200 and data["ok"] and len(data["samples"]) == 2
+    assert data["samples"][-1]["voltage"] == 5.1
+
+
+def test_sampler_fills_history():
+    import time
+    from psuscpi.web import PsuWebServer
+    dev = FakeDevice()
+    srv = PsuWebServer(dev, 30, 5, bind="127.0.0.1", port=0)
+    try:
+        deadline = time.time() + 2
+        while time.time() < deadline and not srv.history[1]:
+            time.sleep(0.02)
+        assert srv.history[1], "background sampler produced no samples"
+        assert srv.history[1][-1]["voltage"] == dev.v[1]
+    finally:
+        srv._stop.set()
+        srv.httpd.server_close()
