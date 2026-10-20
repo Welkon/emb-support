@@ -22,7 +22,7 @@ Go implementation of the programmable power-supply skill.
   `/api/set`, `/api/output`, `/api/protect`, `/api/all-off`.
 - CLI:
   `setup`, `test`, `list`, `discover`, `doctor`, `config`, `channels`,
-  `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `all-off`, `protect`,
+  `idn`, `get`, `measure`, `status` (alias of `snapshot`), `set`, `output`, `all-off`, `protect`,
   `ramp`, `sequence`, `log`, `web`, `scpi`, `query`, `write`.
 - Per-unit capabilities and limits. The UI hides unsupported fields.
 - Golden-frame, fake-transport, SCPI dialect, TCP transport, and server tests.
@@ -58,8 +58,12 @@ To add a model:
 
 ## Configuration
 
-The config file is `os.UserConfigDir()/psu/config.json`; override it with
-`PSU_CONFIG`. The most useful keys are:
+The config file is `$PSU_HOME/config.json`. Without `PSU_HOME` it follows the
+same order as the Python CLI (`scripts/psuscpi/common.py:data_home`): an existing
+`.emb-agent/bench/psu` inside the project, then that path for a project with a
+`.emb-agent` marker and no legacy dir, then `~/.local/share/psu`. `PSU_CONFIG`
+overrides the file itself. Both CLIs therefore read one file, and a sandbox that
+only allows workspace writes needs no approval. The most useful keys are:
 
 ```sh
 psu config set host 192.168.1.50

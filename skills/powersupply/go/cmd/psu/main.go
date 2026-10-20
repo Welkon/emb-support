@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -64,7 +65,7 @@ func main() {
 		err = cmdGet(os.Args[2:])
 	case "measure":
 		err = cmdMeasure(os.Args[2:])
-	case "snapshot":
+	case "snapshot", "status":
 		err = cmdSnapshot(os.Args[2:])
 	case "set":
 		err = cmdSet(os.Args[2:])
@@ -84,7 +85,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: psu <setup|test|list|discover|doctor|config|channels|idn|get|measure|snapshot|set|output|all-off|protect|ramp|sequence|log|web|scpi|query|write> [connection options]")
+	fmt.Fprintln(os.Stderr, "usage: psu <setup|test|list|discover|doctor|config|channels|idn|get|measure|status|snapshot|set|output|all-off|protect|ramp|sequence|log|web|scpi|query|write> [connection options]")
 	os.Exit(2)
 }
 
@@ -378,7 +379,7 @@ func cmdMeasure(args []string) error {
 }
 
 func cmdSnapshot(args []string) error {
-	fs := flag.NewFlagSet("snapshot", flag.ExitOnError)
+	fs := flag.NewFlagSet("status", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
 	sel := addSelector(fs)
 	fs.Parse(args)
@@ -891,7 +892,14 @@ func cmdAllOff(args []string) error {
 
 func checkUnitLimits(u *server.Unit, v, i *float64) error {
 	if v != nil && u.Limits.MaxVoltage > 0 && *v > u.Limits.MaxVoltage {
-		return fmt.Errorf("voltage %.3f exceeds device limit %.3f", *v, u.Limits.MaxVoltage)
+		msg := fmt.Sprintf("voltage %.3f exceeds device limit %.3f", *v, u.Limits.MaxVoltage)
+		if u.Family == "dp100" {
+			// The DP100 ceiling tracks its input voltage; a bare "exceeds limit"
+			// reads like a bug in the CLI rather than a bench condition.
+			msg += ": the DP100 is a buck converter, so its ceiling follows the input voltage." +
+				" Raise the input voltage, or lower the setpoint. Run: psu channels --hid dp100"
+		}
+		return errors.New(msg)
 	}
 	if i != nil && u.Limits.MaxCurrent > 0 && *i > u.Limits.MaxCurrent {
 		return fmt.Errorf("current %.3f exceeds device limit %.3f", *i, u.Limits.MaxCurrent)

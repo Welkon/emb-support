@@ -35,11 +35,38 @@ func Path() string {
 	if p := os.Getenv("PSU_CONFIG"); p != "" {
 		return p
 	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = "."
+	return filepath.Join(Home(), "config.json")
+}
+
+// Home is the state directory: PSU_HOME, then a project-local
+// .emb-agent/bench/psu, then the legacy ~/.local/share/psu.
+//
+// This mirrors scripts/psuscpi/common.py:data_home so the Go and Python CLIs
+// read one config file instead of two. Keeping it inside the project also
+// means a sandbox that only allows workspace writes can run either CLI without
+// an approval prompt.
+func Home() string {
+	if p := os.Getenv("PSU_HOME"); p != "" {
+		return p
 	}
-	return filepath.Join(dir, "psu", "config.json")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+	legacy := filepath.Join(home, ".local", "share", "psu")
+	if cwd, err := os.Getwd(); err == nil {
+		marker := filepath.Join(cwd, ".emb-agent")
+		project := filepath.Join(marker, "bench", "psu")
+		if st, err := os.Stat(project); err == nil && st.IsDir() {
+			return project
+		}
+		if st, err := os.Stat(marker); err == nil && st.IsDir() {
+			if _, err := os.Stat(legacy); os.IsNotExist(err) {
+				return project
+			}
+		}
+	}
+	return legacy
 }
 
 func Load() Config {
