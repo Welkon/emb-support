@@ -51,32 +51,57 @@ def stats(volts: list[float], times: list[float]) -> dict:
 
 
 def _edges(volts, times, vmin, vmax):
-    lo, hi = vmin + (vmax - vmin) * 0.1, vmin + (vmax - vmin) * 0.9
+    """10-90% rise/fall of the first clean edge, with hysteresis."""
+    vpp = vmax - vmin
+    if vpp <= 0 or len(volts) < 3:
+        return {}
+    lo = vmin + 0.1 * vpp
+    hi = vmin + 0.9 * vpp
     n = len(volts)
-    rise = fall = None
-    for i in range(1, n):
-        if rise is None and volts[i - 1] < lo <= volts[i] and volts[i] != volts[i - 1]:
-            t0, v0 = times[i - 1], volts[i - 1]
-            rise = t0 + (times[i] - t0) * (lo - v0) / (volts[i] - v0)
-        if rise is not None and volts[i - 1] < hi <= volts[i] and volts[i] != volts[i - 1]:
-            t0, v0 = times[i - 1], volts[i - 1]
-            t1 = t0 + (times[i] - t0) * (hi - v0) / (volts[i] - v0)
-            rise = t1 - rise
-            break
-    for i in range(1, n):
-        if fall is None and volts[i - 1] > hi >= volts[i] and volts[i] != volts[i - 1]:
-            t0, v0 = times[i - 1], volts[i - 1]
-            fall = t0 + (times[i] - t0) * (hi - v0) / (volts[i] - v0)
-        if fall is not None and volts[i - 1] > lo >= volts[i] and volts[i] != volts[i - 1]:
-            t0, v0 = times[i - 1], volts[i - 1]
-            t1 = t0 + (times[i] - t0) * (lo - v0) / (volts[i] - v0)
-            fall = t1 - fall
-            break
+
+    def interp(i0, i1, level):
+        v0, v1 = volts[i0], volts[i1]
+        if v1 == v0:
+            return times[i0]
+        return times[i0] + (times[i1] - times[i0]) * (level - v0) / (v1 - v0)
+
     out = {}
-    if rise:
-        out["rise_time"] = rise
-    if fall:
-        out["fall_time"] = fall
+
+    # Rising edge: arm below the low threshold, then wait for 90%.
+    state = "low" if volts[0] < lo else "wait_low"
+    start = None
+    for i in range(1, n):
+        if state == "wait_low":
+            if volts[i] < lo:
+                state = "low"
+        elif state == "low":
+            if volts[i - 1] < lo <= volts[i]:
+                start = interp(i - 1, i, lo)
+                state = "wait_hi"
+        elif state == "wait_hi":
+            if volts[i] >= hi:
+                out["rise_time"] = interp(i - 1, i, hi) - start
+                break
+            if volts[i] < lo:
+                state = "low"
+
+    # Falling edge: arm above the high threshold, then wait for 10%.
+    state = "high" if volts[0] > hi else "wait_high"
+    start = None
+    for i in range(1, n):
+        if state == "wait_high":
+            if volts[i] > hi:
+                state = "high"
+        elif state == "high":
+            if volts[i - 1] > hi >= volts[i]:
+                start = interp(i - 1, i, hi)
+                state = "wait_lo"
+        elif state == "wait_lo":
+            if volts[i] <= lo:
+                out["fall_time"] = interp(i - 1, i, lo) - start
+                break
+            if volts[i] > hi:
+                state = "high"
     return out
 
 

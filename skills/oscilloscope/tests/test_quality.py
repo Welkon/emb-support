@@ -57,6 +57,14 @@ def test_aliasing_near_nyquist(scope):
     assert "ALIASING" in codes(w)
 
 
+def test_edges_ignore_preexisting_drift(scope):
+    v = [-0.2] * 100 + [0.0, -0.2] + [4.6] * 100 + [-0.2] * 100
+    t = [i * 1e-6 for i in range(len(v))]
+    out = scope._edges(v, t, min(v), max(v))
+    assert out["rise_time"] < 1e-5
+    assert out["fall_time"] < 1e-5
+
+
 def test_recovery_retries(scope):
     class Inst:
         def __init__(self):
