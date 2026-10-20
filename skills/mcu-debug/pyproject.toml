@@ -5,7 +5,7 @@ addopts = "-q"
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-exclude = ["scripts/__pycache__", "tests/__pycache__"]
+exclude = ["scripts/__pycache__", "tests/__pycache__", "scripts/cachip", "scripts/xc8"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
