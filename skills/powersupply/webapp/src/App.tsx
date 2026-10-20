@@ -411,6 +411,8 @@ export default function App() {
   };
   const [scopeMode, setScopeMode] = useState<"AUTO" | "MAN">(() =>
     localStorage.getItem("psu-chart-initialized") === "1" ? "MAN" : "AUTO");
+  const [autoPulse, setAutoPulse] = useState(false);
+  const autoTimer = useRef<number | undefined>(undefined);
   const [scopeInitialized, setScopeInitialized] = useState(() =>
     localStorage.getItem("psu-chart-initialized") === "1");
   const nearest = (options: number[], want: number) => options.reduce((best, v) => Math.abs(v - want) < Math.abs(best - want) ? v : best, options[0]);
@@ -425,6 +427,9 @@ export default function App() {
     setVScopeRef(centerV);
     setIScopeRef(centerI);
     setScopeMode("MAN");
+    setAutoPulse(true);
+    if (autoTimer.current) window.clearTimeout(autoTimer.current);
+    autoTimer.current = window.setTimeout(() => setAutoPulse(false), 800);
     setScopeInitialized(true);
     localStorage.setItem("psu-chart-initialized", "1");
   };
@@ -627,7 +632,8 @@ export default function App() {
                 <div className="hidden w-[82px] shrink-0 flex-col items-center justify-center gap-2 border-l border-border/60 pl-2 md:flex">
                   <div className="flex w-full gap-1 px-1">
                     <button onClick={autoSet} title="Auto set and save to MAN"
-                      className="flex-1 rounded border border-primary/40 bg-primary/10 py-0.5 font-mono text-[9px] tracking-widest text-primary">
+                      className={cn("flex-1 rounded border py-0.5 font-mono text-[9px] tracking-widest transition-all duration-300",
+                        autoPulse ? "border-primary bg-primary/20 text-primary" : "border-primary/40 bg-primary/10 text-primary")}>
                       AUTO
                     </button>
                     <button onClick={() => setScopeMode("MAN")} title="Manual"
@@ -639,26 +645,26 @@ export default function App() {
                   <ScopeKnob label={t.voltsPerDiv}
                     value={vDivIndex / (VDIV.length - 1)}
                     wheelStep={1 / (VDIV.length - 1)}
-                    display={chartSettings.vDiv < 1 ? `${Math.round(chartSettings.vDiv * 1000)} mV` : `${chartSettings.vDiv} V`}
+                    display={chartSettings.vDiv < 1 ? `${Math.round(chartSettings.vDiv * 1000)} mV` : `${chartSettings.vDiv} V`} pulse={autoPulse}
                     onChange={(x) => {
                       const next = VDIV[Math.round(x * (VDIV.length - 1))];
                       setScope({ vDiv: next });
                     }} />
                   <ScopeKnob label={t.vPos}
                     value={(chartSettings.vPos - vPosLo) / (vPosHi - vPosLo)}
-                    display={`${chartSettings.vPos.toFixed(2)} V`}
+                    display={`${chartSettings.vPos.toFixed(2)} V`} pulse={autoPulse}
                     onChange={(x) => setScope({ vPos: vPosLo + x * (vPosHi - vPosLo) })} />
                   <ScopeKnob label={t.ampsPerDiv}
                     value={iDivIndex / (IDIV.length - 1)}
                     wheelStep={1 / (IDIV.length - 1)}
-                    display={chartSettings.iDiv < 1 ? `${Math.round(chartSettings.iDiv * 1000)} mA` : `${chartSettings.iDiv} A`}
+                    display={chartSettings.iDiv < 1 ? `${Math.round(chartSettings.iDiv * 1000)} mA` : `${chartSettings.iDiv} A`} pulse={autoPulse}
                     onChange={(x) => {
                       const next = IDIV[Math.round(x * (IDIV.length - 1))];
                       setScope({ iDiv: next });
                     }} />
                   <ScopeKnob label={t.aPos}
                     value={(chartSettings.iPos - iPosLo) / (iPosHi - iPosLo)}
-                    display={`${chartSettings.iPos.toFixed(2)} A`}
+                    display={`${chartSettings.iPos.toFixed(2)} A`} pulse={autoPulse}
                     onChange={(x) => setScope({ iPos: iPosLo + x * (iPosHi - iPosLo) })} />
                 </div>
                 </div>
@@ -832,8 +838,8 @@ function NumberInput({ value, onChange, step = 0.1, min = 0, max = 100, ...props
   return <Input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} {...props} />;
 }
 
-function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02 }: {
-  label: string; value: number; display: string; onChange: (v: number) => void; wheelStep?: number;
+function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02, pulse = false }: {
+  label: string; value: number; display: string; onChange: (v: number) => void; wheelStep?: number; pulse?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const latest = useRef({ value, onChange, wheelStep });
@@ -855,19 +861,18 @@ function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02 }: {
     <div ref={ref} tabIndex={0} title={`${label} · scroll to adjust`}
       className="flex w-full flex-col items-center gap-0.5 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring">
       <div className="relative h-14 w-14">
-        <div className="absolute inset-0 rounded-full border border-black/10 bg-[radial-gradient(circle_at_35%_28%,#ffffff,#e9e4da_58%,#cfc7b8)] shadow-[0_4px_10px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-2px_4px_rgba(0,0,0,0.15)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_35%_28%,#4c4841,#292620_58%,#151311)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-3px_6px_rgba(0,0,0,0.65)]">
-          <div className="absolute inset-[3px] rounded-full opacity-40 dark:opacity-30"
-            style={{ background: "repeating-conic-gradient(from 0deg, rgba(0,0,0,0.16) 0deg 2deg, transparent 2deg 6deg)" }} />
-          <div className="absolute inset-[6px] rounded-full border border-black/10 bg-[radial-gradient(circle_at_38%_30%,#fbfaf6,#ddd6c8_70%,#bfb6a6)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.7),inset_0_-2px_4px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_38%_30%,#57524a,#26231e_70%,#171512)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),inset_0_-2px_4px_rgba(0,0,0,0.55)]" />
-          <div className="absolute inset-0" style={{ transform: `rotate(${v * 270 - 135}deg)` }}>
-            <span className="absolute left-1/2 top-1.5 h-3 w-[2px] -translate-x-1/2 rounded-full bg-primary shadow-[0_0_5px_hsl(var(--primary)/0.6)]" />
+        <div className={cn("absolute inset-0 rounded-full border border-border bg-card shadow-sm transition-all duration-300",
+          pulse && "ring-2 ring-primary/35 shadow-[0_0_16px_-5px_hsl(var(--primary)/0.35)]")}>
+          <div className="absolute inset-[6px] rounded-full border border-border/70 bg-muted/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]" />
+          <div className="absolute inset-0 transition-transform duration-700 ease-out" style={{ transform: `rotate(${v * 270 - 135}deg)` }}>
+            <span className="absolute left-1/2 top-1.5 h-3 w-[2px] -translate-x-1/2 rounded-full bg-primary" />
           </div>
-          <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/30 ring-1 ring-white/10 dark:bg-black/60" />
+          <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-card" />
           <CircularInput value={v} radius={23} onChange={onChange} aria-label={label}
             className="absolute inset-0 h-full w-full">
-            <CircularTrack stroke="transparent" strokeWidth={3} />
-            <CircularProgress stroke="hsl(var(--primary))" strokeWidth={2} />
-            <CircularThumb r={3} fill="hsl(var(--primary))" />
+            <CircularTrack stroke="hsl(var(--border))" strokeWidth={3} />
+            <CircularProgress stroke="hsl(var(--primary))" strokeWidth={3} className="transition-all duration-700" />
+            <CircularThumb r={3.5} fill="hsl(var(--primary))" />
           </CircularInput>
         </div>
       </div>
