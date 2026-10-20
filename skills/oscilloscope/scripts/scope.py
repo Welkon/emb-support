@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from scopescpi.common import *  # noqa: F401,F403
+from scopescpi.common import venv_reexec_argv  # noqa: F401
 from scopescpi.common import _parse_rate, _parse_scaled  # noqa: F401
 from scopescpi.transport import *  # noqa: F401,F403
 from scopescpi.dialects import *  # noqa: F401,F403
@@ -48,14 +49,13 @@ from scopescpi.cli import main  # noqa: F401
 
 
 def _ensure_runtime() -> None:
-    """Run inside the skill venv when it exists, so pyvisa/pyusb are consistent."""
-    if os.environ.get("SCOPE_NO_REEXEC"):
-        return
-    home = Path(os.environ.get("SCOPE_HOME", str(Path.home() / ".local/share/scope")))
-    py = home / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    venv_root = (home / "venv").resolve()
-    if py.exists() and Path(sys.prefix).resolve() != venv_root:
-        os.execv(str(py), [str(py), str(Path(__file__).resolve())] + sys.argv[1:])
+    """Run inside the skill venv only when this interpreter lacks pyvisa/pyusb.
+
+    Kept as a thin wrapper so the rule lives in one place (common.venv_reexec_argv).
+    """
+    target = venv_reexec_argv(sys.argv)
+    if target is not None:
+        os.execv(target[0], target)
 
 
 if __name__ == "__main__":

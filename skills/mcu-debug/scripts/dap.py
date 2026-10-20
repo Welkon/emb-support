@@ -44,13 +44,26 @@ from dap_debug import (
 
 
 def _data_home() -> Path:
+    """Resolve the data dir, preferring one inside the project when possible.
+
+    An explicit env var wins. Otherwise a `.emb-agent/bench/mcu-debug` inside the
+    project (which already exists, or is safe to create because the legacy dir is
+    absent) keeps the venv and caches inside the workspace, so a sandbox that
+    only allows workspace writes does not have to approve every command.
+    """
     for env in ("MCU_DEBUG_HOME", "DAPLINK_HOME"):
         value = os.environ.get(env)
         if value:
             return Path(value).expanduser()
     new = Path.home() / ".local/share/mcu-debug"
     old = Path.home() / ".local/share/daplink"
-    return old if (old.exists() and not new.exists()) else new
+    legacy = old if (old.exists() and not new.exists()) else new
+    project = Path.cwd() / ".emb-agent" / "bench" / "mcu-debug"
+    if project.exists():
+        return project
+    if (Path.cwd() / ".emb-agent").is_dir() and not legacy.exists():
+        return project
+    return legacy
 
 
 HOME = _data_home()

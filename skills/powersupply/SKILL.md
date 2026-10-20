@@ -46,6 +46,7 @@ scripts/psu.py setup
 - B&K 168x and Manson use --serial /dev/ttyUSB0 --family bk168x. Add --current-decimals 2 for the 1685B.
 - Linux and WSL permissions: run sudo bash scripts/install_udev.sh. Replug the device or run usbipd attach again after the install.
 - WSL detection: the tool detects WSL at start. If no local device exists, it attaches a Shared Windows supply with usbipd attach. Use doctor --attach-usb to attach manually.
+- The CLI execs `PSU_HOME/venv` only when the active interpreter cannot import `hid`; set `PSU_NO_REEXEC=1` to keep the current interpreter. `PSU_HOME` defaults to `.emb-agent/bench/psu` inside a project that has a `.emb-agent` marker, and keeps using an existing `~/.local/share/psu`. On a sandboxed host, run `setup` once so the venv and caches stay inside the workspace: every command that must exec or write outside it costs the user an approval prompt.
 
 ## 2. Families and dialects
 

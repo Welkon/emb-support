@@ -85,6 +85,7 @@ python3 scripts/dap.py setup --probe-rs   # downloads the pinned probe-rs releas
 ```
 
 `dap.py env` prints the resolved data directory, venv path, and engine paths. Use it when a documented path does not exist. The data directory can fall back to the legacy `~/.local/share/daplink`.
+`MCU_DEBUG_HOME` (or the legacy `DAPLINK_HOME`) overrides it. Without either, a project that has a `.emb-agent` marker uses `.emb-agent/bench/mcu-debug`, so the venv and caches stay inside the workspace; an existing `~/.local/share/{mcu-debug,daplink}` keeps being used instead. On a sandboxed host this matters: every command that has to write or exec outside the workspace costs the user an approval prompt, so prefer one `selfcheck --json` or `record` call over a chain of small ones.
 
 ## 2. Standard workflow
 

@@ -43,6 +43,7 @@ scripts/scope.py setup
   2. A single VISA resource.
   3. On WSL, `usbipd attach` for a Windows-side oscilloscope.
 - To disable automatic attach, use `--no-auto-attach` or set `SCOPE_NO_AUTO_ATTACH=1`.
+- The CLI execs `SCOPE_HOME/venv` only when the active interpreter cannot import `pyvisa`; set `SCOPE_NO_REEXEC=1` to keep the current interpreter. `SCOPE_HOME` defaults to `.emb-agent/bench/scope` inside a project that has a `.emb-agent` marker, and keeps using an existing `~/.local/share/scope`. On a sandboxed host, run `setup` once so the venv and caches stay inside the workspace: every command that must exec or write outside it costs the user an approval prompt.
 - `doctor` shows the Windows-side usbipd devices, the vendor IDs, and the bind and attach commands:
 
 ```bash

@@ -2,15 +2,43 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import sys
 from pathlib import Path
 
-HOME = Path(os.environ.get("PSU_HOME", str(Path.home() / ".local/share/psu"))).expanduser()
+SKILL_NAME = "psu"
+
+
+def data_home(env: str = "PSU_HOME") -> Path:
+    """Resolve the state directory without reaching outside the project.
+
+    An explicit environment variable wins. Otherwise prefer a home inside the
+    project (`.emb-agent/bench/psu`) when the project has a `.emb-agent` marker:
+    a sandbox that only allows writes under the workspace can then run the
+    skill, including its venv, without an approval prompt. An existing legacy
+    `~/.local/share/psu` keeps being used so no setup is stranded.
+    """
+    value = os.environ.get(env)
+    if value:
+        return Path(value).expanduser()
+    legacy = Path.home() / ".local/share" / SKILL_NAME
+    project = Path.cwd() / ".emb-agent" / "bench" / SKILL_NAME
+    if project.exists():
+        return project
+    if (Path.cwd() / ".emb-agent").is_dir() and not legacy.exists():
+        return project
+    return legacy
+
+
+HOME = data_home()
 CONFIG = HOME / "config.json"
 VENV = HOME / "venv"
 IS_WIN = os.name == "nt"
+
+# The DP100 path is hidapi-only. Skip the venv exec when `hid` is importable.
+REQUIRED_MODULES = ("hid",)
 
 DEFAULT_MAX_VOLTAGE = 30.0
 DEFAULT_MAX_CURRENT = 5.0
@@ -24,6 +52,18 @@ def die(msg: str, code: int = 2) -> None:
 VENV_SKIP_COMMANDS = {"setup", "test"}
 
 
+def missing_runtime_modules() -> list[str]:
+    """Runtime modules the current interpreter cannot import."""
+    missing = []
+    for name in REQUIRED_MODULES:
+        try:
+            if importlib.util.find_spec(name) is None:
+                missing.append(name)
+        except (ImportError, ValueError):
+            missing.append(name)
+    return missing
+
+
 def venv_python() -> Path:
     return VENV / ("Scripts/python.exe" if IS_WIN else "bin/python")
 
@@ -31,18 +71,25 @@ def venv_python() -> Path:
 def venv_reexec_argv(argv: list[str], env_var: str = "PSU_NO_REEXEC") -> list[str] | None:
     """Return the exec argument list when the skill venv should run this call.
 
-    The CLI needs pyvisa/pyusb, which a bare `python3 psu.py ...` does not
-    have. Running the skill venv keeps one interpreter for every command, like
-    `dap.py`. `setup` and `test` stay on the active interpreter: setup creates
-    the venv, test already resolves it. Returns None when no re-exec is needed.
+    Only when the active interpreter lacks a runtime module: if `hid` is
+    already importable, running the call in place is both faster and avoids
+    executing a binary outside the project, which some sandboxes require an
+    approval for. `setup` and `test` stay on the active interpreter: setup
+    creates the venv, test already resolves it. Returns None when no re-exec is
+    needed.
     """
     if os.environ.get(env_var) == "1":
+        return None
+    if not missing_runtime_modules():
         return None
     py = venv_python()
     if not py.exists():
         return None
     try:
-        if Path(sys.executable).resolve() == py.resolve():
+        # Compare the venv prefix, not the executable: `venv/bin/python` is a
+        # symlink to the base interpreter, so both resolve to the same file and
+        # an executable comparison would always claim we are already inside.
+        if Path(sys.prefix).resolve() == VENV.resolve():
             return None
     except OSError:
         pass
