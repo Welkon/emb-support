@@ -21,11 +21,11 @@ function niceBounds(lo: number, hi: number): [number, number] {
 
 function baseRange(kind: "v" | "i", vset?: number | null, iset?: number | null): [number, number] | null {
   if (kind === "v" && vset != null && Number.isFinite(vset)) {
-    const span = Math.max(0.01, Math.abs(vset) * 0.002);
+    const span = Math.max(0.05, Math.abs(vset) * 0.005);
     return niceBounds(vset - span, vset + span);
   }
   if (kind === "i" && iset != null && Number.isFinite(iset)) {
-    const span = Math.max(0.002, Math.abs(iset) * 0.01);
+    const span = Math.max(0.03, Math.abs(iset) * 0.03);
     return niceBounds(iset - span, iset + span);
   }
   return null;
