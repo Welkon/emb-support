@@ -292,7 +292,7 @@ The command starts `pyocd gdbserver`, runs the GDB commands, and stops the serve
 | `swo` | Decode SWO/ITM trace. | `--cpu-freq`, `--swo-freq`, `--duration`, `--raw` |
 | `semi` | Serve the ARM semihosting console. | `--duration` |
 | `selfcheck` | Run the non-destructive hardware self-check. | `--elf`, `--json` |
-| `record` | Write board evidence (selfcheck, snapshot, report). | `--out`, `--elf`, `--target`, `--rtt-log` |
+| `record` | Write board evidence (selfcheck, snapshot, report). | `--out`, `--elf`, `--target`, `--toolchain`, `--opt`, `--rtt-log` |
 | `bp --type flash` | Write a BKPT instruction to flash. | `--yes` (erases a sector) |
 | `svd attach/list/read/write/field` | Read or write SVD peripherals and bit fields. | `PERIPH.REG[.FIELD]`, `--svd` |
 | `dapreg read/write` | Access raw DP registers. | `ADDR [VALUE]` |

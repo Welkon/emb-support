@@ -3612,12 +3612,13 @@ def cmd_test(a) -> None:
     skill = Path(__file__).resolve().parents[1]
     py = venv_python()
     if not py.exists():
-        die(f"venv is missing: {py}. Run: dap.py setup --dev")
+        # CI and catalog checkouts install dependencies into the active interpreter.
+        py = Path(sys.executable)
     rc, out, err = run([str(py), "-c", "import pytest"], 60)
     if rc != 0:
         if not a.install:
-            die("pytest is not installed. Run: dap.py test --install")
-        rc, out, err = run([str(venv_bin("pip")), "install", "-U", "pytest"], 600)
+            die(f"pytest is not installed for {py}. Run: dap.py test --install")
+        rc, out, err = run([str(py), "-m", "pip", "install", "-U", "pytest"], 600)
         if rc != 0:
             die(f"pytest install failed: {(err or out)[-1000:]}")
     cmd = [str(py), "-m", "pytest", "tests", "-q"]
@@ -3626,6 +3627,27 @@ def cmd_test(a) -> None:
     if a.k:
         cmd += ["-k", a.k]
     sys.exit(subprocess.call(cmd, cwd=str(skill)))
+
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def strip_ansi(text: str) -> str:
+    return ANSI_RE.sub("", text)
+
+
+def _first_json(text: str) -> dict | None:
+    for line in strip_ansi(text).splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def cmd_record(a) -> None:
@@ -3642,7 +3664,16 @@ def cmd_record(a) -> None:
         common += ["--elf", a.elf]
     started = time.strftime("%Y-%m-%dT%H:%M:%S")
     rc1, o1, e1 = run(cli + ["selfcheck", "--json"] + common, a.timeout)
-    (out / "selfcheck.json").write_text(o1 if o1.strip() else e1)
+    payload = _first_json(o1) or _first_json(e1)
+    if payload is None:
+        payload = {"ok": False, "rc": rc1,
+                   "error": strip_ansi(e1 or o1).strip()[:4000] or "selfcheck produced no JSON"}
+    else:
+        payload.setdefault("ok", rc1 == 0)
+        if rc1 != 0 and "error" not in payload:
+            payload["error"] = strip_ansi(e1).strip()[:4000]
+        payload["rc"] = rc1
+    (out / "selfcheck.json").write_text(json.dumps(payload, indent=2) + "\n")
     diagnose_rc = None
     if a.elf:
         dargs = cli + ["diagnose", "--elf", a.elf,
@@ -3653,7 +3684,17 @@ def cmd_record(a) -> None:
         if a.rtt_log:
             dargs += ["--rtt-log", a.rtt_log]
         diagnose_rc, o2, e2 = run(dargs, a.timeout)
+    chip = getattr(a, "target", None) or getattr(a, "chip", None)
+    probe = None
+    for check in payload.get("checks", []):
+        if check.get("name") == "target" and check.get("detail"):
+            chip = check["detail"]
+        elif check.get("name") == "probe" and check.get("detail"):
+            probe = check["detail"]
     metadata = {"started": started, "out": str(out), "elf": a.elf,
+                "chip": chip, "probe": probe,
+                "toolchain": getattr(a, "toolchain", None) or os.environ.get("DAP_TOOLCHAIN"),
+                "opt": getattr(a, "opt", None) or os.environ.get("DAP_OPT"),
                 "selfcheck_ok": rc1 == 0, "diagnose_rc": diagnose_rc}
     (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     files = sorted(p.name for p in out.iterdir())
@@ -3877,6 +3918,8 @@ def main() -> None:
     p.add_argument("--elf")
     p.add_argument("--target", "-t")
     p.add_argument("--rtt-log")
+    p.add_argument("--toolchain", help="toolchain label stored in metadata (for example gcc-13.2)")
+    p.add_argument("--opt", help="optimization label stored in metadata (for example -O2)")
     p.add_argument("--timeout", type=int, default=120)
     p.set_defaults(fn=cmd_record)
 

@@ -81,15 +81,18 @@ Run on each combination you care about:
 A probe must be connected. One command writes the evidence set:
 
 ```bash
-dap.py record --out workspace --elf fw.elf --target stm32f103rc
+dap.py record --out workspace --elf fw.elf --target stm32f103rc \
+  --toolchain gcc-13.2 --opt=-O2
 ```
+
+Use `--opt=-O2` (with `=`). A bare `--opt -O2` is parsed as an option.
 
 The output directory then contains:
 
 - `selfcheck.json`: the self-check result
 - `snapshot.json`: the fault snapshot
 - `report.html`: the HTML report
-- `metadata.json`: timestamp, ELF path, and pass/fail state
+- `metadata.json`: timestamp, ELF path, chip, probe, toolchain, optimization level, and pass/fail state
 
 Keep these files with the chip, toolchain, and optimization tuple for any bug
 report. Without a probe the command fails and writes the error JSON to

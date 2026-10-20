@@ -1,0 +1,33 @@
+name: mcu-debug-tests
+
+on:
+  push:
+    paths:
+      - "skills/mcu-debug/**"
+      - ".github/workflows/mcu-debug-tests.yml"
+  pull_request:
+    paths:
+      - "skills/mcu-debug/**"
+      - ".github/workflows/mcu-debug-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "pyocd==0.46.0" pytest "ruff>=0.9,<1"
+      - name: Skill tests
+        working-directory: skills/mcu-debug
+        run: python scripts/dap.py test
+      - name: Lint
+        run: ruff check skills/mcu-debug/scripts skills/mcu-debug/tests
