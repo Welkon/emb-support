@@ -19,6 +19,8 @@
 - WSL: run `usbipd attach --wsl --busid X` first. If you cannot attach the HID device, use a native Linux host.
 - Exclusive access: the official ATK-DP100 PC tool can hold the HID device. Close it before you run this skill.
 - If the device does not respond, the driver returns a HID timeout error. It does not hang. Check the cable, permissions, and exclusive access.
+- `unexpected DP100 opcode 0x00` means the HID Report ID was missing. hidapi treats the first byte of a write as the Report ID, so every frame is sent as `0x00` followed by the 64-byte protocol frame. Fixed in 2026-10; a host tool that writes frames directly must do the same.
+- `is above X V, the highest output the supply reports` is a hardware limit, not a bug: the DP100 is a buck supply, so its maximum output follows the input voltage (`vo_max` is about VIN - 0.2 V). Raise the input voltage or lower the setpoint. `psu.py channels --hid dp100` prints the current limit.
 
 ## The tool connects but reads zero
 

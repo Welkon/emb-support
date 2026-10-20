@@ -20,11 +20,19 @@ def _resp(op, data=b""):
 
 
 class FakeDp100:
+    """Models the DP100 as hidapi sees it: Report ID 0, then the frame."""
+
     def __init__(self, *args, **kwargs):
+        self.raw_writes = []
         self.frames = []
         self.queue = []
 
     def write(self, frame):
+        assert frame[0] == 0x00, (
+            "hidapi expects Report ID 0 as the first byte of every write; "
+            f"got 0x{frame[0]:02x}")
+        self.raw_writes.append(frame)
+        frame = frame[1:]
         self.frames.append(frame)
         op = frame[1]
         if op == 0x10:
@@ -215,6 +223,57 @@ def test_dps150_driver(monkeypatch):
     assert dev.measure_power(1) == pytest.approx(18.0)
     dev.output(1, True)
     assert dev.output_state(1) == "ON"
+
+
+def test_dp100_write_carries_report_id(monkeypatch):
+    """hidapi treats byte 0 as the Report ID; a missing 0x00 makes the DP100
+    answer with opcode 0x00 ("unexpected DP100 opcode 0x00, expected 0x10")."""
+    fake = FakeDp100()
+    hid = types.SimpleNamespace(Device=lambda *a, **k: fake,
+                                enumerate=lambda vid, pid: [{"serial_number": "SN123456789"}])
+    monkeypatch.setitem(sys.modules, "hid", hid)
+    from psuscpi.drivers import Dp100Device
+    dev = Dp100Device()
+    dev.set_voltage(1, 5)
+    raw = fake.raw_writes[-1]
+    assert raw[:2] == b"\x00\xfb", "write must be Report ID 0 followed by the H2D frame"
+    assert raw[2] == 0x35
+    assert len(raw) == 1 + 6 + 10, "report id plus a 16-byte set frame"
+
+
+def test_dp_parse_tolerates_report_id_prefix():
+    from psuscpi.drivers import _dp_parse
+    payload = bytes([1, 2, 3, 4])
+    body = bytes([0xFA, 0x30, 0x00, len(payload)]) + payload
+    crc = _crc(body)
+    frame = body + bytes([crc & 0xFF, (crc >> 8) & 0xFF])
+    assert _dp_parse(frame) == (0x30, payload)
+    assert _dp_parse(b"\x00" + frame) == (0x30, payload)
+
+
+def test_dp100_vin_limited_setpoint_explains_the_cause(monkeypatch):
+    """A DP100 fed from 5 V reports vo_max 4.79 V; the message must say why."""
+
+    class LimitedDp100(FakeDp100):
+        def write(self, frame):
+            super().write(frame)
+            if self.frames[-1][1] == 0x30:
+                d = (12000).to_bytes(2, "little") + (5000).to_bytes(2, "little") \
+                    + (1000).to_bytes(2, "little") + (4790).to_bytes(2, "little") \
+                    + b"\x00" * 6 + bytes([2, 0])
+                self.queue[-1] = _resp(0x30, d)
+
+    fake = LimitedDp100()
+    hid = types.SimpleNamespace(Device=lambda *a, **k: fake,
+                                enumerate=lambda vid, pid: [{"serial_number": "SN123456789"}])
+    monkeypatch.setitem(sys.modules, "hid", hid)
+    from psuscpi.drivers import Dp100Device
+    dev = Dp100Device()
+    assert dev.limits["max_voltage"] == pytest.approx(4.79)
+    with pytest.raises(RuntimeError) as exc:
+        dev.set_voltage(1, 5)
+    msg = str(exc.value)
+    assert "input voltage" in msg and "psu.py channels" in msg
 
 
 def test_dp100_golden_frames():

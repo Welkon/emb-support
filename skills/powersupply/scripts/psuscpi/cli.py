@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .common import (
     CONFIG, DEFAULT_MAX_CURRENT, DEFAULT_MAX_VOLTAGE, VENV,
-    die, emit, load_config, save_config,
+    die, emit, load_config, save_config, venv_reexec_argv,
 )
 from .dialects import FAMILIES, detect_family
 from .web import run as run_web
@@ -412,10 +412,30 @@ def cmd_sequence(a) -> None:
         dev.close()
 
 
+def _output_state(dev, ch):
+    try:
+        if not getattr(dev, "supports_output_state", True):
+            return None
+        return dev.output_state(ch)
+    except Exception:
+        return None
+
+
+def _warn_output_left_on(dev, ch) -> str | None:
+    """A long capture must not leave the rail energised without saying so."""
+    state = _output_state(dev, ch)
+    if state != "ON":
+        return state
+    print(f"[warn] output is still ON on channel {ch}. "
+          f"Turn it off with: psu.py output off --ch {ch} --yes", file=sys.stderr)
+    return state
+
+
 def cmd_log(a) -> None:
     dev = open_device(a)
     out_path = Path(a.out).expanduser()
     rows = []
+    state = None
     try:
         _validate_channel(dev, a.ch)
         end = time.time() + a.duration
@@ -425,6 +445,7 @@ def cmd_log(a) -> None:
             p = v * i if (v is not None and i is not None) else None
             rows.append([time.time(), v, i, p])
             time.sleep(max(0.0, a.interval))
+        state = _warn_output_left_on(dev, a.ch)
     finally:
         dev.close()
     with out_path.open("w", newline="") as f:
@@ -432,7 +453,7 @@ def cmd_log(a) -> None:
         w.writerow(["time", "voltage", "current", "power"])
         w.writerows(rows)
     emit({"ok": True, "samples": len(rows), "out": str(out_path),
-          "duration": a.duration, "interval": a.interval}, as_json=True)
+          "duration": a.duration, "interval": a.interval, "output": state}, as_json=True)
 
 
 def cmd_scpi(a) -> None:
@@ -473,6 +494,9 @@ def add_conn(p):
 
 
 def main() -> None:
+    target = venv_reexec_argv(sys.argv)
+    if target is not None:
+        os.execv(target[0], target)
     ap = argparse.ArgumentParser(prog="psu.py", description="Generic programmable power supply CLI")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

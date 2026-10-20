@@ -170,6 +170,10 @@ def _dp_frame(opcode: int, data: bytes = b"") -> bytes:
 
 
 def _dp_parse(raw: bytes):
+    # hidapi returns the report payload; a backend that keeps the Report ID
+    # byte prepends a single 0x00. Drop it instead of failing the frame check.
+    if len(raw) > 6 and raw[0] != _DP_D2H and raw[1] == _DP_D2H:
+        raw = raw[1:]
     if len(raw) < 6:
         raise RuntimeError(f"short DP100 response: {raw.hex()}")
     if raw[0] != _DP_D2H:
@@ -257,8 +261,17 @@ class Dp100Device(Device):
                 continue
         return bytes(self.dev.read(64))
 
+    def _write_frame(self, opcode: int, data: bytes = b"") -> None:
+        """Write one protocol frame behind HID Report ID 0.
+
+        hidapi expects the Report ID as the first byte of every write. Without
+        the leading 0x00 the DP100 receives report ID 0xFB and answers with an
+        empty 0x00 opcode ("unexpected DP100 opcode 0x00, expected 0x10").
+        """
+        self.dev.write(b"\x00" + _dp_frame(opcode, data))
+
     def _exchange(self, opcode, data=b""):
-        self.dev.write(_dp_frame(opcode, data))
+        self._write_frame(opcode, data)
         time.sleep(0.02)
         try:
             raw = self._read_report()
@@ -308,9 +321,13 @@ class Dp100Device(Device):
         }
 
     def _apply(self):
-        if self._v < 0 or self._v > min(self.MAX_VOLTAGE, self._max_v) + 1e-9:
+        v_limit = min(self.MAX_VOLTAGE, self._max_v)
+        if self._v < 0 or self._v > v_limit + 1e-9:
             raise RuntimeError(
-                f"DP100 voltage {self._v} V outside 0..{min(self.MAX_VOLTAGE, self._max_v):.2f} V")
+                f"DP100 setpoint {self._v} V is above {v_limit:.2f} V, the highest "
+                f"output the supply reports for its current input voltage. The DP100 "
+                f"is a buck supply: raise the input voltage (or lower the setpoint). "
+                f"Run: psu.py channels --hid dp100")
         if self._i < 0 or self._i > self.MAX_CURRENT + 1e-9:
             raise RuntimeError(f"DP100 current {self._i} A outside 0..{self.MAX_CURRENT:.2f} A")
         v_mv = int(round(self._v * 1000))

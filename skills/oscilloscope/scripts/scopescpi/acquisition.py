@@ -122,6 +122,13 @@ def acquire_channels(inst, dialect, channels, points):
         meta, raw = dialect.acquire(inst, ch, points)
         volts = to_volts(raw, meta)
         times = to_times(meta, len(volts))
+        if not volts:
+            # An empty transfer used to reach the caller as an empty list, where
+            # min()/max() failed with "min() iterable argument is empty".
+            raise RuntimeError(
+                f"channel {ch} returned no samples. Check that the channel is on "
+                f"(channel --ch {ch} --display on), that the trigger fires "
+                f"(run --mode auto), and that --points is within the record length.")
         result[ch] = {"times": times, "volts": volts, "meta": meta}
     return result
 

@@ -173,6 +173,7 @@ scripts/psu.py web --host 192.168.1.60 --bind 127.0.0.1 --web-port 8765
 - On an error, ramp and sequence turn the output off when safe_off is enabled.
 - OVP and OCP are software functions. They do not replace a hardware current limit or a fuse.
 - A battery or a large capacitor can keep voltage on the terminals after output OFF.
+- `log` reports the output state in its JSON (`output`) and prints a warning when the rail is still ON, so a long capture cannot end silently with the load energised.
 
 ## 7. Self-test
 
@@ -183,5 +184,9 @@ scripts/psu.py test -k dialects # a subset
 
 `psu.py test` uses `~/.local/share/psu/venv/bin/python` when it exists and the
 active interpreter otherwise. `psu.py setup --dev` installs pytest into the venv.
+
+At startup `psu.py` re-runs itself in the skill venv, so a bare
+`python3 psu.py ...` still finds `pyvisa` and `hidapi`. Set `PSU_NO_REEXEC=1` to
+disable this.
 
 The tests use a local mock SCPI supply with a Rigol DP832 command style. The tests do not touch real hardware.

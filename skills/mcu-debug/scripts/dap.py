@@ -144,6 +144,8 @@ HINTS = [
      "Flash failed: lower --frequency 1000000, try --connect under-reset, or erase --chip."),
     (r"transfer.*(error|failed)|SWD.*(error|fault)|WAIT|FAULT",
      "Unstable SWD: lower the clock, share ground, shorten wires, connect under reset."),
+    (r"board id .*not recognized|not recognized.*board id",
+     "Generic CMSIS-DAP clone: pyOCD has no board entry for it, so it falls back to cortex_m. Pass -t <target> (targets --search) or install a CMSIS-Pack."),
     (r"no memory region|Memory region.*not found",
      "Address outside the known memory map: check the linker script or --base."),
     (r"SVDFile|SVD.*(error|parse|invalid)|No such file",
@@ -151,11 +153,17 @@ HINTS = [
 ]
 
 
-def explain(stderr: str) -> None:
+def hint_for(text: str) -> str | None:
     for pat, hint in HINTS:
-        if re.search(pat, stderr, re.I):
-            print(f"\n[hint] {hint}", file=sys.stderr)
-            return
+        if re.search(pat, text, re.I):
+            return hint
+    return None
+
+
+def explain(stderr: str) -> None:
+    hint = hint_for(stderr)
+    if hint:
+        print(f"\n[hint] {hint}", file=sys.stderr)
 
 
 # --------------------------------------------------------------------- config
@@ -3970,6 +3978,12 @@ if __name__ == "__main__":
     except Exception as exc:  # keep agent-facing output machine-readable
         if os.environ.get("DAP_DEBUG"):
             raise
-        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False),
-              file=sys.stderr)
+        # pyOCD raises TransferError for an unstable link and prints
+        # "Board ID ... is not recognized" for clone probes. Both reach the
+        # operator as one line plus the same hint the subprocess path uses.
+        payload = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        hint = hint_for(str(exc))
+        if hint:
+            payload["hint"] = hint
+        print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
         sys.exit(1)

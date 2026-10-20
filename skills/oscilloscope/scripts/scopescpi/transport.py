@@ -134,8 +134,27 @@ class VisaInstrument:
     def write(self, cmd: str) -> None:
         self.inst.write(cmd)
 
+    def _recover(self) -> None:
+        """Best-effort cleanup after a failed read: drop a stale queue."""
+        for action in ("clear", "close"):
+            try:
+                getattr(self.inst, action)()
+                if action == "close":
+                    return
+            except Exception:
+                continue
+
     def query(self, cmd: str) -> str:
-        return self.inst.query(cmd).strip()
+        try:
+            return self.inst.query(cmd).strip()
+        except Exception as exc:
+            # A timeout is normal for a command the instrument does not answer
+            # (for example :SYSTem:ERRor? on a DS1000Z). Fail with a usable
+            # message instead of a pyvisa traceback, and leave the queue clean.
+            self._recover()
+            raise RuntimeError(
+                f"no response to {cmd!r}: {exc}. The instrument may not support this "
+                f"command; raise --timeout, or send it with scpi --write") from exc
 
     def query_block(self, cmd: str) -> bytes:
         self.inst.write(cmd)

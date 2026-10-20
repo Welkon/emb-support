@@ -117,3 +117,16 @@ def test_log(psu, tmp_path):
     rows = list(csv.reader(out.open()))
     assert rows[0] == ["time", "voltage", "current", "power"]
     assert len(rows) >= 2
+
+
+def test_log_reports_when_the_rail_is_still_on(psu, tmp_path):
+    home = tmp_path / "home"
+    out = tmp_path / "rail.csv"
+    assert run(base(psu, "output", "--ch", "1", "on", "--yes", "--json"), home).returncode == 0
+    p = run(base(psu, "log", "--ch", "1", "--duration", "0.2", "--interval", "0.1",
+                 "--out", str(out), "--json"), home)
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["output"] == "ON"
+    assert "output is still ON" in p.stderr
+    assert run(base(psu, "output", "--ch", "1", "off", "--yes", "--json"), home).returncode == 0

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .common import (
     CONFIG, HOME, IS_WIN, VENV, die, emit, load_config, save_config,
+    venv_reexec_argv,
 )
 from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument, connect
 from .dialects import FAMILIES, detect_family, make_dialect
@@ -637,6 +638,9 @@ def add_conn(p):
 
 
 def main() -> None:
+    target = venv_reexec_argv(sys.argv)
+    if target is not None:
+        os.execv(target[0], target)
     ap = argparse.ArgumentParser(prog="scope.py", description="Generic oscilloscope control (LAN/USB)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
