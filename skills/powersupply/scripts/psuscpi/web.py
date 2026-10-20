@@ -188,7 +188,7 @@ class PsuWebServer:
         self.max_voltage = float(max_voltage)
         self.max_current = float(max_current)
         self.lock = threading.RLock()
-        self.sample_hz = 10
+        self.sample_hz = 20
         self.history = {ch: deque(maxlen=self.sample_hz * 240) for ch in device.channels}
         self._snap_cache = {}
         self._snap_at = {}
@@ -267,6 +267,7 @@ class PsuWebServer:
     def _sample_loop(self):
         period = 1.0 / self.sample_hz
         while not self._stop.is_set():
+            started = time.monotonic()
             for ch in self.device.channels:
                 try:
                     with self.lock:
@@ -277,7 +278,7 @@ class PsuWebServer:
                         self.history[ch].append(sample)
                 except Exception:
                     pass
-            self._stop.wait(period)
+            self._stop.wait(max(0.0, period - (time.monotonic() - started)))
 
     def _sample(self, ch: int) -> dict:
         if ch not in self.device.channels:
@@ -319,6 +320,8 @@ class PsuWebServer:
                 self.send_response(200)
                 self.send_header("Content-Type", content_type
                                  or mimetypes.guess_type(str(path))[0] or "application/octet-stream")
+                if path.name == "index.html":
+                    self.send_header("Cache-Control", "no-cache")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)

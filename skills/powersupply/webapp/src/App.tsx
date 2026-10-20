@@ -199,19 +199,15 @@ export default function App() {
   const chartRef = useRef<LiveChartHandle>(null);
   const [sampleCount, setSampleCount] = useState(0);
   const [channel, setChannel] = useState(1);
-  const [rate, setRate] = useState<number | null>(() => {
-    const saved = localStorage.getItem("psu-rate");
-    return saved ? Number(saved) : null;
-  });
   const [tab, setTab] = useState(() => (new URLSearchParams(location.search).get("advanced") === "1" ? "advanced" : "basic"));
-  const [cache, setCache] = useState(false);
-  const [paused, setPaused] = useState(false);
   const [showV, setShowV] = useState(() => localStorage.getItem("psu-show-v") !== "0");
   const [showA, setShowA] = useState(() => localStorage.getItem("psu-show-a") !== "0");
   const [windowMs, setWindowMs] = useState(() => {
     const saved = Number(localStorage.getItem("psu-window"));
     return [10000, 30000, 60000].includes(saved) ? saved : 10000;
   });
+  const [cache, setCache] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [vset, setVset] = useState("");
   const [iset, setIset] = useState("");
   const [ovp, setOvp] = useState("");
@@ -275,6 +271,7 @@ export default function App() {
     setHeaderH(el.getBoundingClientRect().height);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("psu-theme", dark ? "dark" : "light");
@@ -283,9 +280,7 @@ export default function App() {
     document.documentElement.lang = lang;
     localStorage.setItem("psu-lang", lang);
   }, [lang]);
-  useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
   useEffect(() => { localStorage.setItem("psu-presets", JSON.stringify(presets)); }, [presets]);
-  useEffect(() => { if (rate != null) localStorage.setItem("psu-rate", String(rate)); }, [rate]);
   useEffect(() => {
     localStorage.setItem("psu-show-v", showV ? "1" : "0");
     localStorage.setItem("psu-show-a", showA ? "1" : "0");
@@ -305,8 +300,8 @@ export default function App() {
     catch (e) { setConnected(false); setError((e as Error).message); }
   }, [applyState, channel]);
 
-  const autoRate = 10;
-  const hz = rate ?? autoRate;
+  const autoRate = data?.family === "dp100" ? 20 : 10;
+  const hz = autoRate;
   useEffect(() => {
     refresh(channel);
     const id = setInterval(() => { if (!document.hidden) refresh(channel); }, 500);
@@ -492,7 +487,7 @@ export default function App() {
                 {connected && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />}
                 <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-destructive")} />
               </span>
-              {connected ? `live · ${hz} Hz` : t.disconnected}
+              {connected ? "live" : t.disconnected}
             </span>
           </div>
         </div>
@@ -537,10 +532,7 @@ export default function App() {
                   <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
                     <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>
                   </select>
-                  <select value={hz} onChange={(e) => setRate(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="sample rate">
-                    <option value={5}>5 Hz</option><option value={10}>10 Hz</option><option value={20}>20 Hz</option><option value={30}>30 Hz</option>
-                  </select>
-                  <Button size="sm" variant={paused ? "secondary" : "outline"} onClick={() => setPaused(!paused)} title={paused ? t.resume : t.pause}>
+                  <Button size="sm" variant={paused ? "secondary" : "outline"} onClick={() => setPaused(!paused)}>
                     {paused ? <Play /> : <Pause />} {paused ? t.resume : t.pause}
                   </Button>
                   <Button size="sm" variant={cache ? "secondary" : "outline"} onClick={() => setCache(!cache)} title={t.cacheHint}>
@@ -556,7 +548,7 @@ export default function App() {
                   cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
                   showV={showV} showA={showA} paused={paused} enabled={on} />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
-                  <span>{fill(t.samples, { n: sampleCount })} · {t.lastUpdate} {new Date().toLocaleTimeString(locale)}</span>
+                  <span>{fill(t.samples, { n: sampleCount })}</span>
                   <Button size="sm" variant="outline" onClick={download} disabled={!sampleCount}><Download /> CSV</Button>
                 </div>
               </CardContent>

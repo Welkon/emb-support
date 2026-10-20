@@ -8,7 +8,8 @@ echarts.use([LineChart, GridComponent, CanvasRenderer]);
 
 export type Point = { t: number; v: number | null; i: number | null; p: number | null };
 export type LiveChartHandle = { history: () => Point[] };
-const LEAD_MS = 100;
+const LEAD_MS = 30;
+const BUFFER_MS = 160;
 
 function niceBounds(lo: number, hi: number): [number, number] {
   const raw = (hi - lo) / 4;
@@ -56,24 +57,25 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   const iRangeRef = useRef<[number, number] | null>(null);
   const windowRef = useRef(windowMs);
   const cacheRef = useRef(cache);
+  const pausedRef = useRef(paused);
+
   const darkRef = useRef(dark);
   const showVRef = useRef(showV);
   const showARef = useRef(showA);
   const vsetRef = useRef(vset);
   const isetRef = useRef(iset);
-  const pausedRef = useRef(paused);
   const enabledRef = useRef(enabled);
   const rafRef = useRef(0);
   const [hasData, setHasData] = useState(false);
   const hasDataRef = useRef(false);
   windowRef.current = windowMs;
   cacheRef.current = cache;
+  pausedRef.current = paused;
   darkRef.current = dark;
   showVRef.current = showV;
   showARef.current = showA;
   vsetRef.current = vset;
   isetRef.current = iset;
-  pausedRef.current = paused;
   enabledRef.current = enabled;
 
   useImperativeHandle(ref, () => ({ history: () => bufferRef.current.slice() }), []);
@@ -82,18 +84,35 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const chart = chartRef.current;
     if (!chart) return;
     const now = Date.now();
-    const cutoff = now - windowRef.current - 2000;
-    const start = now - windowRef.current + LEAD_MS;
-    const end = now + LEAD_MS;
+    const displayNow = now - BUFFER_MS;
+    const cutoff = displayNow - windowRef.current - 2000;
+    const start = displayNow - windowRef.current + LEAD_MS;
+    const end = displayNow + LEAD_MS;
     const vData: [number, number][] = [];
     const iData: [number, number][] = [];
     const vs: number[] = [];
     const is: number[] = [];
     for (const p of bufferRef.current) {
-      if (p.t < cutoff) continue;
+      if (p.t < cutoff || p.t > end) continue;
       if (p.v != null) { vData.push([p.t, p.v]); vs.push(p.v); }
       if (p.i != null) { iData.push([p.t, p.i]); is.push(p.i); }
     }
+    const interpolate = (key: "v" | "i", t: number): number | null => {
+      let prev = null, next = null;
+      for (const p of bufferRef.current) {
+        if (p[key] == null) continue;
+        if (p.t <= t) prev = p;
+        else { next = p; break; }
+      }
+      if (!prev) return next && next[key] != null ? next[key] : null;
+      if (!next || next[key] == null) return prev[key];
+      const f = (t - prev.t) / Math.max(1, next.t - prev.t);
+      return (prev[key] as number) + f * ((next[key] as number) - (prev[key] as number));
+    };
+    const headV = interpolate("v", end);
+    const headI = interpolate("i", end);
+    if (headV != null) { vData.push([end, headV]); vs.push(headV); }
+    if (headI != null) { iData.push([end, headI]); is.push(headI); }
     const vRange = stableRange(vs, vRangeRef.current, baseRange("v", vsetRef.current, isetRef.current));
     const iRange = stableRange(is, iRangeRef.current, baseRange("i", vsetRef.current, isetRef.current));
     vRangeRef.current = vRange;
@@ -192,7 +211,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
           itemStyle: { color: iColor, borderColor: darkRef.current ? "#1E1C1A" : "#FBFAF7", borderWidth: 2 },
         },
       ],
-    }, { lazyUpdate: true });
+    }, { lazyUpdate: false });
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -208,7 +227,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const buf = bufferRef.current;
     if (buf.length && p.t <= buf[buf.length - 1].t) return;
     buf.push(p);
-    const keep = cacheRef.current ? 3_600_000 : Math.max(windowRef.current + 2000, 62_000);
+    const keep = cacheRef.current ? 3_600_000 : windowRef.current + 2000;
     const cutoff = Date.now() - keep;
     while (buf.length && buf[0].t < cutoff) buf.shift();
     if (buf.length > 108_000) buf.splice(0, buf.length - 108_000);
@@ -245,7 +264,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [draw]);
+  }, [scroll]);
   useEffect(() => {
     if (!enabled) {
       bufferRef.current = [];
