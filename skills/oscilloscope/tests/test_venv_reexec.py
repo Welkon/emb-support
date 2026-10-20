@@ -29,7 +29,8 @@ def test_no_reexec_when_already_inside(fake_venv, monkeypatch):
     monkeypatch.delenv("SCOPE_NO_REEXEC", raising=False)
     # venv/bin/python symlinks to the base interpreter, so membership is decided
     # by sys.prefix, never by the executable path.
-    monkeypatch.setattr(sys, "prefix", str(fake_venv.parent))
+    monkeypatch.setattr(common, "missing_runtime_modules", lambda: ["pyvisa"])
+    monkeypatch.setattr(sys, "prefix", str(common.VENV))
     assert common.venv_reexec_argv(["/x/scope.py", "doctor"]) is None
 
 
@@ -62,9 +63,17 @@ def test_no_reexec_when_runtime_modules_present(fake_venv, monkeypatch):
     assert common.venv_reexec_argv(["/x/scope.py", "idn", "--json"]) is None
 
 
-def test_missing_runtime_modules_shape(monkeypatch):
-    monkeypatch.setattr(common, "REQUIRED_MODULES", ("pyvisa",))
-    assert common.missing_runtime_modules() == []
+def test_missing_runtime_modules_reports_what_is_absent(monkeypatch):
+    """Independent of what the test environment happens to have installed."""
+    import importlib.util
+
+    monkeypatch.setattr(common, "REQUIRED_MODULES", ("pyvisa", "definitely-not-a-module"))
+    missing = common.missing_runtime_modules()
+    assert "definitely-not-a-module" in missing
+    if importlib.util.find_spec("pyvisa") is None:
+        assert "pyvisa" in missing
+    else:
+        assert "pyvisa" not in missing
 
 
 # ------------------------------------------------------------------- data home
