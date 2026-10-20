@@ -26,7 +26,7 @@ Keep all new command-line artifacts in:
 
 <files_to_check>
 - `references/xc8-build.md`
-- `scripts/build_xc8.py`
+- `scripts/xc8/build_xc8.py`
 - `scripts/xc8/toolchain.env.sample`
 </files_to_check>
 
