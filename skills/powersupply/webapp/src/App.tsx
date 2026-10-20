@@ -53,7 +53,7 @@ const STR = {
     voltsPerDiv: "V / div", ampsPerDiv: "A / div", center: "Center", vPos: "V pos", aPos: "A pos",
     smoothing: "Smoothing", displayDelay: "Display buffer (ms)", reset: "Reset", applySettings: "Apply",
     min: "Min", max: "Max",
-    wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)", applyHint: "Enter or click away to apply",
+    wheelHint: "Scroll to adjust the last digit", applyHint: "Enter or click away to apply",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
     overtemp: "High temperature", overtempHint: "Device temperature is {t} °C. Check ventilation and reduce load.",
@@ -99,7 +99,7 @@ const STR = {
     voltsPerDiv: "V / 格", ampsPerDiv: "A / 格", center: "中心", vPos: "V 位置", aPos: "A 位置",
     smoothing: "平滑", displayDelay: "显示缓冲 (ms)", reset: "重置", applySettings: "应用",
     min: "最小", max: "最大",
-    wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）", applyHint: "回车或移出输入框即应用",
+    wheelHint: "滚轮微调最后一位", applyHint: "回车或移出输入框即应用",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
     overtemp: "温度过高", overtempHint: "设备温度 {t} °C，请检查散热并降低负载。",
@@ -850,8 +850,7 @@ function NumberInput({ value, onChange, step = 0.1, min = 0, max = 100, ...props
       e.preventDefault();
       const l = latest.current;
       const dir = e.deltaY < 0 ? 1 : -1;
-      const mult = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
-      const next = Math.min(l.max, Math.max(l.min, (parseFloat(l.value) || 0) + dir * l.step * mult));
+      const next = Math.min(l.max, Math.max(l.min, (parseFloat(l.value) || 0) + dir * l.step));
       l.onChange(next.toFixed(3));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -1015,7 +1014,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
             <Label htmlFor="vset">{t.vset}</Label>
             <div className="relative">
               <NumberInput id="vset" inputMode="decimal" value={vset} onChange={setVset}
-                step={0.1} min={0} max={data?.limits.max_voltage ?? 30} title={t.wheelHint}
+                step={0.001} min={0} max={data?.limits.max_voltage ?? 30} title={t.wheelHint}
                 onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                 onFocus={() => { editing.current = "v"; vFocus.current = vset; iFocus.current = iset; }}
                 onBlur={() => { editing.current = null; blurApply(); }} className="pr-8" />
@@ -1026,7 +1025,7 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
             <Label htmlFor="iset">{t.iset}</Label>
             <div className="relative">
               <NumberInput id="iset" inputMode="decimal" value={iset} onChange={setIset}
-                step={0.01} min={0} max={data?.limits.max_current ?? 5} title={t.wheelHint}
+                step={0.001} min={0} max={data?.limits.max_current ?? 5} title={t.wheelHint}
                 onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                 onFocus={() => { editing.current = "i"; vFocus.current = vset; iFocus.current = iset; }}
                 onBlur={() => { editing.current = null; blurApply(); }} className="pr-8" />
