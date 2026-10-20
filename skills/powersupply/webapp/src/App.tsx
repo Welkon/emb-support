@@ -130,6 +130,27 @@ async function api(path: string, body?: unknown): Promise<State> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-md bg-muted", className)} />;
+}
+
+function MetricsSkeleton() {
+  return (
+    <div className="overflow-hidden border-y border-border">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4 sm:divide-y-0">
+        {[0, 1, 2, 3].map((k) => (
+          <div key={k} className="px-5 py-4">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-3 h-9 w-32" />
+            <Skeleton className="mt-2 h-3 w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border px-5 py-3"><Skeleton className="h-3 w-56" /></div>
+    </div>
+  );
+}
+
 function MetricTile({ label, value, unit, sub, icon: Icon, accent }: {
   label: string; value: string; unit: string; sub?: string; icon: React.ElementType; accent: string;
 }) {
@@ -284,11 +305,11 @@ export default function App() {
     catch (e) { setConnected(false); setError((e as Error).message); }
   }, [applyState, channel]);
 
-  const autoRate = data?.family === "dp100" ? 30 : 10;
+  const autoRate = 10;
   const hz = rate ?? autoRate;
   useEffect(() => {
     refresh(channel);
-    const id = setInterval(() => { if (!document.hidden) refresh(channel); }, 250);
+    const id = setInterval(() => { if (!document.hidden) refresh(channel); }, 500);
     return () => clearInterval(id);
   }, [channel, refresh]);
   useEffect(() => {
@@ -451,7 +472,7 @@ export default function App() {
           </div>
         </header>
 
-        {tab === "basic" && (
+        {tab === "basic" && (!data ? <MetricsSkeleton /> : (
         <div className="overflow-hidden border-y border-border">
           <div className="h-px bg-gradient-to-r from-primary/60 via-primary/15 to-transparent" />
           <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
@@ -475,14 +496,32 @@ export default function App() {
             </span>
           </div>
         </div>
-
-        )}
+        ))}
 
         <AnimatePresence mode="wait" initial={false}>
         {tab === "basic" ? (
           <motion.div key="basic" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: "easeOut" }}
             className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+            {!data ? (
+              <>
+                <Card className="h-full min-w-0">
+                  <CardHeader><Skeleton className="h-3 w-20" /></CardHeader>
+                  <CardContent><Skeleton className="h-[400px] w-full" /></CardContent>
+                </Card>
+                <Card className="h-full">
+                  <CardHeader><Skeleton className="h-3 w-24" /></CardHeader>
+                  <CardContent className="space-y-4">
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-9 w-full" />
+                    <div className="grid grid-cols-2 gap-2"><Skeleton className="h-9" /><Skeleton className="h-9" /></div>
+                    <Skeleton className="h-28 w-full" />
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <>
             <Card className="h-full min-w-0">
               <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                 <CardTitle className="flex items-center gap-2">{t.history}
@@ -515,7 +554,7 @@ export default function App() {
                   historyUrl={`/api/history?ch=${channel}&seconds=62`}
                   dark={dark} height={400} windowMs={windowMs}
                   cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
-                  showV={showV} showA={showA} paused={paused} />
+                  showV={showV} showA={showA} paused={paused} enabled={on} />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
                   <span>{fill(t.samples, { n: sampleCount })} · {t.lastUpdate} {new Date().toLocaleTimeString(locale)}</span>
                   <Button size="sm" variant="outline" onClick={download} disabled={!sampleCount}><Download /> CSV</Button>
@@ -530,6 +569,8 @@ export default function App() {
                 onApply={setpoints} onOutput={output} onProtect={protect} onConfirmOn={() => setConfirmOn(true)}
                 presets={presets} onPreset={applyPreset} onSavePreset={savePreset} />
             </aside>
+              </>
+            )}
           </motion.div>
         ) : (
           <motion.div key="advanced" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}

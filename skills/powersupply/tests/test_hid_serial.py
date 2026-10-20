@@ -34,12 +34,12 @@ class FakeDp100:
             d[24:35] = b"SN123456789"
             self.queue.append(_resp(op, bytes(d)))
         elif op == 0x30:
-            d = (5000).to_bytes(2, "little") + (5000).to_bytes(2, "little") \
+            d = (12000).to_bytes(2, "little") + (5000).to_bytes(2, "little") \
                 + (1000).to_bytes(2, "little") + (30000).to_bytes(2, "little") \
-                + b"\x00" * 2 + (12000).to_bytes(2, "little") + b"\x00" * 2 + bytes([1, 1])
+                + b"\x00" * 6 + bytes([2, 0])
             self.queue.append(_resp(op, d))
         elif op == 0x35:
-            d = bytes([0, 0]) + (5000).to_bytes(2, "little") + (1000).to_bytes(2, "little") \
+            d = bytes([0, 1]) + (5000).to_bytes(2, "little") + (1000).to_bytes(2, "little") \
                 + (5500).to_bytes(2, "little") + (1100).to_bytes(2, "little")
             self.queue.append(_resp(op, d))
         else:

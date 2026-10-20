@@ -47,8 +47,8 @@ function stableRange(values: number[], current: [number, number] | null, base: [
 
 export const LiveChart = forwardRef<LiveChartHandle, {
   streamUrl: string; historyUrl: string; dark: boolean; height?: number; windowMs: number;
-  cache: boolean; vset?: number | null; iset?: number | null; showV: boolean; showA: boolean; paused: boolean;
-}>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused }, ref) {
+  cache: boolean; vset?: number | null; iset?: number | null; showV: boolean; showA: boolean; paused: boolean; enabled: boolean;
+}>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused, enabled }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const bufferRef = useRef<Point[]>([]);
@@ -62,6 +62,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   const vsetRef = useRef(vset);
   const isetRef = useRef(iset);
   const pausedRef = useRef(paused);
+  const enabledRef = useRef(enabled);
   const rafRef = useRef(0);
   const [hasData, setHasData] = useState(false);
   const hasDataRef = useRef(false);
@@ -73,6 +74,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   vsetRef.current = vset;
   isetRef.current = iset;
   pausedRef.current = paused;
+  enabledRef.current = enabled;
 
   useImperativeHandle(ref, () => ({ history: () => bufferRef.current.slice() }), []);
 
@@ -202,6 +204,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   }, [draw]);
 
   const appendPoint = useCallback((p: Point) => {
+    if (!enabledRef.current) return;
     const buf = bufferRef.current;
     if (buf.length && p.t <= buf[buf.length - 1].t) return;
     buf.push(p);
@@ -230,6 +233,14 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   }, [draw]);
 
   useEffect(() => { scheduleDraw(); }, [dark, showV, showA, paused, scheduleDraw]);
+  useEffect(() => {
+    if (!enabled) {
+      bufferRef.current = [];
+      hasDataRef.current = false;
+      setHasData(false);
+      scheduleDraw();
+    }
+  }, [enabled, scheduleDraw]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,11 +277,15 @@ export const LiveChart = forwardRef<LiveChartHandle, {
         {showV && <span style={{ color: vC }}>V</span>}
         {showA && <span style={{ color: iC }}>A</span>}
       </div>
-      {!hasData && (
+      {!enabled ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+          Output is off · 输出未开启
+        </div>
+      ) : !hasData ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
           waiting for samples…
         </div>
-      )}
+      ) : null}
     </div>
   );
 });

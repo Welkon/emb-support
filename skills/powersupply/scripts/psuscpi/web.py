@@ -187,9 +187,11 @@ class PsuWebServer:
         self.device = device
         self.max_voltage = float(max_voltage)
         self.max_current = float(max_current)
-        self.lock = threading.Lock()
-        self.sample_hz = 30 if getattr(device, "family", "") == "dp100" else 10
+        self.lock = threading.RLock()
+        self.sample_hz = 10
         self.history = {ch: deque(maxlen=self.sample_hz * 240) for ch in device.channels}
+        self._snap_cache = {}
+        self._snap_at = {}
         self._stop = threading.Event()
         self.httpd = ThreadingHTTPServer((bind, port), self._handler())
         if start_sampler:
@@ -202,10 +204,29 @@ class PsuWebServer:
     def _state(self, ch: int) -> dict:
         if ch not in self.device.channels:
             raise ValueError(f"channel {ch} not available")
-        snap = self.device.snapshot(ch) if hasattr(self.device, "snapshot") else None
+        snapshot_method = getattr(self.device, "snapshot", None)
+        snap = None
+        if snapshot_method:
+            now = time.time()
+            if ch not in self._snap_cache or now - self._snap_at.get(ch, 0) > 0.5:
+                with self.lock:
+                    self._snap_cache[ch] = snapshot_method(ch)
+                    self._snap_at[ch] = now
+            snap = self._snap_cache[ch]
         if snap:
             output, setpoint, measurement, status = (
                 snap["output"], snap["setpoint"], snap["measurement"], snap["status"])
+            with self.lock:
+                items = self.history.get(ch)
+                if items:
+                    latest = items[-1]
+                    measurement = {
+                        "voltage": latest.get("voltage"),
+                        "current": latest.get("current"),
+                        "power": latest.get("power"),
+                        "input_voltage": latest.get("input_voltage"),
+                        "temperature": latest.get("temperature"),
+                    }
         else:
             output = self.device.output_state(ch)
             setpoint = {"voltage": self.device.get_voltage(ch),

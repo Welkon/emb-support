@@ -227,14 +227,15 @@ class Dp100Device(Device):
         info = self.info
         self.idn = (f"ALIENTEK,DP100,{info.get('serial_number_hex', '?')},"
                     f"{info.get('app_version', '?')}")
-        self._max_v = self._basic().get("vo_max_mv", 30000) / 1000.0
+        vo_max_v = self._basic().get("vo_max_mv", 30000) / 1000.0
+        self._max_v = min(self.MAX_VOLTAGE, vo_max_v if vo_max_v >= 1 else self.MAX_VOLTAGE)
         s = self._settings()
         self._v = s["vset_v"]
         self._i = s["iset_a"]
         self._ovp = s["ovp_v"]
         self._ocp = s["ocp_a"]
         self._out = bool(s["state"])
-        self.limits = {"max_voltage": self.MAX_VOLTAGE,
+        self.limits = {"max_voltage": self._max_v,
                        "max_current": self.MAX_CURRENT,
                        "max_ovp": self.MAX_OVP,
                        "max_ocp": self.MAX_OCP,
@@ -257,7 +258,7 @@ class Dp100Device(Device):
 
     def _exchange(self, opcode, data=b""):
         self.dev.write(_dp_frame(opcode, data))
-        time.sleep(0.05)
+        time.sleep(0.02)
         try:
             raw = self._read_report()
         except OSError as e:
@@ -284,11 +285,13 @@ class Dp100Device(Device):
     def _basic(self):
         d = self._exchange(_OP_BASIC)
         return {
+            "vin_mv": (d[1] << 8) | d[0],
             "vout_mv": (d[3] << 8) | d[2],
             "iout_ma": (d[5] << 8) | d[4],
             "vo_max_mv": (d[7] << 8) | d[6],
             "temp_deci_c": (d[9] << 8) | d[8],
-            "vin_mv": (d[11] << 8) | d[10],
+            "temp2_deci_c": (d[11] << 8) | d[10],
+            "dc_5v_mv": (d[13] << 8) | d[12],
             "out_mode": d[14],
             "work_state": d[15],
         }
@@ -369,7 +372,7 @@ class Dp100Device(Device):
         b = self._basic()
         s = self._settings()
         return {
-            "output": "ON" if b["out_mode"] == 1 else "OFF",
+            "output": "ON" if s["state"] == 1 else "OFF",
             "setpoint": {"voltage": s["vset_v"], "current": s["iset_a"]},
             "measurement": {
                 "voltage": b["vout_mv"] / 1000,
@@ -378,13 +381,13 @@ class Dp100Device(Device):
                 "input_voltage": b["vin_mv"] / 1000,
                 "temperature": b["temp_deci_c"] / 10,
             },
-            "status": {"output_mode": {0: "OFF", 1: "ON"}.get(b["out_mode"], b["out_mode"]),
+            "status": {"output_mode": {0: "CV", 1: "CC", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
                         "work_state": b["work_state"]},
         }
 
     def status(self, ch):
         b = self._basic()
-        return {"output_mode": {0: "OFF", 1: "ON"}.get(b["out_mode"], b["out_mode"]),
+        return {"output_mode": {0: "CV", 1: "CC", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
                 "work_state": b["work_state"]}
 
     def output(self, ch, on):
@@ -392,8 +395,7 @@ class Dp100Device(Device):
         self._apply()
 
     def output_state(self, ch):
-        b = self._basic()
-        return "ON" if b["out_mode"] == 1 else "OFF"
+        return "ON" if self._settings()["state"] == 1 else "OFF"
 
     def set_ovp(self, ch, v):
         if v < 0 or v > self.MAX_OVP + 1e-9:
