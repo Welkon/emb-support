@@ -87,6 +87,16 @@ def test_prs_common_requires_chip(fake_prs, dap, iso, monkeypatch):
         dap._prs_common(SimpleNamespace(chip=None, probe=None, frequency=None, connect=None))
 
 
+def test_probe_rs_triple(dap, monkeypatch):
+    monkeypatch.setattr(dap.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(dap.platform, "machine", lambda: "x86_64")
+    assert dap.probe_rs_triple() == "x86_64-unknown-linux-gnu"
+    monkeypatch.setattr(dap.platform, "machine", lambda: "aarch64")
+    assert dap.probe_rs_triple() == "aarch64-unknown-linux-gnu"
+    monkeypatch.setattr(dap.platform, "system", lambda: "Plan9")
+    assert dap.probe_rs_triple() is None
+
+
 def test_fw_format(dap):
     assert dap._fw_format(Path("a.elf"), None) == "elf"
     assert dap._fw_format(Path("a.hex"), None) == "hex"
