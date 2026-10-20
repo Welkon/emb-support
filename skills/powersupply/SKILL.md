@@ -128,6 +128,7 @@ The tool checks max_voltage and max_current at each step. On an error, it turns 
 | web | Local Web UI and live chart | --bind, --web-port, --open |
 | scpi, query, write | Raw SCPI | --query |
 | config | Defaults and limits | host, resource, serial, max_voltage, max_current, safe_off |
+| test | Run the skill test suite | --install, -k |
 
 Common connection options: --host, --port 5025, --resource, --serial, --baud, --backend, --family, --timeout, --max-voltage, and --max-current.
 
@@ -176,8 +177,11 @@ scripts/psu.py web --host 192.168.1.60 --bind 127.0.0.1 --web-port 8765
 ## 7. Self-test
 
 ```bash
-~/.local/share/psu/venv/bin/python -m pytest tests -q
-scripts/psu.py setup --dev
+scripts/psu.py test --install   # uses the skill venv, installs pytest if needed
+scripts/psu.py test -k dialects # a subset
 ```
+
+`psu.py test` uses `~/.local/share/psu/venv/bin/python` when it exists and the
+active interpreter otherwise. `psu.py setup --dev` installs pytest into the venv.
 
 The tests use a local mock SCPI supply with a Rigol DP832 command style. The tests do not touch real hardware.

@@ -3621,7 +3621,8 @@ def cmd_test(a) -> None:
         rc, out, err = run([str(py), "-m", "pip", "install", "-U", "pytest"], 600)
         if rc != 0:
             die(f"pytest install failed: {(err or out)[-1000:]}")
-    cmd = [str(py), "-m", "pytest", "tests", "-q"]
+    # pyproject already sets "-q"; adding it again (-qq) hides the summary line.
+    cmd = [str(py), "-m", "pytest", "tests"]
     if a.verbose:
         cmd.append("-v")
     if a.k:

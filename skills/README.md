@@ -54,4 +54,10 @@ their docs under `references/`, and they are routed from the top of
 1. Create `skills/<name>/SKILL.md` (frontmatter needs `name` and `description`).
 2. Add an `index.json` entry with `path`, descriptions and `detect` rules.
 3. Add `./<name>/SKILL.md` to `.emb-agent-plugin/plugin.json`.
-4. Run `node tests/run-tests.cjs`.
+4. Add `evals/evals.json` with `expectations` (see the skill-creator schema).
+5. Add a `.github/workflows/<name>-tests.yml` job so the tests run on a pull request.
+6. Run `node tests/run-tests.cjs`.
+
+An algorithm under `adapters/chip-support/algorithms/` without a `@test_vector`
+line fails the runner. Pass `--allow-missing-vectors` only for a deliberate
+work-in-progress run: the summary then lists every unverified algorithm.

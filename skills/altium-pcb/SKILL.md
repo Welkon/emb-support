@@ -1,6 +1,6 @@
 ---
 name: "altium-pcb"
-description: "Operate on Altium PCB layout artifacts from parsed board evidence. Use when needs to plan or apply conservative PcbDoc component placement, run the embedded Altium live scripts, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise."
+description: "Operate on Altium PCB layout artifacts from parsed board evidence. Use when the user needs to plan or apply conservative PcbDoc component placement, run the embedded Altium live scripts, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise."
 metadata:
   short-description: "Operate on Altium PCB layout artifacts"
 ---
@@ -27,6 +27,9 @@ The helper is conservative by design:
 
 ## Default Workflow
 
+Paths in the examples are relative to the skill directory. The live bridge steps
+need Windows with Altium installed; plan and apply run anywhere.
+
 1. Create or refresh board evidence:
 
 ```bash
@@ -36,7 +39,7 @@ emb-agent ingest board --file docs/board.PcbDoc
 2. Generate a placement plan:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py plan \
+python3 scripts/altium_pcb.py plan \
   --parsed .emb-agent/cache/boards/<analysis.board-layout.json> \
   --locked U1,J1 \
   --output .emb-agent/cache/boards/placement-plan.json
@@ -45,7 +48,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py plan \
 3. Review the JSON plan before writing a board copy. Apply to a copy by default:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply \
+python3 scripts/altium_pcb.py apply \
   --file docs/board.PcbDoc \
   --plan .emb-agent/cache/boards/placement-plan.json \
   --locked U1,J1 \
@@ -73,7 +76,7 @@ The deterministic score is not the final quality decision. It is a hard-gate and
 5. Inspect the embedded live script paths when live Altium execution is needed:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py live-info
+python3 scripts/altium_pcb.py live-info
 ```
 
 The returned `start_command` starts the bundled Python bridge. The returned `script_project` is the Altium script project used by the bridge.
@@ -81,7 +84,7 @@ The returned `start_command` starts the bundled Python bridge. The returned `scr
 6. To prepare live Altium execution through the embedded scripts, export accepted placement calls instead of applying directly:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py export-live \
+python3 scripts/altium_pcb.py export-live \
   --plan .emb-agent/cache/boards/placement-plan.json \
   --locked U1,J1 \
   --output .emb-agent/cache/boards/placement.live-export.json
@@ -92,7 +95,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py export-live \
 7. Calibrate the exported live calls against component coordinates read from the currently open Altium board:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py preflight-live \
+python3 scripts/altium_pcb.py preflight-live \
   --plan .emb-agent/cache/boards/placement-plan.json \
   --live-components .emb-agent/cache/boards/altium-live-components.json \
   --locked U1,J1 \
@@ -105,7 +108,7 @@ python3 .codex/skills/altium-pcb/scripts/altium_pcb.py preflight-live \
 8. Prepare a final live apply bundle after reviewing the preflight:
 
 ```bash
-python3 .codex/skills/altium-pcb/scripts/altium_pcb.py apply-live \
+python3 scripts/altium_pcb.py apply-live \
   --preflight .emb-agent/cache/boards/placement.live-preflight.json \
   --locked U1,J1 \
   --confirm \

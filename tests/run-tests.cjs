@@ -10,9 +10,15 @@ const ADAPTERS_DIR = path.resolve(__dirname, '..', 'adapters');
 const ALGORITHMS_DIR = path.join(ADAPTERS_DIR, 'chip-support', 'algorithms');
 const ROUTES_DIR = path.join(ADAPTERS_DIR, 'chip-support', 'routes');
 
+// A chip algorithm without @test_vector is unverified. That is a failure by
+// default so the gap cannot hide in the skip count. Pass the flag only for a
+// deliberate work-in-progress run.
+const ALLOW_MISSING_VECTORS = process.argv.includes('--allow-missing-vectors');
+
 let passed = 0;
 let failed = 0;
 let skipped = 0;
+const missingVectors = [];
 
 function logResult(name, status, detail) {
   const prefix = status === 'pass' ? '✓' : status === 'fail' ? '✗' : '○';
@@ -217,8 +223,15 @@ function runAllTests() {
     console.log(`${algoName}:`);
 
     if (vectors.length === 0) {
-      logResult('(no test vectors)', 'skip', 'add @test_vector comment in source');
-      skipped++;
+      missingVectors.push(algoName);
+      if (ALLOW_MISSING_VECTORS) {
+        logResult('(no test vectors)', 'skip', 'allowed by --allow-missing-vectors');
+        skipped++;
+      } else {
+        logResult('(no test vectors)', 'fail',
+          'add @test_vector, or pass --allow-missing-vectors for a WIP run');
+        failed++;
+      }
       continue;
     }
 
@@ -240,6 +253,12 @@ function runAllTests() {
   console.log(`\n---`);
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);
   console.log(`Total algorithms: ${algoFiles.length}`);
+  if (missingVectors.length > 0) {
+    console.log(`Unverified algorithms (${missingVectors.length}/${algoFiles.length}): ${missingVectors.join(', ')}`);
+    if (ALLOW_MISSING_VECTORS) {
+      console.log('--allow-missing-vectors is set: these are not covered by any test.');
+    }
+  }
 
   if (failed > 0) {
     process.exit(1);

@@ -360,6 +360,6 @@ scripts/dap.py record --out workspace --elf fw.elf   # needs a probe
 ruff check scripts tests
 ```
 
-CI runs `.github/workflows/ci.yml` on Python 3.11 and 3.13 with `ruff` and `pytest`. The runtime pins `pyocd==0.46.0`. Override it with `DAPLINK_PYOCD`.
+CI runs `.github/workflows/mcu-debug-tests.yml` on Python 3.11 and 3.13 with `ruff` and `pytest`. The runtime pins `pyocd==0.46.0`. Override it with `DAPLINK_PYOCD`.
 
 The tests use a real DWARF ELF from `gcc -g` and a fake target and memory. They cover ELF parsing, DWARF types and locals, C expressions, CFI unwinding, fault rules, text and HTML reports, the CLI and the REPL. All persistent state goes to a temporary directory. Hardware paths (SWD timing, flash algorithms, SWO, multicore) still need an on-board check. See `references/validation.md`.

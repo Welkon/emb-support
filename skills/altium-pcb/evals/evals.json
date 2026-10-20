@@ -1,0 +1,39 @@
+{
+  "skill_name": "altium-pcb",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have docs/board.PcbDoc and the parsed layout JSON in .emb-agent/cache/boards/. Place the decoupling caps near U1, but do not move U1 or the connector J1.",
+      "expected_output": "Runs plan with --parsed and --locked U1,J1, reviews placement_plan.placements[].ai_review before accepting, then applies to a new .PcbDoc copy instead of the original.",
+      "files": [],
+      "expectations": [
+        "Runs the plan subcommand with --parsed and --locked U1,J1",
+        "Keeps U1 and J1 as fixed anchors",
+        "Applies to a new output file, not the original board",
+        "Reviews ai_review before marking a placement accepted"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Just write the placement straight back into docs/board.PcbDoc, I do not want another file.",
+      "expected_output": "Warns that in-place writes are destructive, keeps the copy-by-default behaviour, and uses --in-place --confirm only after the user explicitly confirms.",
+      "files": [],
+      "expectations": [
+        "States that in-place apply overwrites the original .PcbDoc",
+        "Does not run --in-place without explicit confirmation",
+        "Offers the copy output as the default"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Altium is open with the board loaded. Push the placement plan into the live session.",
+      "expected_output": "Uses live-info to show the embedded bridge paths, exports or preflights the live tool calls, then applies them with apply-live. It notes that the live bridge needs Windows with Altium running.",
+      "files": [],
+      "expectations": [
+        "Runs live-info before applying live changes",
+        "Uses preflight-live or export-live before apply-live",
+        "Mentions the Windows plus Altium requirement for the live bridge"
+      ]
+    }
+  ]
+}

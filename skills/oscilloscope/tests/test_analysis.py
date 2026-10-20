@@ -40,6 +40,7 @@ def test_npz_roundtrip(scope, tmp_path):
 
 
 def test_classify_square_sine_triangle(scope):
+    pytest.importorskip("numpy")  # harmonic ratios come from the numpy FFT
     import math
     n = 2000
     dt = 1e-5

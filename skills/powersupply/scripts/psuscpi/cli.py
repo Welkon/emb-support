@@ -66,6 +66,27 @@ def cmd_setup(a) -> None:
     emit({"ok": True, "venv": str(VENV), "packages": pkgs}, as_json=True)
 
 
+def cmd_test(a) -> None:
+    """Run the skill test suite with the skill venv (or the active interpreter)."""
+    skill = Path(__file__).resolve().parents[2]
+    py = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if not py.exists():
+        py = Path(sys.executable)
+    has_pytest = subprocess.run([str(py), "-c", "import pytest"],
+                                capture_output=True).returncode == 0
+    if not has_pytest:
+        if not getattr(a, "install", False):
+            die(f"pytest is not installed for {py}. Run: psu.py test --install")
+        p = subprocess.run([str(py), "-m", "pip", "install", "-U", "pytest"],
+                           capture_output=True, text=True, timeout=600)
+        if p.returncode != 0:
+            die(f"pytest install failed: {(p.stderr or p.stdout)[-1200:]}")
+    cmd = [str(py), "-m", "pytest", "tests", "-q"]
+    if getattr(a, "k", None):
+        cmd += ["-k", a.k]
+    sys.exit(subprocess.call(cmd, cwd=str(skill)))
+
+
 def cmd_doctor(a) -> None:
     info = {"ok": True, "python": sys.executable, "pyvisa": None,
             "resources": [], "usbtmc": sorted(glob.glob("/dev/usbtmc*")),
@@ -458,6 +479,11 @@ def main() -> None:
     p = sub.add_parser("setup", help="create venv and install pyvisa/pyserial/hidapi")
     p.add_argument("--dev", action="store_true")
     p.set_defaults(fn=cmd_setup)
+
+    p = sub.add_parser("test", help="run the skill test suite")
+    p.add_argument("--install", action="store_true", help="install pytest if it is missing")
+    p.add_argument("-k", dest="k", help="pytest -k expression")
+    p.set_defaults(fn=cmd_test)
 
     p = sub.add_parser("doctor", help="environment and connection diagnostics")
     add_conn(p)

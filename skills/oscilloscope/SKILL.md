@@ -131,6 +131,7 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `idn` | Read `*IDN?` and select the dialect. | `--family` |
 | `list`, `discover` | List VISA resources or scan a subnet. | `--scan`, `--backend` |
 | `doctor` | Check the environment and the connection. | `--host`, `--attach-usb` |
+| `test` | Run the skill test suite. | `--install`, `-k` |
 | `channel` | Set the vertical scale, offset, coupling, and probe. | `--ch`, `--scale`, `--offset`, `--coupling`, `--probe` |
 | `timebase` | Set the timebase. | `--scale`, `--offset` |
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
@@ -249,9 +250,12 @@ from scopescpi.dialects import RigolDialect
 ## 13. Tests
 
 ```bash
-~/.local/share/scope/venv/bin/python -m pytest tests -q
-scripts/scope.py setup --dev
+scripts/scope.py test --install   # uses the skill venv, installs pytest if needed
+scripts/scope.py test -k capture  # a subset
 ```
+
+`scope.py test` uses `~/.local/share/scope/venv/bin/python` when it exists and the
+active interpreter otherwise. `scope.py setup --dev` installs pytest into the venv.
 
 The tests use a local mock SCPI server with the Rigol and Tektronix dialects. The tests do not touch hardware.
 
