@@ -1,0 +1,41 @@
+{
+  "skill_name": "powersupply",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "My Rigol DP832 is at 192.168.1.60. Set CH1 to 5 V and 1 A, verify the setpoint, enable the output, then log voltage and current for 30 seconds to rail.csv.",
+      "expected_output": "The agent identifies the supply, sets and verifies 5 V and 1 A, enables the output with confirmation, records a CSV log, and disables the output when requested.",
+      "files": [],
+      "expectations": [
+        "Uses the psu.py CLI with the LAN host option.",
+        "Runs set with --verify before enabling the output.",
+        "Uses output on --yes, not a bare output command.",
+        "Runs log with a duration and an output CSV path."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The ALIENTEK DP100 is connected to Windows, but WSL cannot see it. The doctor output says the device is Not shared. Connect it and read the input voltage and temperature.",
+      "expected_output": "The agent explains the usbipd bind and attach steps, installs the Linux hidraw permission rule, then runs idn and measure or the Web UI state endpoint.",
+      "files": [],
+      "expectations": [
+        "Mentions usbipd bind for the Not shared state.",
+        "Mentions usbipd attach --wsl and the bus ID.",
+        "Mentions install_udev.sh or chmod for hidraw access.",
+        "Reads DP100 state with --hid dp100 or the Web UI."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have a Korad KA3005P on /dev/ttyUSB0. Set 12 V and 0.8 A, then ramp from 0 V to 12 V in 0.5 V steps. Do not exceed 12 V.",
+      "expected_output": "The agent uses the Korad serial dialect at 9600 baud, sets and verifies the setpoints, applies the 12 V limit, and runs the ramp with confirmation.",
+      "files": [],
+      "expectations": [
+        "Uses --serial /dev/ttyUSB0 and the korad family.",
+        "Uses 9600 baud.",
+        "Sets a 12 V maximum or checks the 12 V limit.",
+        "Runs ramp with --to 12 --yes."
+      ]
+    }
+  ]
+}
