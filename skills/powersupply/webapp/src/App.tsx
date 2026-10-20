@@ -349,7 +349,7 @@ export default function App() {
   const followUntil = useRef(0);
   useEffect(() => {
     if ((data?.output || "").toUpperCase() === "ON") followUntil.current = Date.now() + 2000;
-  }, [data?.setpoint.voltage, data?.setpoint.current]);
+  }, [data?.setpoint.voltage, data?.setpoint.current, data?.output]);
   useEffect(() => {
     if ((data?.output || "").toUpperCase() !== "ON" || Date.now() > followUntil.current) return;
     const v = data?.measurement.voltage;
