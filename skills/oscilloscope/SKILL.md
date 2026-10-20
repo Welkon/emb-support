@@ -182,3 +182,17 @@ scripts/scope.py setup --dev
 ```
 
 测试使用本地 mock SCPI server（Rigol 与 Tek 两种方言），不接触真实硬件。
+
+
+## 10. 实机验证
+
+已在 **Tektronix TBS 1102B**（USB `0699:0368`，WSL + usbipd）上验证：
+
+- `doctor` 识别资源 `USB0::1689::872::C039642::0::INSTR`
+- `idn` → `TEKTRONIX,TBS 1102B,...`，方言自动选 `tektronix`
+- `capture --points 1000` → 5.4 Vpp、约 995 Hz，质量检查无误报
+- `measure`（波形计算回退）、`analyze`（离线 CSV）、`monitor --max-events 1` 均通过
+- `shot` 对该型号明确返回“不支持”，不再发会破坏 USBTMC 队列的查询
+
+WSL 注意：该内核没有 `usbtmc` 模块，实际走的是 **pyvisa-py + libusb**；`setup` 现在会安装
+`libusb-package`，并且 `scope.py` 启动时会自动切到技能 venv（`SCOPE_NO_REEXEC=1` 可关闭）。

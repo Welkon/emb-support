@@ -30,7 +30,10 @@ def check(volts: list[float], times: list[float] | None = None,
 
         at_rail = sum(1 for v in volts if v == vmin or v == vmax)
         unique = len(set(volts))
-        if vpp > 0 and at_rail / n > 0.02 and unique > 8:
+        mid_band = sum(1 for v in volts if vmin + 0.2 * vpp < v < vmax - 0.2 * vpp)
+        # Square waves legitimately sit on the rails; only flag clipping when the
+        # waveform also spends time in the middle (a clipped sine/triangle does).
+        if (vpp > 0 and at_rail / n > 0.02 and mid_band / n > 0.15 and unique > 8):
             warnings.append({"code": "CLIPPING", "severity": "warning",
                              "message": f"{at_rail * 100 / n:.1f}% of samples sit on the extreme values",
                              "suggestion": "increase volts/div or check probe attenuation; the signal may be clipped"})

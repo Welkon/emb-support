@@ -44,7 +44,19 @@ if WSL:
 from scopescpi.cli import main  # noqa: F401
 
 
+def _ensure_runtime() -> None:
+    """Run inside the skill venv when it exists, so pyvisa/pyusb are consistent."""
+    if os.environ.get("SCOPE_NO_REEXEC"):
+        return
+    home = Path(os.environ.get("SCOPE_HOME", str(Path.home() / ".local/share/scope")))
+    py = home / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    venv_root = (home / "venv").resolve()
+    if py.exists() and Path(sys.prefix).resolve() != venv_root:
+        os.execv(str(py), [str(py), str(Path(__file__).resolve())] + sys.argv[1:])
+
+
 if __name__ == "__main__":
+    _ensure_runtime()
     try:
         main()
     except SystemExit:

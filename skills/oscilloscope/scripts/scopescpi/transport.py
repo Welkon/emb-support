@@ -116,6 +116,10 @@ class VisaInstrument:
             self.inst.write_termination = "\n"
         except Exception:
             pass
+        try:
+            self.inst.clear()   # reset a stale USBTMC queue from a previous session
+        except Exception:
+            pass
         self.resource = resource
 
     def close(self):
@@ -188,6 +192,8 @@ def pick_single_resource(resources: list[str]) -> str | None:
 
 
 def _list_resources(backend):
+    if backend is None and os.name != "nt":
+        backend = "@py"
     try:
         import pyvisa
         rm = pyvisa.ResourceManager(backend) if backend else pyvisa.ResourceManager()

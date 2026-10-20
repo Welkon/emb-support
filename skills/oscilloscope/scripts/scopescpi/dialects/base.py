@@ -30,6 +30,7 @@ class Dialect:
 
     # --- acquisition
     def run(self): return ":RUN"
+    def run_commands(self): return [self.run()]
     def stop(self): return ":STOP"
     def single(self): return ":SINGle"
     def autoscale(self): return ":AUToscale"

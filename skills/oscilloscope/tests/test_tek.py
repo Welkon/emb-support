@@ -36,6 +36,15 @@ def test_tek_ascii_acquire(scope, tek):
     assert any("ENCdg ASCII" in c or "ENCDG ASCII" in c.upper().replace("ENCDG", "ENCdg") for c in tek.commands)
 
 
+def test_tek_run_commands(scope):
+    d = scope.TektronixDialect("TEKTRONIX")
+    assert d.run_commands() == [":ACQuire:STOPAfter RUNSTOP", ":ACQuire:STATE RUN"]
+
+
+def test_tek_screenshot_is_disabled(scope):
+    assert scope.TektronixDialect("TEKTRONIX").screenshot_queries() == []
+
+
 def test_tek_idn_family(tek, tmp_path):
     p = run(base(tek, "idn", "--json"), tmp_path / "home")
     assert p.returncode == 0, p.stderr

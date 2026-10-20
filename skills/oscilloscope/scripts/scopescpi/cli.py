@@ -44,7 +44,7 @@ def cmd_setup(a) -> None:
         if rc != 0:
             die(f"failed to create venv: {err or out}")
     pip = VENV / ("Scripts/pip.exe" if IS_WIN else "bin/pip")
-    pkgs = ["pyvisa", "pyvisa-py", "pyusb", "numpy"]
+    pkgs = ["pyvisa", "pyvisa-py", "pyusb", "libusb-package", "numpy"]
     if getattr(a, "dev", False):
         pkgs.append("pytest")
     p = subprocess.run([str(pip), "install", "-U", "pip"] + pkgs, capture_output=True, text=True, timeout=900)
@@ -231,9 +231,13 @@ def cmd_run(a) -> None:
     inst = connect(a)
     try:
         d, _ = _dialect_for(a, inst)
-        cmd = {"run": d.run, "stop": d.stop, "single": d.single, "autoscale": d.autoscale}[a.action]()
-        inst.write(cmd)
-        emit({"ok": True, "action": a.action, "command": cmd}, as_json=True)
+        if a.action == "run":
+            commands = d.run_commands()
+        else:
+            commands = [{"stop": d.stop, "single": d.single, "autoscale": d.autoscale}[a.action]()]
+        for cmd in commands:
+            inst.write(cmd)
+        emit({"ok": True, "action": a.action, "commands": commands}, as_json=True)
     finally:
         inst.close()
 
@@ -327,6 +331,8 @@ def cmd_shot(a) -> None:
     inst = connect(a)
     try:
         d, idn = _dialect_for(a, inst)
+        if not d.screenshot_queries():
+            die(f"screenshot is not supported by the {d.name} dialect; use the scpi command")
         used, data = d.screenshot(inst)
         if not data:
             die("screenshot failed: the instrument did not return PNG/JPEG data. "

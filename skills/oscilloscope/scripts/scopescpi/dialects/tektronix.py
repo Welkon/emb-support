@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 from ..common import fnum
 from .base import Dialect
@@ -14,7 +15,6 @@ TEK_PREAMBLE = {
     "yincr": ("WFMPre:YMUlt?", "WFMOutpre:YMUlt?", "WFMPRE:YMULT?"),
     "yorig": ("WFMPre:YZEro?", "WFMOutpre:YZEro?", "WFMPRE:YZERO?"),
     "yref": ("WFMPre:YOFf?", "WFMOutpre:YOFf?", "WFMPRE:YOFF?"),
-    "points": ("WFMOutpre:NR_Pt?", "WFMPre:NR_Pt?"),
 }
 
 
@@ -50,6 +50,10 @@ class TektronixDialect(Dialect):
     def trigger_slope(self, v): return f":TRIGger:A:EDGE:SLOpe {v}"
     def trigger_sweep(self, v): return f":TRIGger:A:MODe {v}"
     def trigger_type(self): return ":TRIGger:A:TYPe EDGE"
+    def run(self): return ":ACQuire:STATE RUN"
+    def run_commands(self):
+        return [":ACQuire:STOPAfter RUNSTOP", ":ACQuire:STATE RUN"]
+    def stop(self): return ":ACQuire:STATE STOP"
 
     def trigger_pulse(self, width, polarity="POSitive", when="LESSthan"):
         return [":TRIGger:A:TYPe PULSe",
@@ -68,7 +72,9 @@ class TektronixDialect(Dialect):
     def measure_query(self, item, n): return None
 
     def screenshot_queries(self):
-        return [":SAVE:IMAGe:FILEFormat PNG", ":DISPlay:DATA? PNG"]
+        # TBS/TDS models route hardcopy through the front panel/USB; querying
+        # unsupported screen-dump commands leaves the USBTMC queue desynchronised.
+        return []
 
     def acquire(self, inst, ch, points):
         inst.write(f"DATa:SOUrce CH{ch}")
@@ -77,9 +83,12 @@ class TektronixDialect(Dialect):
         if points:
             inst.write("DATa:STARt 1")
             inst.write(f"DATa:STOP {int(points)}")
+        time.sleep(0.15)          # TBS needs a moment after changing the data window
+        # Text first, then the curve: querying text after a waveform block risks
+        # consuming leftovers from the transfer.
+        meta = {key: float(_q_first(inst, cmds)) for key, cmds in TEK_PREAMBLE.items()}
         text = inst.query("CURVe?")
         samples = [float(x) for x in re.split(r"[,;\s]+", text.strip()) if x]
-        meta = {key: float(_q_first(inst, cmds)) for key, cmds in TEK_PREAMBLE.items()}
         meta.update({"points": len(samples), "count": len(samples),
                      "format": 0, "type": 0})
         return meta, samples

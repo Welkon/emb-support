@@ -135,3 +135,14 @@ TBS1102B 的 hardcopy 主要走前面板/USB PictBridge，没有一个稳定的�
 | 单次序列 | `ACQuire:STOPAfter SEQuence` |
 | 波形源 | `DATa:SOUrce CH1` |
 | 曲线 | `CURVe?` |
+
+
+## 实机验证（TBS 1102B，WSL）
+
+- WSL 内核没有 `usbtmc` 模块，`/dev/usbtmc*` 不会出现；走 **pyvisa-py + pyusb + libusb-package**。
+  `scope.py setup` 会安装 `libusb-package`，`scope.py` 启动时自动 re-exec 到该 venv。
+- 采集顺序必须是**先读文本 preamble、再读 `CURVe?`**；反过来会出现 `WFMOutpre:NR_Pt?` 超时。
+- `WFMOutpre:NR_Pt?` 在 TBS 上不可靠，已不再查询，点数用实际样本数。
+- 连续采集用 `:ACQuire:STOPAfter RUNSTOP` + `:ACQuire:STATE RUN`；只发 `:RUN` 会保持停止。
+- 截图查询会破坏 USBTMC 队列，TBS 方言已禁用 `shot`（返回明确错误）。
+- 若链路因外部超时进入 desync，最可靠的是 `usbipd detach` + `attach` 重新枚举。

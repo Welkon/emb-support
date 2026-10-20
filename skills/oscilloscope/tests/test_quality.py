@@ -32,6 +32,13 @@ def test_clipping(scope):
     assert "CLIPPING" in codes(w)
 
 
+def test_square_is_not_clipping(scope):
+    vs = [1.0 if i % 20 < 10 else -1.0 for i in range(1000)]
+    ts = [i * 1e-3 for i in range(1000)]
+    w = scope.check_quality(vs, ts, {"yincr": 0.01, "xincr": 1e-3})
+    assert "CLIPPING" not in codes(w)
+
+
 def test_dc_offset(scope):
     vs, ts = wave(amp=0.1, offset=1.0)
     w = scope.check_quality(vs, ts, {"yincr": 0.001, "xincr": 1e-3})
