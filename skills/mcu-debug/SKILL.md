@@ -194,7 +194,7 @@ scripts/dap.py bp set 0x08001234 --type flash --yes
 scripts/dap.py bp clear 0x08001234
 ```
 
-The command erases and rewrites the whole sector. It backs up the sector to `~/.local/share/mcu-debug/flash_bp.json`. If power fails during the write, flash the board again. Prefer hardware breakpoints.
+The command erases and rewrites the whole sector. It backs up the sector to `flash_bp.json` in the data directory. `dap.py env` shows that directory. If power fails during the write, flash the board again. Prefer hardware breakpoints.
 
 **Semihosting**
 ```bash
@@ -292,6 +292,7 @@ The command starts `pyocd gdbserver`, runs the GDB commands, and stops the serve
 | `swo` | Decode SWO/ITM trace. | `--cpu-freq`, `--swo-freq`, `--duration`, `--raw` |
 | `semi` | Serve the ARM semihosting console. | `--duration` |
 | `selfcheck` | Run the non-destructive hardware self-check. | `--elf`, `--json` |
+| `record` | Write board evidence (selfcheck, snapshot, report). | `--out`, `--elf`, `--target`, `--rtt-log` |
 | `bp --type flash` | Write a BKPT instruction to flash. | `--yes` (erases a sector) |
 | `svd attach/list/read/write/field` | Read or write SVD peripherals and bit fields. | `PERIPH.REG[.FIELD]`, `--svd` |
 | `dapreg read/write` | Access raw DP registers. | `ADDR [VALUE]` |
@@ -355,6 +356,7 @@ Read `references/engines.md` before you change engines. Do not mix commands from
 
 ```bash
 scripts/dap.py test --install     # uses the real venv, installs pytest if needed
+scripts/dap.py record --out workspace --elf fw.elf   # needs a probe
 ruff check scripts tests
 ```
 

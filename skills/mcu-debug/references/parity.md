@@ -23,7 +23,7 @@ differences.
 | `load_svd`, `list_peripherals`, `read_peripheral`, `write_peripheral` | `svd attach/list/read/write` | Uses the pyOCD SVD parser. `svd field` reads or writes one bit field. |
 | `read_dap`, `write_dap` | `dapreg read/write` | Calls `target.dp.read_reg` and `write_reg`. |
 | `read_option_bytes`, `write_option_bytes` | `option read/write --addr` | An explicit address is required. A write needs `--yes`. |
-| `get_config`, `update_config`, `reload_config` | `config get/set/unset/list` | Stored in `~/.local/share/mcu-debug/config.json`. |
+| `get_config`, `update_config`, `reload_config` | `config get/set/unset/list` | Stored in `config.json` in the data directory. `dap.py env` shows that directory. |
 | `define_chip` | `pack install` or `--pack` | Uses CMSIS-Packs. It does not define a chip from scratch. |
 | Not an MCP tool: RTT | `rtt` | Native pyOCD SEGGER RTT viewer. |
 | Not an MCP tool: GDB server | `gdb` | `--detach` runs it in the background. |
