@@ -71,18 +71,18 @@ def classify(volts: list[float], times: list[float], stats: dict,
     harmonics = analysis.get("harmonics") or []
     even = harmonics[0]["relative"] if harmonics and harmonics[0]["order"] == 2 else 0.0
     result = {"type": "unknown", "confidence": "low"}
-    if even > 0.25:
+    if rail > 0.35 and duty is not None and not (40 <= duty <= 60):
+        result = {"type": "pulse", "confidence": "high"}
+    elif rail > 0.35 and duty is not None and 40 <= duty <= 60 and (thd or 0) > 20:
+        result = {"type": "square", "confidence": "high"}
+    elif even > 0.25 and rail < 0.2:
         result = {"type": "sawtooth", "confidence": "medium"}
     elif thd is not None and thd < 5 and rail < 0.35:
         result = {"type": "sine", "confidence": "high"}
     elif thd is not None and 8 <= thd <= 20 and rail < 0.2:
         result = {"type": "triangle", "confidence": "medium"}
-    elif rail > 0.35 and duty is not None and 40 <= duty <= 60 and (thd or 0) > 20:
-        result = {"type": "square", "confidence": "high"}
     elif duty is not None and (duty < 40 or duty > 60):
         result = {"type": "pulse", "confidence": "medium"}
-    elif rail > 0.3:
-        result = {"type": "pulse", "confidence": "low"}
     return result
 
 

@@ -47,6 +47,17 @@ def stats(volts: list[float], times: list[float]) -> dict:
             high = sum(1 for v in volts if v > mid) / n * 100.0
             out["duty_pct"] = high
             out.update(_edges(volts, times, vmin, vmax))
+        if n >= 128:
+            try:
+                from .analysis import spectrum
+                f0 = spectrum(volts, dt).get("fundamental_hz")
+                if f0 and f0 > 0:
+                    out["freq_crossing"] = out.get("freq")
+                    out["period_crossing"] = out.get("period")
+                    out["freq"] = f0
+                    out["period"] = 1.0 / f0
+            except RuntimeError:
+                pass
     return out
 
 
@@ -128,7 +139,10 @@ def measure_channel(inst, dialect, ch, items):
         q = dialect.measure_query(item, ch)
         if q:
             try:
-                out[item] = dialect.parse_measure(inst.query(q))
+                value = dialect.parse_measure(inst.query(q))
+                if abs(value) > 1e30:      # Rigol and others use 9.9E+37 for "invalid"
+                    raise ValueError("invalid measurement sentinel")
+                out[item] = value
                 continue
             except Exception:
                 pass

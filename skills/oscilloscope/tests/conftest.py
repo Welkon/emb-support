@@ -78,7 +78,7 @@ class MockScope:
                 return ",".join(str(x) for x in self.samples)
             if "MEAS" in u:
                 return "2.0"
-            if "TRIGGER:STATE" in u:
+            if "TRIGGER:STAT" in u:
                 return "STOP"
             if "ACQUIRE:STATE" in u:
                 return "0"
