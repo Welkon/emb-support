@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
-        run: python -m pip install --upgrade pip pytest pyelftools
+        run: python -m pip install --upgrade pip pytest pyelftools numpy
       - name: Run tests
         working-directory: skills/oscilloscope
         run: python -m pytest tests -q

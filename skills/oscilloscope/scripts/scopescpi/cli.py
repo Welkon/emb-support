@@ -23,6 +23,7 @@ from .acquisition import (
     measure_channel, stats,
 )
 from .quality import check as check_quality
+from .analysis import advanced, load_npz, save_npz, spectrum, write_svg
 from .wsl import (
     attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
 )
@@ -282,6 +283,24 @@ def cmd_capture(a) -> None:
             else:
                 die(f"unsupported output format: {fmt}")
             summary["out"] = str(path)
+        if a.cache:
+            if a.cache is True:
+                cache_path = (Path(a.out).with_suffix(".npz") if a.out
+                              else HOME / "cache" / f"capture-{int(time.time())}.npz")
+            else:
+                cache_path = Path(a.cache).expanduser()
+            save_npz(cache_path, data)
+            summary["cache"] = str(cache_path)
+        if a.plot:
+            plot_path = Path(a.plot).expanduser()
+            if plot_path.suffix.lower() != ".svg":
+                die("--plot currently supports .svg output")
+            first = next(iter(data.values()))
+            extra = advanced(first["volts"], first["times"], first["meta"])
+            write_svg(plot_path, first["times"], first["volts"],
+                      title=f"{idn} CH{list(data)[0]}", extra=extra,
+                      max_points=a.plot_points)
+            summary["plot"] = str(plot_path)
         if a.json:
             emit(summary, as_json=True)
         else:
@@ -332,7 +351,16 @@ def cmd_shot(a) -> None:
     try:
         d, idn = _dialect_for(a, inst)
         if not d.screenshot_queries():
-            die(f"screenshot is not supported by the {d.name} dialect; use the scpi command")
+            data, _ = acquire_with_recovery(inst, d, [1], None, attempts=2)
+            item = data[1]
+            extra = advanced(item["volts"], item["times"], item["meta"])
+            out = Path(a.out).expanduser().with_suffix(".svg")
+            write_svg(out, item["times"], item["volts"],
+                      title=f"{idn} CH1 (scope has no screen dump)", extra=extra)
+            emit({"ok": True, "fallback": "waveform-plot", "out": str(out),
+                  "idn": idn, "family": d.name,
+                  "note": "the instrument cannot export a screenshot; rendered a waveform plot instead"})
+            return
         used, data = d.screenshot(inst)
         if not data:
             die("screenshot failed: the instrument did not return PNG/JPEG data. "
@@ -513,15 +541,37 @@ def read_csv_capture(path: Path):
 
 
 def cmd_analyze(a) -> None:
-    path = Path(a.csv).expanduser()
-    if not path.exists():
-        die(f"file not found: {path}")
-    header, times, volts = read_csv_capture(path)
+    if not a.csv and not a.npz:
+        die("analyze requires --csv or --npz")
+    if a.npz:
+        path = Path(a.npz).expanduser()
+        if not path.exists():
+            die(f"file not found: {path}")
+        data = load_npz(path)
+        if not data:
+            die("no channels found in npz")
+        ch = next(iter(data))
+        times, volts = data[ch]["times"], data[ch]["volts"]
+        header = ["time", f"ch{ch}"]
+    else:
+        path = Path(a.csv).expanduser()
+        if not path.exists():
+            die(f"file not found: {path}")
+        header, times, volts = read_csv_capture(path)
     out = stats(volts, times)
     out["warnings"] = check_quality(volts, times)
     out["file"] = str(path)
     out["columns"] = header
     out["logic_levels"] = _logic_levels(volts)
+    if a.fft:
+        out.update(spectrum(volts, (times[1] - times[0]) if len(times) > 1 else 0))
+    if a.plot:
+        plot_path = Path(a.plot).expanduser()
+        if plot_path.suffix.lower() != ".svg":
+            die("--plot currently supports .svg output")
+        write_svg(plot_path, times, volts, title=path.name,
+                  extra=out, max_points=a.plot_points)
+        out["plot"] = str(plot_path)
     emit(out, as_json=True)
 
 
@@ -620,6 +670,9 @@ def main() -> None:
     p.add_argument("--autoset-on-empty", action="store_true",
                    help="allow autoset as the last recovery step (changes instrument state)")
     p.add_argument("--no-quality", action="store_true", help="skip signal-quality warnings")
+    p.add_argument("--plot", help="write an SVG waveform plot")
+    p.add_argument("--plot-points", type=int, default=4000)
+    p.add_argument("--cache", nargs="?", const=True, help="write/refresh an NPZ cache")
     p.set_defaults(fn=cmd_capture)
 
     p = sub.add_parser("measure", help="automatic measurements")
@@ -668,8 +721,12 @@ def main() -> None:
     p.add_argument("--no-quality", action="store_true")
     p.set_defaults(fn=cmd_monitor)
 
-    p = sub.add_parser("analyze", help="analyze a captured CSV offline")
-    p.add_argument("--csv", required=True)
+    p = sub.add_parser("analyze", help="analyze a captured CSV/NPZ offline")
+    p.add_argument("--csv")
+    p.add_argument("--npz")
+    p.add_argument("--fft", action="store_true", help="include FFT, harmonics and THD")
+    p.add_argument("--plot", help="write an SVG waveform plot")
+    p.add_argument("--plot-points", type=int, default=4000)
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_analyze)
 

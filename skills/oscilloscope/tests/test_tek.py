@@ -62,6 +62,14 @@ def test_tek_monitor_preset_dry_run(tek, tmp_path):
     assert "STOPAfter" in " ".join(data["arm"])
 
 
+def test_tek_shot_falls_back_to_plot(tek, tmp_path):
+    out = tmp_path / "screen.png"
+    p = run(base(tek, "shot", "--out", str(out)), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    svg = tmp_path / "screen.svg"
+    assert svg.exists() and "<polyline" in svg.read_text()
+
+
 def test_tek_measure_falls_back_to_waveform(tek, tmp_path):
     p = run(base(tek, "measure", "--items", "vpp,freq"), tmp_path / "home")
     assert p.returncode == 0, p.stderr

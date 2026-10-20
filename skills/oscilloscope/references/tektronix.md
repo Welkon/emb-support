@@ -144,5 +144,6 @@ TBS1102B 的 hardcopy 主要走前面板/USB PictBridge，没有一个稳定的�
 - 采集顺序必须是**先读文本 preamble、再读 `CURVe?`**；反过来会出现 `WFMOutpre:NR_Pt?` 超时。
 - `WFMOutpre:NR_Pt?` 在 TBS 上不可靠，已不再查询，点数用实际样本数。
 - 连续采集用 `:ACQuire:STOPAfter RUNSTOP` + `:ACQuire:STATE RUN`；只发 `:RUN` 会保持停止。
-- 截图查询会破坏 USBTMC 队列，TBS 方言已禁用 `shot`（返回明确错误）。
+- 截图查询会破坏 USBTMC 队列，TBS 方言已禁用屏幕导出；`shot` 会改为抓 CH1 并渲染 SVG。
+- 该型号记录长度上限 **2500 点**；`DATa:STOP` 超过会被截断。
 - 若链路因外部超时进入 desync，最可靠的是 `usbipd detach` + `attach` 重新枚举。

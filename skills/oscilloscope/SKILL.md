@@ -147,6 +147,26 @@ scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 每条警告都带 `suggestion`。`--no-quality` 可关闭；`analyze` 对离线 CSV 也做同样检查。
 `monitor` 同样带质量检查。
 
+## 5.6 高阶分析、可视化与缓存
+
+仪器自身只提供原始波形和少量测量；更深的分析由 skill 计算：
+
+```bash
+# 采集时直接出图并落 NPZ 缓存
+scripts/scope.py capture --points 2000 --out run.csv --plot run.svg --cache run.npz
+
+# 离线分析：FFT/谐波/THD、过冲/下冲、噪声、波峰因数
+scripts/scope.py analyze --npz run.npz --fft --plot run-an.svg
+```
+
+- `advanced`：过冲/下冲、top/base、噪声 RMS、波峰因数、基频、2–5 次谐波、THD
+- `--plot`：纯 SVG（无额外依赖），自动按 `--plot-points` 降采样，大数据不会卡住
+- `--cache [path]`：把 times/volts 存成 NPZ；`analyze --npz` 直接复用，避免重复传输
+- 缓存默认路径 `~/.local/share/scope/cache/`；NPZ 比 CSV 小很多，适合大数据
+
+**截图**：TBS1102B 这类型号没有主机侧屏幕导出命令。`shot` 会自动降级为
+“抓 CH1 波形并渲染 SVG 图”，返回 `fallback: waveform-plot`，不会假装是屏幕截图。
+
 ## 6. 安全边界
 
 - `channel/timebase/trigger/run/autoscale` 会改变仪器实时状态。用户没有明确要求时，先只读。
@@ -192,7 +212,8 @@ scripts/scope.py setup --dev
 - `idn` → `TEKTRONIX,TBS 1102B,...`，方言自动选 `tektronix`
 - `capture --points 1000` → 5.4 Vpp、约 995 Hz，质量检查无误报
 - `measure`（波形计算回退）、`analyze`（离线 CSV）、`monitor --max-events 1` 均通过
-- `shot` 对该型号明确返回“不支持”，不再发会破坏 USBTMC 队列的查询
+- `shot` 自动降级为波形 SVG 图（该型号没有屏幕导出命令）
+- TBS 1102B 记录长度上限 2500 点，请求更大值会被仪器截断
 
 WSL 注意：该内核没有 `usbtmc` 模块，实际走的是 **pyvisa-py + libusb**；`setup` 现在会安装
 `libusb-package`，并且 `scope.py` 启动时会自动切到技能 venv（`SCOPE_NO_REEXEC=1` 可关闭）。
