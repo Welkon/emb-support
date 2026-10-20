@@ -3628,6 +3628,40 @@ def cmd_test(a) -> None:
     sys.exit(subprocess.call(cmd, cwd=str(skill)))
 
 
+def cmd_record(a) -> None:
+    """Write board evidence: selfcheck JSON, fault snapshot and HTML report."""
+    ensure_runtime()
+    out = Path(a.out).expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+    skill = Path(__file__).resolve().parents[1]
+    cli = [sys.executable, str(skill / "scripts" / "dap.py")]
+    common = []
+    if a.target:
+        common += ["-t", a.target]
+    if a.elf:
+        common += ["--elf", a.elf]
+    started = time.strftime("%Y-%m-%dT%H:%M:%S")
+    rc1, o1, e1 = run(cli + ["selfcheck", "--json"] + common, a.timeout)
+    (out / "selfcheck.json").write_text(o1 if o1.strip() else e1)
+    diagnose_rc = None
+    if a.elf:
+        dargs = cli + ["diagnose", "--elf", a.elf,
+                       "--html", str(out / "report.html"),
+                       "--save", str(out / "snapshot.json")]
+        if a.target:
+            dargs += ["-t", a.target]
+        if a.rtt_log:
+            dargs += ["--rtt-log", a.rtt_log]
+        diagnose_rc, o2, e2 = run(dargs, a.timeout)
+    metadata = {"started": started, "out": str(out), "elf": a.elf,
+                "selfcheck_ok": rc1 == 0, "diagnose_rc": diagnose_rc}
+    (out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    files = sorted(p.name for p in out.iterdir())
+    emit({"ok": rc1 == 0, "op": "record", "out": str(out), "files": files,
+          "selfcheck_ok": rc1 == 0, "diagnose_rc": diagnose_rc}, as_json=True)
+    sys.exit(0 if rc1 == 0 else 1)
+
+
 def cmd_engines(a) -> None:
     py = venv_python()
     if py.exists() and Path(sys.executable).resolve() != py.resolve():
@@ -3837,6 +3871,14 @@ def main() -> None:
     p.add_argument("-k", help="pytest -k expression")
     p.add_argument("--verbose", action="store_true")
     p.set_defaults(fn=cmd_test)
+
+    p = sub.add_parser("record", help="write board evidence (selfcheck, snapshot, report)")
+    p.add_argument("--out", "-o", required=True, help="output directory")
+    p.add_argument("--elf")
+    p.add_argument("--target", "-t")
+    p.add_argument("--rtt-log")
+    p.add_argument("--timeout", type=int, default=120)
+    p.set_defaults(fn=cmd_record)
 
     p = sub.add_parser("cores", help="list cores of a multi-core target")
     sess(p, 60); p.set_defaults(fn=cmd_cores)

@@ -78,10 +78,19 @@ Run on each combination you care about:
 
 ## 4. Recording results
 
+A probe must be connected. One command writes the evidence set:
+
 ```bash
-dap.py selfcheck --elf fw.elf --json > selfcheck.json
-dap.py diagnose --elf fw.elf --save crash.json --html report.html
+dap.py record --out workspace --elf fw.elf --target stm32f103rc
 ```
 
-Keep `selfcheck.json` + the chip/toolchain/optimization tuple with any bug
-report.
+The output directory then contains:
+
+- `selfcheck.json`: the self-check result
+- `snapshot.json`: the fault snapshot
+- `report.html`: the HTML report
+- `metadata.json`: timestamp, ELF path, and pass/fail state
+
+Keep these files with the chip, toolchain, and optimization tuple for any bug
+report. Without a probe the command fails and writes the error JSON to
+`selfcheck.json`. Do not fill in results by hand.

@@ -104,7 +104,7 @@ RTT uses target writes and probe reads. It does not need UART. If the firmware a
 ## GDB cannot connect
 
 - Port in use: run `ss -ltnp | grep 3333`, then use `-p 3334`.
-- The `--detach` process exited: read `~/.local/share/mcu-debug/gdbserver.log`.
+- The `--detach` process exited: read `gdbserver.log` in the data directory. `dap.py env` shows that directory.
 - GDB must load an ELF with symbols: `arm-none-eabi-gdb build/fw.elf -ex 'target extended-remote :3333'`. Without symbols, breakpoints work only by address.
 - Breakpoints are lost after reset: the pyOCD GDB server reloads software breakpoints. If `--persist` still fails, use hardware breakpoints.
 
