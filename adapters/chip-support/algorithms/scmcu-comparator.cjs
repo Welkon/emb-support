@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: vdd=4, target-threshold-v=1.5, expected=vref_v:1.5
+// @test_vector_basis: rbias 00: VDD/4 + (n+1)/32 x VDD = 1 + (n+1)/8, n=3 -> 1.5 V
 
 const shared = require('../core/shared.cjs');
 

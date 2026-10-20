@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-hz=1000, clock-hz=8000000, target-duty=50, expected=register_value:127
+// @test_vector_basis: duty register = (50% x 256) - 1 = 127; divider 31 gives 1008 Hz, the closest 8-bit option
 
 const shared = require('../core/shared.cjs');
 

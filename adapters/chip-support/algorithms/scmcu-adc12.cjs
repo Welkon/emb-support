@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-voltage=2, reference-v=5, expected=code_estimate.rounded:1638
+// @test_vector_basis: 2 V / 5 V x 4095 = 1638 (12-bit, VDD reference)
 
 const shared = require('../core/shared.cjs');
 

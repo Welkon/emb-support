@@ -1,6 +1,9 @@
 'use strict';
+// @test_vector: clock-hz=8000000, prescaler=16, target-us=1000, interrupt-edge=rising, interrupt-bit=10, expected=counts:500
+// @test_vector_basis: 8 MHz x 1 ms / 16 = 500 counts. "reload" is not asserted:
+//   the model uses 2**interrupt-bit as the threshold (2**10 - 500 = 524) while a
+//   16-bit counter would reload from 65536 (65036). Confirm against the datasheet.
 // @verified_against: Padauk PMS150G Datasheet v1.2, Section 8 "Timer16"
-// @test_vector: clock-hz=8000000, prescaler=16, target-us=1000, interrupt-edge=rising, interrupt-bit=10
 
 const shared = require('../core/shared.cjs');
 

@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-hz=1000, clock-hz=8000000, expected=period_value:999
+// @test_vector_basis: 8 MHz / (8 x 1 kHz) = 1000 counts; period register = counts-1 = 999
 
 const shared = require('../core/shared.cjs');
 

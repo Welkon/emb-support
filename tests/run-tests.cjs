@@ -58,6 +58,39 @@ function loadDeviceBinding(algorithmName) {
   return null;
 }
 
+function lookupField(root, dotted) {
+  return dotted.split('.').reduce((acc, key) => (acc === null || acc === undefined ? undefined : acc[key]), root);
+}
+
+// `expected=<field>:<value>` checks one output field; a bare `expected=<value>`
+// keeps the original meaning and checks `reload`.
+function compareExpected(result, spec) {
+  const colon = spec.lastIndexOf(':');
+  const path = colon === -1 ? 'reload' : spec.slice(0, colon).trim();
+  const wantRaw = colon === -1 ? spec : spec.slice(colon + 1).trim();
+  const outputs = result.outputs || {};
+  const root = outputs.best !== undefined ? outputs.best : outputs;
+
+  let actual = lookupField(root, path);
+  if (actual === undefined) {
+    actual = lookupField(outputs, path);
+  }
+  if (actual === undefined) {
+    return { status: 'fail', detail: `output field '${path}' is missing` };
+  }
+
+  const want = Number(wantRaw);
+  if (Number.isNaN(want) || typeof actual !== 'number') {
+    return { status: 'fail', detail: `cannot compare ${path}: expected=${wantRaw}, got=${actual}` };
+  }
+
+  const tolerance = Math.max(Math.abs(want) * 1e-6, 1e-9);
+  if (Math.abs(actual - want) <= tolerance) {
+    return { status: 'pass' };
+  }
+  return { status: 'fail', detail: `${path}: expected=${want}, got=${actual}` };
+}
+
 function runTest(algorithmName, algorithmPath, vectorRaw) {
   const algorithm = require(algorithmPath);
   const options = {};
@@ -77,7 +110,7 @@ function runTest(algorithmName, algorithmPath, vectorRaw) {
   }
 
   const expectedMatch = vectorRaw.match(/expected=([^,]+)/);
-  const expectedStr = expectedMatch ? expectedMatch[1].trim() : null;
+  const expectedSpec = expectedMatch ? expectedMatch[1].trim() : null;
 
   const bindingParams = loadDeviceBinding(algorithmName) || {};
 
@@ -90,13 +123,8 @@ function runTest(algorithmName, algorithmPath, vectorRaw) {
       return { status: 'skip', detail: (result.notes || []).join('; ') };
     }
     if (result.status === 'ok') {
-      if (expectedStr) {
-        const actualReload = result.outputs && (result.outputs.best ? result.outputs.best.reload : result.outputs.reload);
-        const expectedNum = Number(expectedStr);
-        if (!Number.isNaN(expectedNum) && actualReload === expectedNum) {
-          return { status: 'pass' };
-        }
-        return { status: 'fail', detail: `expected=${expectedStr}, got=${actualReload}` };
+      if (expectedSpec) {
+        return compareExpected(result, expectedSpec);
       }
       return { status: 'pass' };
     }

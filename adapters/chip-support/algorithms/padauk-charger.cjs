@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-current-ma=200, expected=current_ma:200
+// @test_vector_basis: device binding current_steps_ma contains 200 -> exact step
 
 const shared = require('../core/shared.cjs');
 

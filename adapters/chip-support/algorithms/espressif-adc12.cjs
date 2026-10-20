@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-voltage=1.25, expected=code_estimate.rounded:2048
+// @test_vector_basis: 1.25 V / 2.5 V full scale x 4095 = 2047.5 -> 2048 (12-bit, 12 dB)
 
 const shared = require('../core/shared.cjs');
 

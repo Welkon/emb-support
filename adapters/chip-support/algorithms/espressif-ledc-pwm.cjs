@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-hz=1000, duty-resolution=10, target-duty=50, expected=divider_fraction:32
+// @test_vector_basis: 80 MHz / (1 kHz x 1024) = 78.125; fraction .125 x 256 = 32 (8-bit divider fraction)
 
 const shared = require('../core/shared.cjs');
 

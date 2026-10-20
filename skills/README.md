@@ -61,3 +61,14 @@ their docs under `references/`, and they are routed from the top of
 An algorithm under `adapters/chip-support/algorithms/` without a `@test_vector`
 line fails the runner. Pass `--allow-missing-vectors` only for a deliberate
 work-in-progress run: the summary then lists every unverified algorithm.
+
+A vector should pin an output value, not only the status:
+
+```js
+// @test_vector: target-hz=1000, clock-hz=8000000, expected=period_value:999
+// @test_vector_basis: 8 MHz / (8 x 1 kHz) = 1000 counts; period = counts-1
+```
+
+`expected=<field>:<value>` checks one output field (`outputs.best` first, then
+`outputs`; dotted paths work). A bare `expected=<value>` keeps the original
+meaning and checks `reload`. Numbers compare with a 1e-6 relative tolerance.

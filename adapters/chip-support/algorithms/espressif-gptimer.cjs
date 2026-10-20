@@ -1,6 +1,7 @@
 'use strict';
+// @test_vector: clock-hz=80000000, prescaler=80, target-us=1000, expected=alarm_count:1000
+// @test_vector_basis: 1 ms x 80 MHz / 80 = 1000 counts; ESP32-C3 TRM 12 GPTimer alarm_count
 // @verified_against: ESP32-C3 TRM v1.0, Section 12 "GPTimer"
-// @test_vector: clock-hz=80000000, prescaler=80, target-us=1000
 
 const shared = require('../core/shared.cjs');
 

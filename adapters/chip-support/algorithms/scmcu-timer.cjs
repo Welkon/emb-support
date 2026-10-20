@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: clock-hz=8000000, prescaler=16, target-us=1000, expected=reload:131
+// @test_vector_basis: fsys/4 = 2 MHz, /16 = 125 kHz; 1 ms = 125 counts; 8-bit reload = 256-125 = 131
 
 const shared = require('../core/shared.cjs');
 

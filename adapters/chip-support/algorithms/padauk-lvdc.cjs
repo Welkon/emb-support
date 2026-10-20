@@ -1,4 +1,6 @@
 'use strict';
+// @test_vector: target-v=2, expected=register_value:12
+// @test_vector_basis: (2.00 V - 1.85 V) / 0.05 V = level 3; LVDC[7:2] -> 3 << 2 = 12
 
 const shared = require('../core/shared.cjs');
 
