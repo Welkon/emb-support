@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - name: Test Go core
         working-directory: skills/powersupply/go
         run: go test -race ./...
@@ -57,3 +57,4 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /tmp/psu.exe ./cmd/psu
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /tmp/psu ./cmd/psu
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui" -o /tmp/psu-desktop.exe ./cmd/psu-desktop

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
+        var t = localStorage.getItem("psu-theme");
+        var dark = t ? t === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.lang = localStorage.getItem("psu-lang") || "en";
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Power Supply</title>
+    <script>
+      window.addEventListener("error", function (e) {
+        var root = document.getElementById("root");
+        if (root && !root.childElementCount) root.innerHTML = '<pre style="padding:24px;color:#b91c1c;white-space:pre-wrap">' + (e.message || e.error) + '\n' + (e.error && e.error.stack || "") + '</pre>';
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        var root = document.getElementById("root");
+        if (root && !root.childElementCount) root.innerHTML = '<pre style="padding:24px;color:#b91c1c;white-space:pre-wrap">' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '</pre>';
+      });
+    </script>
+    <script type="module" crossorigin src="./assets/index-C289zz_9.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DmwyRjSZ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

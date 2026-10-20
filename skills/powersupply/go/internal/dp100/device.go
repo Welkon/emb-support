@@ -2,6 +2,7 @@ package dp100
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/hid"
 )
@@ -44,6 +45,7 @@ type Snapshot struct {
 }
 
 type Device struct {
+	mu       sync.Mutex
 	t        hid.Transport
 	Info     Info
 	V        float64
@@ -90,6 +92,12 @@ func (d *Device) DeviceInfo() Info              { return d.Info }
 func (d *Device) Setpoints() (float64, float64) { return d.V, d.I }
 func (d *Device) OutputOn() bool                { return d.Out }
 func (d *Device) Limits() (maxV, maxI float64)  { return d.MaxV, d.MaxI }
+
+func (d *Device) Status() (mode, work byte) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.lastMode, d.lastWork
+}
 
 func (d *Device) exchange(op byte, payload []byte) ([]byte, error) {
 	if err := d.t.Write(Encode(op, payload)); err != nil {
@@ -191,6 +199,8 @@ func (d *Device) applyProtection() error {
 }
 
 func (d *Device) SetVoltage(v float64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	old := d.V
 	d.V = v
 	if err := d.applyOutput(); err != nil {
@@ -201,6 +211,8 @@ func (d *Device) SetVoltage(v float64) error {
 }
 
 func (d *Device) SetCurrent(a float64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	old := d.I
 	d.I = a
 	if err := d.applyOutput(); err != nil {
@@ -211,6 +223,8 @@ func (d *Device) SetCurrent(a float64) error {
 }
 
 func (d *Device) SetOutput(on bool) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	old := d.Out
 	d.Out = on
 	if err := d.applyOutput(); err != nil {
@@ -221,6 +235,8 @@ func (d *Device) SetOutput(on bool) error {
 }
 
 func (d *Device) SetOVP(v float64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	old := d.OVP
 	d.OVP = v
 	if err := d.applyProtection(); err != nil {
@@ -231,6 +247,8 @@ func (d *Device) SetOVP(v float64) error {
 }
 
 func (d *Device) SetOCP(a float64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	old := d.OCP
 	d.OCP = a
 	if err := d.applyProtection(); err != nil {
@@ -241,6 +259,8 @@ func (d *Device) SetOCP(a float64) error {
 }
 
 func (d *Device) Measurement() (Measurement, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	b, err := d.readBasic()
 	if err != nil {
 		return Measurement{}, err
@@ -255,6 +275,8 @@ func (d *Device) Measurement() (Measurement, error) {
 }
 
 func (d *Device) Snapshot() (Snapshot, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	b, err := d.readBasic()
 	if err != nil {
 		return Snapshot{}, err

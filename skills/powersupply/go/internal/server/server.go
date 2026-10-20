@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -17,6 +20,7 @@ import (
 
 type Backend interface {
 	Snapshot() (dp100.Snapshot, error)
+	Status() (mode, work byte)
 	Measurement() (dp100.Measurement, error)
 	SetVoltage(float64) error
 	SetCurrent(float64) error
@@ -44,6 +48,7 @@ type Options struct {
 	MaxCurrent  float64
 	SampleHz    int
 	DistDir     string
+	DistFS      fs.FS
 	AllowOrigin string
 }
 
@@ -143,37 +148,45 @@ func (s *Server) cors(next http.Handler) http.Handler {
 
 func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	ch := 1
+	s.mu.RLock()
+	var last Sample
+	have := len(s.hist) > 0
+	if have {
+		last = s.hist[len(s.hist)-1]
+	}
+	s.mu.RUnlock()
+
 	s.devMu.Lock()
-	snap, err := s.dev.Snapshot()
 	info := s.dev.DeviceInfo()
 	vset, iset := s.dev.Setpoints()
 	out := s.dev.OutputOn()
 	maxV, _ := s.dev.Limits()
+	mode, work := s.dev.Status()
+	if !have {
+		if m, err := s.dev.Measurement(); err == nil {
+			last = Sample{Voltage: m.Voltage, Current: m.Current, Power: m.Power,
+				InputVoltage: &m.InputVoltage, Temperature: &m.Temperature}
+			have = true
+		}
+	}
 	s.devMu.Unlock()
-	if err != nil {
-		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
-		return
+
+	measurement := map[string]any{"voltage": 0.0, "current": 0.0, "power": 0.0}
+	if have {
+		measurement = map[string]any{
+			"voltage": last.Voltage, "current": last.Current, "power": last.Power,
+			"input_voltage": last.InputVoltage, "temperature": last.Temperature,
+		}
 	}
-	measurement := map[string]any{
-		"voltage": snap.Measurement.Voltage, "current": snap.Measurement.Current,
-		"power": snap.Measurement.Power, "input_voltage": snap.Measurement.InputVoltage,
-		"temperature": snap.Measurement.Temperature,
-	}
-	s.mu.RLock()
-	if len(s.hist) > 0 {
-		last := s.hist[len(s.hist)-1]
-		measurement["voltage"] = last.Voltage
-		measurement["current"] = last.Current
-		measurement["power"] = last.Power
-		measurement["input_voltage"] = last.InputVoltage
-		measurement["temperature"] = last.Temperature
-	}
-	s.mu.RUnlock()
 	output := "OFF"
 	if out {
 		output = "ON"
 	}
-	status := map[string]any{"output_mode": snap.Status.OutputMode, "work_state": snap.Status.WorkState}
+	modeName := map[byte]string{0: "CC", 1: "CV", 2: "OFF"}[mode]
+	if modeName == "" {
+		modeName = "OFF"
+	}
+	status := map[string]any{"output_mode": modeName, "work_state": work}
 	writeJSON(w, 200, map[string]any{
 		"ok": true, "idn": fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
 		"family": "dp100", "device_info": map[string]any{
@@ -350,6 +363,36 @@ func (s *Server) allOff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
+	if s.opt.DistFS != nil {
+		rel := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		if rel == "" || rel == "." {
+			rel = "index.html"
+		}
+		data, err := fs.ReadFile(s.opt.DistFS, rel)
+		if err != nil {
+			if strings.HasPrefix(rel, "assets/") {
+				writeJSON(w, 404, map[string]any{"ok": false, "error": "not found"})
+				return
+			}
+			rel = "index.html"
+			data, err = fs.ReadFile(s.opt.DistFS, rel)
+			if err != nil {
+				writeJSON(w, 404, map[string]any{"ok": false, "error": "not found"})
+				return
+			}
+		}
+		if rel == "index.html" {
+			w.Header().Set("Cache-Control", "no-cache")
+			if r.URL.Query().Get("desktop") == "1" {
+				data = bytes.Replace(data, []byte("</head>"),
+					[]byte(`<script type="module" src="/wails/runtime.js"></script></head>`), 1)
+			}
+		}
+		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(rel)))
+		w.WriteHeader(200)
+		w.Write(data)
+		return
+	}
 	if s.opt.DistDir == "" {
 		writeJSON(w, 404, map[string]any{"ok": false, "error": "not found"})
 		return

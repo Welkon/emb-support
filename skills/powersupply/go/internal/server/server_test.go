@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,18 +11,33 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
 )
 
 type fakeDev struct {
-	mu  sync.Mutex
-	v   float64
-	i   float64
-	out bool
-	ovp float64
-	ocp float64
+	mu   sync.Mutex
+	v    float64
+	i    float64
+	out  bool
+	ovp  float64
+	ocp  float64
+	mode byte
+	work byte
+}
+
+func (f *fakeDev) Status() (byte, byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.out {
+		return 2, f.work
+	}
+	if f.mode == 0 {
+		return 0, f.work
+	}
+	return 1, f.work
 }
 
 func (f *fakeDev) Snapshot() (dp100.Snapshot, error) {
@@ -145,5 +161,35 @@ func TestSetOutputHistoryStream(t *testing.T) {
 	}
 	if sample["t"] == nil {
 		t.Fatalf("stream sample = %+v", sample)
+	}
+}
+
+func TestDesktopRuntimeInjection(t *testing.T) {
+	f := &fakeDev{v: 3, i: 0.5}
+	s := New(f, Options{DistFS: fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head><body></body></html>")},
+	}})
+	defer s.Close()
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/?desktop=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if !strings.Contains(string(body), "/wails/runtime.js") {
+		t.Fatal("desktop index does not inject the Wails runtime")
+	}
+
+	res, err = http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ = io.ReadAll(res.Body)
+	res.Body.Close()
+	if strings.Contains(string(body), "/wails/runtime.js") {
+		t.Fatal("browser index must not inject the Wails runtime")
 	}
 }

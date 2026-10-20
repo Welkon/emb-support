@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CircularInput, CircularProgress, CircularThumb, CircularTrack } from "react-circular-input";
 import {
-  Activity, AlertTriangle, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
+  Activity, AlertTriangle, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Minus, Moon, Pause, Play,
   Plus, Power, RotateCcw, Settings2, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Volume2, VolumeX, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -253,6 +253,8 @@ export default function App() {
   const lastAlertRef = useRef("");
   const headerRef = useRef<HTMLElement>(null);
   const [headerH, setHeaderH] = useState(72);
+  const [desktop] = useState(() => new URLSearchParams(location.search).has("desktop") || Boolean((window as any).wails?.Window));
+  const wailsWindow = () => (window as any).wails?.Window;
   const [toast, setToast] = useState<{ title: string; detail: string } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [sound, setSound] = useState(() => localStorage.getItem("psu-sound") !== "0");
@@ -513,6 +515,37 @@ export default function App() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1440px] space-y-5 px-5 pb-6 lg:px-8" style={{ paddingTop: headerH + 8 }}>
         <header ref={headerRef} className="fixed inset-x-0 top-0 z-40 border-t-2 border-t-primary border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          {desktop && (
+            <div
+              className="flex h-8 items-center justify-between border-b border-border/50 bg-background/60 pl-4 pr-2"
+              style={{ "--wails-draggable": "drag" } as CSSProperties}
+              onDoubleClick={() => wailsWindow()?.ToggleMaximise()}
+            >
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary/80" />
+                Power Supply
+                <span className="font-normal text-border">/</span>
+                <span className="font-mono font-normal normal-case tracking-normal">DP100</span>
+              </div>
+              <div className="flex items-center gap-0.5" style={{ "--wails-draggable": "no-drag" } as CSSProperties}>
+                <button type="button" aria-label="Minimise" title="Minimise"
+                  className="grid h-7 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => wailsWindow()?.Minimise()}>
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" aria-label="Maximise" title="Maximise"
+                  className="grid h-7 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => wailsWindow()?.ToggleMaximise()}>
+                  <Square className="h-3 w-3" />
+                </button>
+                <button type="button" aria-label="Close" title="Close"
+                  className="grid h-7 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => wailsWindow()?.Close()}>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
           <div className="mx-auto max-w-[1440px] px-5 py-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -646,6 +679,7 @@ export default function App() {
                 <LiveChart ref={chartRef} key={channel}
                   streamUrl={`/api/stream?ch=${channel}&hz=${hz}`}
                   historyUrl={`/api/history?ch=${channel}&seconds=62`}
+                  poll={desktop}
                   dark={dark} height={400} windowMs={windowMs}
                   cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
                   showV={showV} showA={showA} paused={paused} enabled={on}

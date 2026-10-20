@@ -57,8 +57,9 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   streamUrl: string; historyUrl: string; dark: boolean; height?: number; windowMs: number;
   cache: boolean; vset?: number | null; iset?: number | null; showV: boolean; showA: boolean; paused: boolean; enabled: boolean;
   vManual?: [number, number] | null; iManual?: [number, number] | null; smooth?: number; delayMs?: number;
+  poll?: boolean;
 }>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused, enabled,
-  vManual = null, iManual = null, smooth = 0, delayMs = 160 }, ref) {
+  vManual = null, iManual = null, smooth = 0, delayMs = 160, poll = false }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const bufferRef = useRef<Point[]>([]);
@@ -310,6 +311,13 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   useEffect(() => {
     let cancelled = false;
     let es: EventSource | null = null;
+    let timer: number | undefined;
+    const appendSamples = (d: { samples?: { t: number; voltage?: number | null; current?: number | null; power?: number | null }[] }) => {
+      if (cancelled || !d?.samples) return;
+      for (const s of d.samples) {
+        appendPoint({ t: s.t, v: s.voltage ?? null, i: s.current ?? null, p: s.power ?? null });
+      }
+    };
     const startStream = () => {
       if (cancelled) return;
       es = new EventSource(streamUrl);
@@ -320,18 +328,23 @@ export const LiveChart = forwardRef<LiveChartHandle, {
         appendPoint({ t: d.t, v: d.voltage ?? null, i: d.current ?? null, p: d.power ?? null });
       };
     };
+    const pollOnce = async () => {
+      try {
+        const url = new URL(historyUrl, location.origin);
+        url.searchParams.set("seconds", "4");
+        appendSamples(await (await fetch(url)).json());
+      } catch { /* retry below */ }
+      if (!cancelled) timer = window.setTimeout(pollOnce, 120);
+    };
     fetch(historyUrl)
       .then((r) => r.json())
       .then((d) => {
-        if (cancelled || !d?.samples) return;
-        for (const s of d.samples) {
-          appendPoint({ t: s.t, v: s.voltage ?? null, i: s.current ?? null, p: s.power ?? null });
-        }
+        appendSamples(d);
+        if (poll) pollOnce(); else startStream();
       })
-      .catch(() => { /* history is optional */ })
-      .finally(startStream);
-    return () => { cancelled = true; es?.close(); };
-  }, [historyUrl, streamUrl, appendPoint]);
+      .catch(() => { if (poll) pollOnce(); else startStream(); });
+    return () => { cancelled = true; es?.close(); if (timer) window.clearTimeout(timer); };
+  }, [historyUrl, streamUrl, appendPoint, poll]);
 
   const vC = dark ? "#FF8A5C" : "#C2410C";
   const iC = dark ? "#5CC8E5" : "#0E7490";
