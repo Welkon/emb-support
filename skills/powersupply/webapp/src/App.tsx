@@ -864,7 +864,7 @@ function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02, pulse = 
         <div className={cn("absolute inset-0 rounded-full border border-border bg-card shadow-sm transition-all duration-300",
           pulse && "ring-2 ring-primary/35 shadow-[0_0_16px_-5px_hsl(var(--primary)/0.35)]")}>
           <div className="absolute inset-[6px] rounded-full border border-border/70 bg-muted/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]" />
-          <div className="absolute inset-0 transition-transform duration-700 ease-out" style={{ transform: `rotate(${v * 270 - 135}deg)` }}>
+          <div className="absolute inset-0 transition-transform duration-700 ease-out" style={{ transform: `rotate(${v * 360}deg)` }}>
             <span className="absolute left-1/2 top-1.5 h-3 w-[2px] -translate-x-1/2 rounded-full bg-primary" />
           </div>
           <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-card" />
