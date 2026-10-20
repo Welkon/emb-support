@@ -3,6 +3,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"io/fs"
 	"log"
@@ -14,6 +15,9 @@ import (
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/webassets"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+//go:embed icon.png
+var appIcon []byte
 
 func externalWebDir() string {
 	if dir := os.Getenv("PSU_WEB_DIR"); dir != "" {
@@ -84,6 +88,7 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Power Supply",
 		Description: "Programmable power supply control",
+		Icon:        appIcon,
 		Assets: application.AssetOptions{
 			Handler: srv.Handler(),
 		},
