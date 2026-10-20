@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { CircularInput, CircularProgress, CircularThumb, CircularTrack } from "react-circular-input";
 import {
   Activity, AlertTriangle, ChevronDown, Cpu, Database, Download, Gauge, Info, Languages, Moon, Pause, Play,
-  Plus, Power, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Volume2, VolumeX, Waves, X, Zap,
+  Plus, Power, RotateCcw, Settings2, ShieldCheck, SlidersHorizontal, Square, Sun, Trash2, Volume2, VolumeX, Waves, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,13 @@ type Limits = { max_voltage?: number; max_current?: number; max_ovp?: number; ma
 type Caps = { power: boolean; ovp: boolean; ocp: boolean; output_state: boolean; input_voltage: boolean; temperature: boolean };
 type Measurement = { voltage: number | null; current: number | null; power: number | null; input_voltage: number | null; temperature: number | null };
 type Preset = { v: number; i: number };
+type ChartSettings = { vDiv: number; vPos: number; iDiv: number; iPos: number; smooth: number; delay: number };
+const DEFAULT_CHART_SETTINGS: ChartSettings = {
+  vDiv: 0.05, vPos: 0, iDiv: 0.02, iPos: 0, smooth: 0, delay: 160,
+};
+const VDIV = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
+const IDIV = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2];
+
 const DEFAULT_PRESETS: Preset[] = [
   { v: 3.3, i: 0.5 }, { v: 5, i: 0.5 }, { v: 9, i: 1 }, { v: 12, i: 1 }, { v: 24, i: 0.5 },
 ];
@@ -39,6 +47,11 @@ const STR = {
     connected: "Connected", disconnected: "Disconnected", pause: "Pause", resume: "Resume", quick: "Quick V",
     presets: "Presets", savePreset: "Save current", presetPlaceholder: "Select a preset…",
     soundOn: "Sound on", soundOff: "Muted",
+    chartSettings: "Chart settings", chartSettingsHint: "Tune the Y range, smoothing and display buffer.",
+    autoY: "Auto Y range", voltageRange: "Voltage", currentRange: "Current",
+    voltsPerDiv: "V / div", ampsPerDiv: "A / div", center: "Center", vPos: "V pos", aPos: "A pos",
+    smoothing: "Smoothing", displayDelay: "Display buffer (ms)", reset: "Reset", applySettings: "Apply",
+    min: "Min", max: "Max",
     wheelHint: "Scroll to adjust (Shift x10, Alt x0.1)", applyHint: "Enter or click away to apply",
     deviceAlert: "Device alert", connectionLost: "Device disconnected", operationFailed: "Operation failed",
     connectionHint: "Check the USB cable and power. The page retries automatically.",
@@ -80,6 +93,11 @@ const STR = {
     connected: "已连接", disconnected: "未连接", pause: "暂停", resume: "继续", quick: "常用电压",
     presets: "预设", savePreset: "保存当前", presetPlaceholder: "选择预设…",
     soundOn: "音效开", soundOff: "静音",
+    chartSettings: "图表设置", chartSettingsHint: "调整 Y 轴范围、平滑程度和显示缓冲。",
+    autoY: "自动 Y 轴范围", voltageRange: "电压", currentRange: "电流",
+    voltsPerDiv: "V / 格", ampsPerDiv: "A / 格", center: "中心", vPos: "V 位置", aPos: "A 位置",
+    smoothing: "平滑", displayDelay: "显示缓冲 (ms)", reset: "重置", applySettings: "应用",
+    min: "最小", max: "最大",
     wheelHint: "滚轮调节（Shift ×10，Alt ×0.1）", applyHint: "回车或移出输入框即应用",
     deviceAlert: "设备异常", connectionLost: "设备连接中断", operationFailed: "操作失败",
     connectionHint: "请检查 USB 线和供电；页面会自动重试连接。",
@@ -208,6 +226,20 @@ export default function App() {
   });
   const [cache, setCache] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [chartSettings, setChartSettings] = useState<ChartSettings>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("psu-chart-settings") || "null");
+      if (!raw) return DEFAULT_CHART_SETTINGS;
+      const saved = { ...DEFAULT_CHART_SETTINGS, ...raw };
+      if (!VDIV.includes(saved.vDiv)) saved.vDiv = DEFAULT_CHART_SETTINGS.vDiv;
+      if (!IDIV.includes(saved.iDiv)) saved.iDiv = DEFAULT_CHART_SETTINGS.iDiv;
+      return saved;
+    } catch { return DEFAULT_CHART_SETTINGS; }
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [draft, setDraft] = useState<ChartSettings>(chartSettings);
+  const [vScopeRef, setVScopeRef] = useState(chartSettings.vPos);
+  const [iScopeRef, setIScopeRef] = useState(chartSettings.iPos);
   const [vset, setVset] = useState("");
   const [iset, setIset] = useState("");
   const [ovp, setOvp] = useState("");
@@ -272,6 +304,7 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
   useEffect(() => { localStorage.setItem("psu-window", String(windowMs)); }, [windowMs]);
+  useEffect(() => { localStorage.setItem("psu-chart-settings", JSON.stringify(chartSettings)); }, [chartSettings]);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("psu-theme", dark ? "dark" : "light");
@@ -363,6 +396,45 @@ export default function App() {
 
   const faultHint = work !== undefined
     ? ((t.faultHints as Record<number, string>)[work] ?? t.faultHints[0]) : "";
+  const vManual: [number, number] = [chartSettings.vPos - chartSettings.vDiv * 2, chartSettings.vPos + chartSettings.vDiv * 2];
+  const iManual: [number, number] = [chartSettings.iPos - chartSettings.iDiv * 2, chartSettings.iPos + chartSettings.iDiv * 2];
+  const openSettings = () => { setDraft(chartSettings); setSettingsOpen(true); };
+  const vDivIndex = Math.max(0, VDIV.indexOf(chartSettings.vDiv));
+  const iDivIndex = Math.max(0, IDIV.indexOf(chartSettings.iDiv));
+  const vPosLo = vScopeRef - chartSettings.vDiv * 5;
+  const vPosHi = vScopeRef + chartSettings.vDiv * 5;
+  const iPosLo = iScopeRef - chartSettings.iDiv * 5;
+  const iPosHi = iScopeRef + chartSettings.iDiv * 5;
+  const setScope = (patch: Partial<ChartSettings>) => {
+    setChartSettings((prev) => ({ ...prev, ...patch }));
+    setScopeMode("MAN");
+  };
+  const [scopeMode, setScopeMode] = useState<"AUTO" | "MAN">(() =>
+    localStorage.getItem("psu-chart-initialized") === "1" ? "MAN" : "AUTO");
+  const [scopeInitialized, setScopeInitialized] = useState(() =>
+    localStorage.getItem("psu-chart-initialized") === "1");
+  const nearest = (options: number[], want: number) => options.reduce((best, v) => Math.abs(v - want) < Math.abs(best - want) ? v : best, options[0]);
+  const autoSet = () => {
+    const v = data?.measurement.voltage ?? 0;
+    const i = data?.measurement.current ?? 0;
+    const centerV = Math.abs(v) > 0.01 ? v : (data?.setpoint.voltage ?? 0);
+    const centerI = Math.abs(i) > 1e-4 ? i : 0;
+    const vDiv = nearest(VDIV, Math.max(0.005, Math.abs(centerV) * 0.01));
+    const iDiv = nearest(IDIV, Math.max(0.01, Math.abs(centerI) * 0.05));
+    setChartSettings((prev) => ({ ...prev, vDiv, vPos: centerV, iDiv, iPos: centerI }));
+    setVScopeRef(centerV);
+    setIScopeRef(centerI);
+    setScopeMode("MAN");
+    setScopeInitialized(true);
+    localStorage.setItem("psu-chart-initialized", "1");
+  };
+  const autoInit = useRef(false);
+  useEffect(() => {
+    if (data && !scopeInitialized && !autoInit.current) {
+      autoInit.current = true;
+      autoSet();
+    }
+  }, [data?.idn, channel, scopeInitialized]);
   const overtemp = caps?.temperature && data?.measurement.temperature != null
     && data.measurement.temperature >= 60;
   const alert = !connected && data
@@ -532,6 +604,7 @@ export default function App() {
                   <select value={windowMs} onChange={(e) => setWindowMs(Number(e.target.value))} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring" aria-label="time window">
                     <option value={10000}>10s</option><option value={30000}>30s</option><option value={60000}>60s</option>
                   </select>
+                  <Button size="sm" variant="outline" onClick={openSettings} title={t.chartSettings}><Settings2 /></Button>
                   <Button size="sm" variant={paused ? "secondary" : "outline"} onClick={() => setPaused(!paused)}>
                     {paused ? <Play /> : <Pause />} {paused ? t.resume : t.pause}
                   </Button>
@@ -541,12 +614,50 @@ export default function App() {
                 </div>
               </CardHeader>
               <CardContent>
+                <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                 <LiveChart ref={chartRef} key={channel}
                   streamUrl={`/api/stream?ch=${channel}&hz=${hz}`}
                   historyUrl={`/api/history?ch=${channel}&seconds=62`}
                   dark={dark} height={400} windowMs={windowMs}
                   cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
-                  showV={showV} showA={showA} paused={paused} enabled={on} />
+                  showV={showV} showA={showA} paused={paused} enabled={on}
+                  vManual={vManual} iManual={iManual} smooth={chartSettings.smooth} delayMs={chartSettings.delay} />
+                </div>
+                <div className="hidden w-[82px] shrink-0 flex-col items-center justify-center gap-2 border-l border-border/60 pl-2 md:flex">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <button onClick={autoSet} title="Auto set and save to MAN"
+                      className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[9px] tracking-widest text-primary">
+                      AUTO
+                    </button>
+                    <span className="font-mono text-[8px] tracking-widest text-muted-foreground">{scopeMode}</span>
+                  </div>
+                  <ScopeKnob label={t.voltsPerDiv}
+                    value={vDivIndex / (VDIV.length - 1)}
+                    wheelStep={1 / (VDIV.length - 1)}
+                    display={chartSettings.vDiv < 1 ? `${Math.round(chartSettings.vDiv * 1000)} mV` : `${chartSettings.vDiv} V`}
+                    onChange={(x) => {
+                      const next = VDIV[Math.round(x * (VDIV.length - 1))];
+                      setScope({ vDiv: next });
+                    }} />
+                  <ScopeKnob label={t.vPos}
+                    value={(chartSettings.vPos - vPosLo) / (vPosHi - vPosLo)}
+                    display={`${chartSettings.vPos.toFixed(2)} V`}
+                    onChange={(x) => setScope({ vPos: vPosLo + x * (vPosHi - vPosLo) })} />
+                  <ScopeKnob label={t.ampsPerDiv}
+                    value={iDivIndex / (IDIV.length - 1)}
+                    wheelStep={1 / (IDIV.length - 1)}
+                    display={chartSettings.iDiv < 1 ? `${Math.round(chartSettings.iDiv * 1000)} mA` : `${chartSettings.iDiv} A`}
+                    onChange={(x) => {
+                      const next = IDIV[Math.round(x * (IDIV.length - 1))];
+                      setScope({ iDiv: next });
+                    }} />
+                  <ScopeKnob label={t.aPos}
+                    value={(chartSettings.iPos - iPosLo) / (iPosHi - iPosLo)}
+                    display={`${chartSettings.iPos.toFixed(2)} A`}
+                    onChange={(x) => setScope({ iPos: iPosLo + x * (iPosHi - iPosLo) })} />
+                </div>
+                </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
                   <span>{fill(t.samples, { n: sampleCount })}</span>
                   <Button size="sm" variant="outline" onClick={download} disabled={!sampleCount}><Download /> CSV</Button>
@@ -616,6 +727,61 @@ export default function App() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent>
+            <DialogTitle>{t.chartSettings}</DialogTitle>
+            <DialogDescription>{t.chartSettingsHint}</DialogDescription>
+            <div className="mt-4 space-y-4">
+              <div className="space-y-2">
+                <Label>{t.voltageRange}</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={draft.vDiv} disabled={draft.autoY}
+                    onChange={(e) => setDraft({ ...draft, vDiv: Number(e.target.value) })}
+                    className="h-9 rounded-md border border-border bg-background px-2 font-mono text-xs disabled:opacity-50">
+                    {VDIV.map((v) => <option key={v} value={v}>{v * 1000 < 1000 ? `${v * 1000} mV/div` : `${v} V/div`}</option>)}
+                  </select>
+                  <Input inputMode="decimal" placeholder={t.center} value={draft.vPos} disabled={draft.autoY}
+                    onChange={(e) => setDraft({ ...draft, vPos: Number(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.currentRange}</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={draft.iDiv} disabled={draft.autoY}
+                    onChange={(e) => setDraft({ ...draft, iDiv: Number(e.target.value) })}
+                    className="h-9 rounded-md border border-border bg-background px-2 font-mono text-xs disabled:opacity-50">
+                    {IDIV.map((v) => <option key={v} value={v}>{v * 1000 < 1000 ? `${v * 1000} mA/div` : `${v} A/div`}</option>)}
+                  </select>
+                  <Input inputMode="decimal" placeholder={t.center} value={draft.iPos} disabled={draft.autoY}
+                    onChange={(e) => setDraft({ ...draft, iPos: Number(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t.smoothing} · {Math.round(draft.smooth * 100)}%</Label>
+                <input type="range" min={0} max={0.9} step={0.05} value={draft.smooth}
+                  onChange={(e) => setDraft({ ...draft, smooth: Number(e.target.value) })}
+                  className="w-full accent-[hsl(var(--primary))]" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t.displayDelay} · {draft.delay} ms</Label>
+                <input type="range" min={0} max={400} step={20} value={draft.delay}
+                  onChange={(e) => setDraft({ ...draft, delay: Number(e.target.value) })}
+                  className="w-full accent-[hsl(var(--primary))]" />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-between gap-2">
+              <Button variant="ghost" onClick={() => setDraft(DEFAULT_CHART_SETTINGS)}><RotateCcw /> {t.reset}</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setSettingsOpen(false)}>{t.cancel}</Button>
+                <Button onClick={() => {
+                  setChartSettings(draft); setVScopeRef(draft.vPos); setIScopeRef(draft.iPos);
+                  setScopeMode("MAN"); setSettingsOpen(false);
+                }}>{t.applySettings}</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <AnimatePresence>
         {toast && (
           <motion.div role="alert" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -660,6 +826,40 @@ function NumberInput({ value, onChange, step = 0.1, min = 0, max = 100, ...props
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
   return <Input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} {...props} />;
+}
+
+function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02 }: {
+  label: string; value: number; display: string; onChange: (v: number) => void; wheelStep?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef({ value, onChange, wheelStep });
+  latest.current = { value, onChange, wheelStep };
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const l = latest.current;
+      const dir = e.deltaY < 0 ? 1 : -1;
+      l.onChange(Math.min(1, Math.max(0, l.value + dir * l.wheelStep)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  return (
+    <div ref={ref} tabIndex={0} title={`${label} · scroll to adjust`}
+      className="flex w-full flex-col items-center gap-0.5 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-muted/50">
+        <CircularInput value={Math.min(1, Math.max(0, value))} radius={21} onChange={onChange} aria-label={label}>
+          <CircularTrack stroke="hsl(var(--border))" strokeWidth={3} />
+          <CircularProgress stroke="hsl(var(--primary))" strokeWidth={3} />
+          <CircularThumb r={4} fill="hsl(var(--primary))" />
+        </CircularInput>
+      </div>
+      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className="font-mono text-[10px] tabular-nums">{display}</span>
+    </div>
+  );
 }
 
 function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIset, setOvp, setOcp, editing, onApply, onOutput, onProtect, onConfirmOn, presets, onPreset, onSavePreset }: {

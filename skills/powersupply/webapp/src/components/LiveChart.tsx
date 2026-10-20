@@ -9,7 +9,6 @@ echarts.use([LineChart, GridComponent, CanvasRenderer]);
 export type Point = { t: number; v: number | null; i: number | null; p: number | null };
 export type LiveChartHandle = { history: () => Point[] };
 const LEAD_MS = 30;
-const BUFFER_MS = 160;
 
 function niceBounds(lo: number, hi: number): [number, number] {
   const raw = (hi - lo) / 4;
@@ -31,6 +30,14 @@ function baseRange(kind: "v" | "i", vset?: number | null, iset?: number | null):
   return null;
 }
 
+function baseFromValues(values: number[], minSpan: number): [number, number] | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const center = sorted[Math.floor(sorted.length / 2)];
+  const half = Math.max(minSpan, (sorted[sorted.length - 1] - sorted[0]) * 0.6);
+  return niceBounds(center - half, center + half);
+}
+
 function stableRange(values: number[], current: [number, number] | null, base: [number, number] | null): [number, number] {
   if (!values.length) return base ?? current ?? [0, 1];
   const dataLo = Math.min(...values), dataHi = Math.max(...values);
@@ -49,7 +56,9 @@ function stableRange(values: number[], current: [number, number] | null, base: [
 export const LiveChart = forwardRef<LiveChartHandle, {
   streamUrl: string; historyUrl: string; dark: boolean; height?: number; windowMs: number;
   cache: boolean; vset?: number | null; iset?: number | null; showV: boolean; showA: boolean; paused: boolean; enabled: boolean;
-}>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused, enabled }, ref) {
+  vManual?: [number, number] | null; iManual?: [number, number] | null; smooth?: number; delayMs?: number;
+}>(function LiveChart({ streamUrl, historyUrl, dark, height = 430, windowMs, cache, vset, iset, showV, showA, paused, enabled,
+  vManual = null, iManual = null, smooth = 0, delayMs = 160 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const bufferRef = useRef<Point[]>([]);
@@ -65,6 +74,10 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   const vsetRef = useRef(vset);
   const isetRef = useRef(iset);
   const enabledRef = useRef(enabled);
+  const vManualRef = useRef(vManual);
+  const iManualRef = useRef(iManual);
+  const smoothRef = useRef(smooth);
+  const delayRef = useRef(delayMs);
   const rafRef = useRef(0);
   const [hasData, setHasData] = useState(false);
   const hasDataRef = useRef(false);
@@ -77,6 +90,10 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   vsetRef.current = vset;
   isetRef.current = iset;
   enabledRef.current = enabled;
+  vManualRef.current = vManual;
+  iManualRef.current = iManual;
+  smoothRef.current = smooth;
+  delayRef.current = delayMs;
 
   useImperativeHandle(ref, () => ({ history: () => bufferRef.current.slice() }), []);
 
@@ -84,7 +101,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const chart = chartRef.current;
     if (!chart) return;
     const now = Date.now();
-    const displayNow = now - BUFFER_MS;
+    const displayNow = now - delayRef.current;
     const cutoff = displayNow - windowRef.current - 2000;
     const start = displayNow - windowRef.current + LEAD_MS;
     const end = displayNow + LEAD_MS;
@@ -92,29 +109,45 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     const iData: [number, number][] = [];
     const vs: number[] = [];
     const is: number[] = [];
+    const alpha = 1 - smoothRef.current;
+    let vEma: number | null = null;
+    let iEma: number | null = null;
     for (const p of bufferRef.current) {
       if (p.t < cutoff || p.t > end) continue;
-      if (p.v != null) { vData.push([p.t, p.v]); vs.push(p.v); }
-      if (p.i != null) { iData.push([p.t, p.i]); is.push(p.i); }
-    }
-    const interpolate = (key: "v" | "i", t: number): number | null => {
-      let prev = null, next = null;
-      for (const p of bufferRef.current) {
-        if (p[key] == null) continue;
-        if (p.t <= t) prev = p;
-        else { next = p; break; }
+      if (p.v != null) {
+        vEma = vEma == null ? p.v : vEma + alpha * (p.v - vEma);
+        vData.push([p.t, vEma]); vs.push(vEma);
       }
-      if (!prev) return next && next[key] != null ? next[key] : null;
-      if (!next || next[key] == null) return prev[key];
-      const f = (t - prev.t) / Math.max(1, next.t - prev.t);
-      return (prev[key] as number) + f * ((next[key] as number) - (prev[key] as number));
-    };
-    const headV = interpolate("v", end);
-    const headI = interpolate("i", end);
-    if (headV != null) { vData.push([end, headV]); vs.push(headV); }
-    if (headI != null) { iData.push([end, headI]); is.push(headI); }
-    const vRange = stableRange(vs, vRangeRef.current, baseRange("v", vsetRef.current, isetRef.current));
-    const iRange = stableRange(is, iRangeRef.current, baseRange("i", vsetRef.current, isetRef.current));
+      if (p.i != null) {
+        iEma = iEma == null ? p.i : iEma + alpha * (p.i - iEma);
+        iData.push([p.t, iEma]); is.push(iEma);
+      }
+    }
+    if (smoothRef.current > 0) {
+      if (vEma != null) { vData.push([end, vEma]); vs.push(vEma); }
+      if (iEma != null) { iData.push([end, iEma]); is.push(iEma); }
+    } else {
+      const interpolate = (key: "v" | "i", t: number): number | null => {
+        let prev = null, next = null;
+        for (const p of bufferRef.current) {
+          if (p[key] == null) continue;
+          if (p.t <= t) prev = p;
+          else { next = p; break; }
+        }
+        if (!prev) return next && next[key] != null ? next[key] : null;
+        if (!next || next[key] == null) return prev[key];
+        const f = (t - prev.t) / Math.max(1, next.t - prev.t);
+        return (prev[key] as number) + f * ((next[key] as number) - (prev[key] as number));
+      };
+      const headV = interpolate("v", end);
+      const headI = interpolate("i", end);
+      if (headV != null) { vData.push([end, headV]); vs.push(headV); }
+      if (headI != null) { iData.push([end, headI]); is.push(headI); }
+    }
+    const vBase = baseFromValues(vs, 0.05) ?? baseRange("v", vsetRef.current, isetRef.current);
+    const iBase = baseFromValues(is, 0.03) ?? baseRange("i", vsetRef.current, isetRef.current);
+    const vRange = vManualRef.current ?? stableRange(vs, vRangeRef.current, vBase);
+    const iRange = iManualRef.current ?? stableRange(is, iRangeRef.current, iBase);
     vRangeRef.current = vRange;
     iRangeRef.current = iRange;
     const axis = darkRef.current ? "#94a3b8" : "#64748b";
@@ -251,7 +284,7 @@ export const LiveChart = forwardRef<LiveChartHandle, {
     };
   }, [draw]);
 
-  useEffect(() => { scheduleDraw(); }, [dark, showV, showA, paused, scheduleDraw]);
+  useEffect(() => { scheduleDraw(); }, [dark, showV, showA, paused, smooth, delayMs, vManual, iManual, scheduleDraw]);
 
   useEffect(() => {
     let raf = 0;

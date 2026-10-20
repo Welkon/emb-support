@@ -381,13 +381,13 @@ class Dp100Device(Device):
                 "input_voltage": b["vin_mv"] / 1000,
                 "temperature": b["temp_deci_c"] / 10,
             },
-            "status": {"output_mode": {0: "CV", 1: "CC", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
+            "status": {"output_mode": {0: "CC", 1: "CV", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
                         "work_state": b["work_state"]},
         }
 
     def status(self, ch):
         b = self._basic()
-        return {"output_mode": {0: "CV", 1: "CC", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
+        return {"output_mode": {0: "CC", 1: "CV", 2: "OFF"}.get(b["out_mode"], b["out_mode"]),
                 "work_state": b["work_state"]}
 
     def output(self, ch, on):
