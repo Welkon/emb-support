@@ -4,7 +4,7 @@ ID: `mcu/padauk-pmb180b-registers`
 
 ## Purpose
 
-This summary covers only the `PMB180(B)` registers/macros actually used by currently implemented `emb-agent-adapters` tools.
+This summary covers only the `PMB180(B)` registers and macros that this skill uses. The arithmetic lives in `calculators.md`.
 
 It is NOT a complete register manual, nor a replacement for the original datasheet.
 
@@ -196,5 +196,5 @@ It is NOT a complete register manual, nor a replacement for the original datashe
 ## Maintenance Boundaries
 
 - Only keep "register summaries that current tools encounter"
-- Specific algorithm parameters still follow `extensions/tools/devices/pmb180b.json` and `chip-support/algorithms/*.cjs`
+- Specific algorithm parameters live in `calculators.md`
 - If adding uncovered peripherals later, supplement summaries incrementally in the same manner; do not copy the entire register manual directly

@@ -2,7 +2,7 @@
 
 Standalone companion repository for optional emb-agent assets.
 
-`emb-agent` keeps core runtime behavior in-tree: startup flow, task routing, core protocols, analysis artifacts, and the `adapter derive|generate|export|publish` command surface.
+`emb-agent` keeps core runtime behavior in-tree: startup flow, task routing, core protocols, analysis artifacts, and the core chip-support template.
 
 This repository only carries reusable external assets that should stay installable and versionable outside the core runtime.
 
@@ -10,19 +10,31 @@ This repository only carries reusable external assets that should stay installab
   External rule packs selected during install or project bootstrap. Keep vendor/compiler/IDE conventions and special family guidance here. Current reusable specs include `padauk-space` and `scmcu-space`; generic MCU and low-ROM baseline specs live in `emb-agent` core.
 - `skills/`
   Installable skill bundle source. The installer can preview and select individual skills from this directory.
-- `adapters/`
-  Shared chip-support catalog content reused by `support bootstrap|sync` and by maintainer-side adapter publication flows.
 
 Typical split:
 
 - Put core workflow behavior in `emb-agent`
 - Put reusable external rules in `emb-support/specs`
 - Put optional installable skills in `emb-support/skills`
-- Put reusable chip-support assets in `emb-support/adapters`
+- Put chip facts and register notes in an installable skill (`skills/*/references/`)
+
+## What moved out
+
+`adapters/` was retired in 2026-10. Nothing consumed it: `emb-agent` has no
+`support`/`adapter` command, `runtime/config.json` had no reader for
+`default_chip_support_source`, and projects author their own
+`.emb-agent/chip-support/routes/*.cjs` from the `tool-chip-support` template.
+
+- register summaries, source digests and the sleep/wake pattern now live in
+  `skills/mcu-debug/references/sources/`
+- the arithmetic of the removed calculators is kept as formulae in
+  `skills/mcu-debug/references/sources/calculators.md`
+- `specs/` is unchanged and remains the distribution source for
+  `emb-agent install --spec <name>`
 
 ## Contributing
 
-Adapters, specs and skills are the point of this repository, so additions from outside the maintainers are welcome: a chip family's register rules, a vendor toolchain spec, or a skill a firmware team keeps rewriting. Each directory carries its own guidance (`adapters/ADDING-ADAPTERS.md`, `adapters/REPO-CONTRACT.md`); run what `tests/` covers before opening a pull request.
+Specs and skills are the point of this repository, so additions from outside the maintainers are welcome: a vendor toolchain spec, a skill a firmware team keeps rewriting, or reviewed register notes for a chip family. Run `node tests/run-tests.cjs` before opening a pull request.
 
 By opening a pull request you license your contribution under Apache-2.0, the terms below.
 

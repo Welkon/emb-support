@@ -26,8 +26,16 @@ Do this step first. The three toolchains are independent.
 | CA51, CA51M550S1B, TK3 touch, TFT emulator downloader, CACHIP, writer slot, downloader firmware update | `references/cachip.md` and `scripts/cachip/`. Windows and `hidapi` are required. |
 | PIC, SCMCU, XC8, `.scw`, SCMCU IDE, build, ROM/RAM, map file | `references/xc8-build.md` and `scripts/xc8/build_xc8.py`. Windows and the XC8 toolchain are required. |
 | ARM Cortex-M, DAPLink, CMSIS-DAP, ST-Link, J-Link, SWD, RTT, HardFault, probe-rs | The rest of this document and `scripts/dap.py`. |
+| Prescaler/period arithmetic, ADC code, comparator threshold, LVDC level, charger current step, register field layout | `references/sources/calculators.md` and the matching `references/sources/<chip>-registers.md`. |
 
 Do not apply the CACHIP or XC8 flow to an ARM target. Do not connect pyOCD to a CA51 or PIC target.
+
+`references/sources/` holds reviewed chip notes that came from the retired
+`adapters/` tree: register summaries for ESP32-C3, PMS150G, PMB180B, SC8F072 and
+the TQ322 part, the SC8P062B sleep/wake pattern, and `calculators.md` with the
+formulae the removed `.cjs` calculators used. Read the formula, compute the
+value, then write the register. Confirm the formula against the register summary
+before you rely on it.
 
 ## 0.1 Probe task routing
 

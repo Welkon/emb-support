@@ -4,7 +4,7 @@ ID: `mcu/scmcu-sc8f072-registers`
 
 ## Purpose
 
-This summary covers only the `SC8F072` registers and configuration fields actually used by currently implemented `emb-agent-adapters` tools.
+This summary covers only the `SC8F072` registers and configuration fields that this skill uses. The arithmetic lives in `calculators.md`.
 
 It is NOT a complete register manual.
 
@@ -175,5 +175,5 @@ It is NOT a complete register manual.
 ## Maintenance Boundaries
 
 - Only keep "register summaries that current tools encounter"
-- Specific fields, aliases, and candidate values still follow `extensions/tools/devices/sc8f072.json` and `chip-support/algorithms/*.cjs`
+- Specific fields, aliases, and candidate values live in `calculators.md`
 - If adding more `SC8F0xx` tools later, supplement summaries incrementally; do not copy the entire manual

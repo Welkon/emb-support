@@ -1,138 +1,25 @@
 #!/usr/bin/env node
 'use strict';
 
+// Checks that need no probe, no instrument and no supply: the XC8 build helper
+// and the altium-pcb skill tests. The chip-adapter vectors left with adapters/
+// (2026-10); the arithmetic that mattered is prose in
+// skills/mcu-debug/references/sources/calculators.md.
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const childProcess = require('child_process');
 
-const ADAPTERS_DIR = path.resolve(__dirname, '..', 'adapters');
-const ALGORITHMS_DIR = path.join(ADAPTERS_DIR, 'chip-support', 'algorithms');
-const ROUTES_DIR = path.join(ADAPTERS_DIR, 'chip-support', 'routes');
-
-// A chip algorithm without @test_vector is unverified. That is a failure by
-// default so the gap cannot hide in the skip count. Pass the flag only for a
-// deliberate work-in-progress run.
-const ALLOW_MISSING_VECTORS = process.argv.includes('--allow-missing-vectors');
-
 let passed = 0;
 let failed = 0;
 let skipped = 0;
-const missingVectors = [];
 
 function logResult(name, status, detail) {
   const prefix = status === 'pass' ? '✓' : status === 'fail' ? '✗' : '○';
   console.log(`  ${prefix} ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-function extractTestVectors(filePath) {
-  const content = fs.readFileSync(filePath, 'utf8');
-  const lines = content.split('\n');
-  const vectors = [];
-  for (const line of lines) {
-    const match = line.match(/@test_vector:\s*(.+)/);
-    if (match) {
-      vectors.push(match[1].trim());
-    }
-  }
-  return vectors;
-}
-
-function loadDeviceBinding(algorithmName) {
-  const devicesDir = path.join(ADAPTERS_DIR, 'extensions', 'tools', 'devices');
-  if (!fs.existsSync(devicesDir)) return null;
-
-  const files = fs.readdirSync(devicesDir).filter(f => f.endsWith('.json'));
-  for (const file of files) {
-    try {
-      const binding = JSON.parse(fs.readFileSync(path.join(devicesDir, file), 'utf8'));
-      if (binding.bindings) {
-        for (const [, b] of Object.entries(binding.bindings)) {
-          if (b.algorithm === algorithmName) {
-            return b.params || {};
-          }
-        }
-      }
-    } catch {}
-  }
-  return null;
-}
-
-function lookupField(root, dotted) {
-  return dotted.split('.').reduce((acc, key) => (acc === null || acc === undefined ? undefined : acc[key]), root);
-}
-
-// `expected=<field>:<value>` checks one output field; a bare `expected=<value>`
-// keeps the original meaning and checks `reload`.
-function compareExpected(result, spec) {
-  const colon = spec.lastIndexOf(':');
-  const path = colon === -1 ? 'reload' : spec.slice(0, colon).trim();
-  const wantRaw = colon === -1 ? spec : spec.slice(colon + 1).trim();
-  const outputs = result.outputs || {};
-  const root = outputs.best !== undefined ? outputs.best : outputs;
-
-  let actual = lookupField(root, path);
-  if (actual === undefined) {
-    actual = lookupField(outputs, path);
-  }
-  if (actual === undefined) {
-    return { status: 'fail', detail: `output field '${path}' is missing` };
-  }
-
-  const want = Number(wantRaw);
-  if (Number.isNaN(want) || typeof actual !== 'number') {
-    return { status: 'fail', detail: `cannot compare ${path}: expected=${wantRaw}, got=${actual}` };
-  }
-
-  const tolerance = Math.max(Math.abs(want) * 1e-6, 1e-9);
-  if (Math.abs(actual - want) <= tolerance) {
-    return { status: 'pass' };
-  }
-  return { status: 'fail', detail: `${path}: expected=${want}, got=${actual}` };
-}
-
-function runTest(algorithmName, algorithmPath, vectorRaw) {
-  const algorithm = require(algorithmPath);
-  const options = {};
-  const assignments = vectorRaw.split(',').map(s => s.trim());
-
-  for (const a of assignments) {
-    const eqIdx = a.indexOf('=');
-    if (eqIdx === -1) continue;
-    const key = a.substring(0, eqIdx).trim();
-    const value = a.substring(eqIdx + 1).trim();
-
-    if (key === 'expected') {
-      continue;
-    }
-    const num = Number(value);
-    options[key] = Number.isNaN(num) ? value : num;
-  }
-
-  const expectedMatch = vectorRaw.match(/expected=([^,]+)/);
-  const expectedSpec = expectedMatch ? expectedMatch[1].trim() : null;
-
-  const bindingParams = loadDeviceBinding(algorithmName) || {};
-
-  try {
-    const result = algorithm.run(options, { algorithm: algorithmName, params: bindingParams }, {});
-    if (!result) {
-      return { status: 'fail', detail: 'algorithm returned null' };
-    }
-    if (result.status === 'unsupported') {
-      return { status: 'skip', detail: (result.notes || []).join('; ') };
-    }
-    if (result.status === 'ok') {
-      if (expectedSpec) {
-        return compareExpected(result, expectedSpec);
-      }
-      return { status: 'pass' };
-    }
-    return { status: 'fail', detail: (result && result.notes) ? result.notes.join('; ') : 'no result' };
-  } catch (err) {
-    return { status: 'fail', detail: err.message };
-  }
-}
 
 function runXc8BuildScriptTests() {
   const scriptPath = path.resolve(__dirname, '..', 'skills', 'mcu-debug', 'scripts', 'xc8', 'build_xc8.py');
@@ -210,6 +97,7 @@ print(json.dumps({'relation': relation, 'decode': decode}, sort_keys=True))
   }
 }
 
+
 function runAltiumSkillTests() {
   const root = path.resolve(__dirname, '..');
   const testsDir = path.join(root, 'skills', 'altium-pcb', 'tests');
@@ -238,55 +126,18 @@ function runAltiumSkillTests() {
   }
 }
 
+
 function runAllTests() {
-  console.log('emb-support algorithm verification\n');
+  console.log('emb-support checks\n');
 
-  const algoFiles = fs.readdirSync(ALGORITHMS_DIR).filter(f => f.endsWith('.cjs') && f !== 'shared.cjs');
-
-  for (const algoFile of algoFiles) {
-    const algoName = algoFile.replace('.cjs', '');
-    const algoPath = path.join(ALGORITHMS_DIR, algoFile);
-    const vectors = extractTestVectors(algoPath);
-
-    console.log(`${algoName}:`);
-
-    if (vectors.length === 0) {
-      missingVectors.push(algoName);
-      if (ALLOW_MISSING_VECTORS) {
-        logResult('(no test vectors)', 'skip', 'allowed by --allow-missing-vectors');
-        skipped++;
-      } else {
-        logResult('(no test vectors)', 'fail',
-          'add @test_vector, or pass --allow-missing-vectors for a WIP run');
-        failed++;
-      }
-      continue;
-    }
-
-    for (const vector of vectors) {
-      const result = runTest(algoName, algoPath, vector);
-      if (result.status === 'pass') passed++;
-      else if (result.status === 'skip') skipped++;
-      else failed++;
-      logResult(vector, result.status, result.detail);
-    }
-  }
-
-  console.log('\nxc8-build:');
+  console.log('xc8-build:');
   runXc8BuildScriptTests();
 
   console.log('\naltium-pcb:');
   runAltiumSkillTests();
 
-  console.log(`\n---`);
+  console.log('\n---');
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);
-  console.log(`Total algorithms: ${algoFiles.length}`);
-  if (missingVectors.length > 0) {
-    console.log(`Unverified algorithms (${missingVectors.length}/${algoFiles.length}): ${missingVectors.join(', ')}`);
-    if (ALLOW_MISSING_VECTORS) {
-      console.log('--allow-missing-vectors is set: these are not covered by any test.');
-    }
-  }
 
   if (failed > 0) {
     process.exit(1);

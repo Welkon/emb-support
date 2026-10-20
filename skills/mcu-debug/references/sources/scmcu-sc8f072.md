@@ -26,5 +26,5 @@ This summary supports `SC8F072`-related family / device / chip profiles, and fut
 ## Maintenance Boundaries
 
 - Only keep extracted shared facts here
-- Specific register bits, route selection, and algorithm parameters still follow `extensions/**/*.json` and `chip-support/**/*.cjs`
+- Specific register bits and per-peripheral parameters live in this file and `calculators.md`
 - If later adding same-series devices, reuse this summary first, then supplement new source documents per chip differences

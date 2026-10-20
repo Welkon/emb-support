@@ -27,5 +27,5 @@ This summary supports `PMS150G`-related family / device / chip profiles, and fut
 ## Maintenance Boundaries
 
 - Only keep extracted facts reusable across profiles here
-- Specific calculation parameters still follow `extensions/tools/devices/pms150g.json`
+- Specific calculation parameters live in `calculators.md`
 - If later adding similar devices like `PMS152`, `PMS154`, confirm differences individually; do not copy directly

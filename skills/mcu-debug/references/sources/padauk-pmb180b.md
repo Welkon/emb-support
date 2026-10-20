@@ -48,5 +48,5 @@ This summary supports chip-support / profile landing for `PMB180B`, and preserve
 ## Maintenance Boundaries
 
 - Only keep extracted facts reusable across profiles here
-- Specific calculation parameters still follow `extensions/tools/devices/pmb180b.json`
+- Specific calculation parameters live in `calculators.md`
 - If later adding the non-B `PMB180` version, do not directly reuse `VCC_Pin`-related electrical notes
