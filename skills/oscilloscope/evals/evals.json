@@ -1,0 +1,97 @@
+{
+  "skill_name": "oscilloscope",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "There is a Rigol DHO804 on the bench at 192.168.1.44. Identify it, capture CH1 with 2000 points to /tmp/ch1.csv, and tell me the Vpp and frequency.",
+      "expected_output": "Runs idn with --host, confirms family rigol, runs capture with --points 2000 --out /tmp/ch1.csv --json, and reports Vpp and frequency from the JSON.",
+      "files": [],
+      "assertions": [
+        "Uses the idn command with the given host",
+        "Uses capture with --points 2000 and --out /tmp/ch1.csv",
+        "Reports Vpp and frequency from the capture output"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "In WSL, my Tektronix TBS1102B shows up in usbipd as Not shared. Get it working, capture one acquisition, and tell me the waveform type and THD.",
+      "expected_output": "Runs doctor to see the usbipd state, explains the bind and attach steps, then runs capture --single with analysis and reports the waveform type and THD.",
+      "files": [],
+      "assertions": [
+        "Runs doctor and reads the WSL usbipd section",
+        "Explains usbipd bind and usbipd attach",
+        "Uses capture --single",
+        "Reports waveform type and THD"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have an intermittent 5 us glitch on CH1 and it happens once every few minutes. Set up a capture that watches for 60 seconds and saves evidence when it fires.",
+      "expected_output": "Uses monitor with a pulse-width preset or explicit pulse trigger, sets duration and max-events, writes CSV and JSON evidence, and explains the re-arm option.",
+      "files": [],
+      "assertions": [
+        "Uses the monitor command",
+        "Configures a pulse or edge trigger with a short timebase",
+        "Sets duration and max-events",
+        "Writes evidence files"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Take a screenshot of the scope and save it as scope.png. It is connected over USB.",
+      "expected_output": "Tries shot; if the model has no screen dump, explains the fallback waveform plot and gives the SVG path instead of claiming a screenshot.",
+      "files": [],
+      "assertions": [
+        "Uses the shot command",
+        "Does not claim a screenshot when the instrument returns no image",
+        "Reports the waveform-plot fallback when present"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Here is a CSV I exported earlier: /tmp/run.csv. Give me the FFT, the THD, the harmonics, the overshoot, and the noise level.",
+      "expected_output": "Runs analyze --csv /tmp/run.csv --fft (and optionally --plot), then reports fundamental, THD, harmonics, overshoot, and noise RMS.",
+      "files": ["/tmp/run.csv"],
+      "assertions": [
+        "Uses analyze with --fft",
+        "Reports fundamental frequency and THD",
+        "Reports harmonics and overshoot or noise"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "What frequency and waveform type are on CH1 and CH2 right now? They look identical to me.",
+      "expected_output": "Captures both channels with analysis enabled and reports frequency, Vpp, duty, and the classified waveform type for each channel.",
+      "files": [],
+      "assertions": [
+        "Captures CH1 and CH2",
+        "Reports frequency and waveform type for both channels",
+        "Compares the two channels"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Set the timebase to 5 us/div, trigger on CH1 rising at 1.5 V in normal mode, then take one acquisition and analyze it.",
+      "expected_output": "Runs timebase, trigger, and capture --single in that order, then reports the analysis.",
+      "files": [],
+      "assertions": [
+        "Sets the timebase before the capture",
+        "Sets the trigger source, slope, level, and mode",
+        "Uses capture --single",
+        "Reports the analysis"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "My ZLG ZDS5054 answers *IDN? but every waveform command fails. Can this skill capture it?",
+      "expected_output": "Explains that no public SCPI manual was found for ZLG, that the skill identifies the device and uses generic commands, and suggests the scpi command or a vendor tool instead of inventing commands.",
+      "files": [],
+      "assertions": [
+        "Identifies the family as zlg or generic",
+        "States that the waveform command is not documented",
+        "Does not invent vendor commands",
+        "Offers scpi or a vendor tool as the fallback"
+      ]
+    }
+  ]
+}

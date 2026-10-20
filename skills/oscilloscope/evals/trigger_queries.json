@@ -1,0 +1,22 @@
+[
+  {"query": "my scope won't connect over lan, ip is 192.168.1.44, can you grab the idn and tell me what model it is", "should_trigger": true},
+  {"query": "i need to save ch1 and ch2 to csv from the rigol on my bench and check the vpp", "should_trigger": true},
+  {"query": "wsl sees the tek usb device in usbipd but /dev/usbtmc0 never appears, help", "should_trigger": true},
+  {"query": "capture a single shot when the trigger fires and tell me if there is ringing or overshoot", "should_trigger": true},
+  {"query": "measure thd and harmonics of this waveform csv i exported earlier", "should_trigger": true},
+  {"query": "what frequency and waveform type are on channel 1 and 2 right now", "should_trigger": true},
+  {"query": "set the timebase to 5us/div and trigger on a rising edge at 1.5v, then take one acquisition", "should_trigger": true},
+  {"query": "the scope screenshot button does not work over usb, can you still get me a plot of ch1", "should_trigger": true},
+  {"query": "monitor for a short glitch for 30 seconds and save the evidence", "should_trigger": true},
+  {"query": "scope says target not found for a siglent sds1104x-e", "should_trigger": true},
+  {"query": "flash this elf to my stm32 with the daplink probe", "should_trigger": false},
+  {"query": "decode this i2c capture from my saleae logic analyzer", "should_trigger": false},
+  {"query": "my multimeter reads 0 volts, what is wrong", "should_trigger": false},
+  {"query": "plot this pandas dataframe of monthly sales", "should_trigger": false},
+  {"query": "write a python script to parse wav audio files", "should_trigger": false},
+  {"query": "help me build a labview visa instrument driver for a power supply", "should_trigger": false},
+  {"query": "take a screenshot of my desktop and save it as png", "should_trigger": false},
+  {"query": "measure the dominant frequency of this audio recording", "should_trigger": false},
+  {"query": "my jlink says no cortex-m device found on the swd line", "should_trigger": false},
+  {"query": "explain how the scpi command tree works in general", "should_trigger": false}
+]
