@@ -345,6 +345,27 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  const followUntil = useRef(0);
+  useEffect(() => {
+    if ((data?.output || "").toUpperCase() === "ON") followUntil.current = Date.now() + 2000;
+  }, [data?.setpoint.voltage, data?.setpoint.current]);
+  useEffect(() => {
+    if ((data?.output || "").toUpperCase() !== "ON" || Date.now() > followUntil.current) return;
+    const v = data?.measurement.voltage;
+    const i = data?.measurement.current;
+    const followV = v != null && Math.abs(v - chartSettings.vPos) > chartSettings.vDiv * 2.2;
+    const followI = i != null && Math.abs(i - chartSettings.iPos) > chartSettings.iDiv * 2.2;
+    if (!followV && !followI) return;
+    setChartSettings((prev) => ({
+      ...prev,
+      ...(followV && v != null ? { vPos: v } : {}),
+      ...(followI && i != null ? { iPos: i } : {}),
+    }));
+    if (followV && v != null) setVScopeRef(v);
+    if (followI && i != null) setIScopeRef(i);
+  }, [data?.measurement.voltage, data?.measurement.current, data?.output,
+      chartSettings.vPos, chartSettings.vDiv, chartSettings.iPos, chartSettings.iDiv]);
+
   useEffect(() => {
     const current = (data?.output || "").toUpperCase() === "ON";
     const prev = prevOutputRef.current;
@@ -895,7 +916,28 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
 }) {
   const outputOn = (data?.output || "").toUpperCase() === "ON";
   const vFocus = useRef(""); const iFocus = useRef("");
-  const blurApply = () => { if (vset !== vFocus.current || iset !== iFocus.current) onApply(); };
+  const liveTimer = useRef<number | undefined>(undefined);
+  const onApplyRef = useRef(onApply);
+  onApplyRef.current = onApply;
+  const stopLive = () => {
+    if (liveTimer.current) { window.clearTimeout(liveTimer.current); liveTimer.current = undefined; }
+  };
+  useEffect(() => {
+    if (!editing.current) return;
+    const v = parseFloat(vset), i = parseFloat(iset);
+    if (!Number.isFinite(v) || !Number.isFinite(i)) return;
+    if (v < 0 || v > (data?.limits.max_voltage ?? 30) || i < 0 || i > (data?.limits.max_current ?? 5)) return;
+    stopLive();
+    liveTimer.current = window.setTimeout(() => {
+      liveTimer.current = undefined;
+      onApplyRef.current();
+    }, 350);
+    return stopLive;
+  }, [vset, iset, data?.limits.max_voltage, data?.limits.max_current]);
+  const blurApply = () => {
+    stopLive();
+    if (vset !== vFocus.current || iset !== iFocus.current) onApplyRef.current();
+  };
   return (
     <div className="relative h-full">
       {outputOn && (
