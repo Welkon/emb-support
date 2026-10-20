@@ -45,6 +45,17 @@ def test_tek_screenshot_is_disabled(scope):
     assert scope.TektronixDialect("TEKTRONIX").screenshot_queries() == []
 
 
+def test_tek_single_capture(tek, tmp_path):
+    out = tmp_path / "one.csv"
+    p = run(base(tek, "capture", "--single", "2", "--points", "100",
+                 "--out", str(out), "--json"), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    import json as _json
+    data = _json.loads(p.stdout)
+    assert data["channels"]["1"]["points"] == 100
+    assert "analysis" in data["channels"]["1"]
+
+
 def test_tek_idn_family(tek, tmp_path):
     p = run(base(tek, "idn", "--json"), tmp_path / "home")
     assert p.returncode == 0, p.stderr

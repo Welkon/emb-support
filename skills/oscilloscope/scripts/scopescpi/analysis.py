@@ -48,8 +48,42 @@ def advanced(volts: list[float], times: list[float], meta: dict | None = None) -
 
     dt = (meta or {}).get("xincr") or (times[1] - times[0] if len(times) > 1 else 0)
     if dt > 0:
-        out.update(spectrum(volts, dt))
+        try:
+            out.update(spectrum(volts, dt))
+        except RuntimeError as e:
+            out["fft_error"] = str(e)
     return out
+
+
+def classify(volts: list[float], times: list[float], stats: dict,
+             analysis: dict) -> dict:
+    """Classify the dominant waveform from duty, rails, harmonics and THD."""
+    if not volts:
+        return {"type": "empty"}
+    vmin, vmax = min(volts), max(volts)
+    vpp = vmax - vmin
+    if vpp <= 1e-9:
+        return {"type": "dc", "confidence": "high"}
+    tol = 0.05 * vpp
+    rail = sum(1 for v in volts if v <= vmin + tol or v >= vmax - tol) / len(volts)
+    duty = stats.get("duty_pct")
+    thd = analysis.get("thd_pct")
+    harmonics = analysis.get("harmonics") or []
+    even = harmonics[0]["relative"] if harmonics and harmonics[0]["order"] == 2 else 0.0
+    result = {"type": "unknown", "confidence": "low"}
+    if even > 0.25:
+        result = {"type": "sawtooth", "confidence": "medium"}
+    elif thd is not None and thd < 5 and rail < 0.35:
+        result = {"type": "sine", "confidence": "high"}
+    elif thd is not None and 8 <= thd <= 20 and rail < 0.2:
+        result = {"type": "triangle", "confidence": "medium"}
+    elif rail > 0.35 and duty is not None and 40 <= duty <= 60 and (thd or 0) > 20:
+        result = {"type": "square", "confidence": "high"}
+    elif duty is not None and (duty < 40 or duty > 60):
+        result = {"type": "pulse", "confidence": "medium"}
+    elif rail > 0.3:
+        result = {"type": "pulse", "confidence": "low"}
+    return result
 
 
 def spectrum(volts: list[float], dt: float, harmonics: int = 5) -> dict:

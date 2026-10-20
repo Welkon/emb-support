@@ -147,6 +147,26 @@ scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 每条警告都带 `suggestion`。`--no-quality` 可关闭；`analyze` 对离线 CSV 也做同样检查。
 `monitor` 同样带质量检查。
 
+## 5.55 一次性采集 + 分析（快速波形）
+
+`capture` 默认在同一条命令里完成：采集 → 统计 → 质量检查 → FFT/谐波/THD →
+波形分类（sine/square/triangle/sawtooth/pulse/dc）→ 可选 SVG 图。
+
+```bash
+# 单次触发抓取：arm → 等触发 → 读取 → 分析，适合快速/瞬态波形
+scripts/scope.py capture --single 3 --points 2000 --json
+
+# 只看采集，不跑分析（更快）
+scripts/scope.py capture --single 3 --no-analyze --json
+```
+
+- `--single [秒]`：Tek 用 `STOPAfter SEQUENCE`，其它方言用 `:SINGle`；等待触发完成后再读取，
+  避免抓到半帧。
+- 分析结果在每通道 `analysis` 字段：`waveform`、`fundamental_hz`、`thd_pct`、`harmonics`、
+  `overshoot_pct`、`noise_rms`、`crest_factor`。
+- 实测 TBS 1102B：一条命令约 **3–5 s**（pyvisa 初始化 ~1.4 s + 波形传输/处理 ~2 s），
+  分析本身 <20 ms。资源字符串会缓存到 `~/.local/share/scope/last_resource`，省掉每次枚举。
+
 ## 5.6 高阶分析、可视化与缓存
 
 仪器自身只提供原始波形和少量测量；更深的分析由 skill 计算：

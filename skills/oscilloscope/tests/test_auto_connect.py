@@ -56,6 +56,7 @@ def test_ensure_attached_shared(scope, monkeypatch):
 
 def test_connect_auto_attaches_on_wsl(scope, monkeypatch):
     state = {"attached": False}
+    monkeypatch.setattr(transport_mod, "_cached_resource", lambda: None)
     monkeypatch.setattr(transport_mod, "is_wsl", lambda: True)
     monkeypatch.setattr(transport_mod, "ensure_scope_attached",
                         lambda: (state.update(attached=True) or {"status": "attached"}))
@@ -70,6 +71,7 @@ def test_connect_auto_attaches_on_wsl(scope, monkeypatch):
 
 
 def test_connect_no_auto_attach(scope, monkeypatch):
+    monkeypatch.setattr(transport_mod, "_cached_resource", lambda: None)
     monkeypatch.setattr(transport_mod, "is_wsl", lambda: True)
     monkeypatch.setattr(transport_mod.glob, "glob", lambda pattern: [])
     monkeypatch.setattr(transport_mod, "_list_resources", lambda backend: [])

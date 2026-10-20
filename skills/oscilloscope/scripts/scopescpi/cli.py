@@ -23,7 +23,7 @@ from .acquisition import (
     measure_channel, stats,
 )
 from .quality import check as check_quality
-from .analysis import advanced, load_npz, save_npz, spectrum, write_svg
+from .analysis import advanced, classify, load_npz, save_npz, spectrum, write_svg
 from .wsl import (
     attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
 )
@@ -250,6 +250,14 @@ def cmd_capture(a) -> None:
         channels = [int(x) for x in a.channels.split(",") if x.strip()]
         recovery = []
         try:
+            if a.single is not None:
+                for cmd in d.arm_single():
+                    inst.write(cmd)
+                deadline = time.time() + a.single
+                while time.time() < deadline:
+                    if query_run_state(inst, d) is True:
+                        break
+                    time.sleep(0.02)
             if a.no_recovery:
                 data = acquire_channels(inst, d, channels, a.points)
             else:
@@ -264,6 +272,10 @@ def cmd_capture(a) -> None:
             st = stats(item["volts"], item["times"])
             if not a.no_quality:
                 st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
+            if not a.no_analyze:
+                adv = advanced(item["volts"], item["times"], item["meta"])
+                adv["waveform"] = classify(item["volts"], item["times"], st, adv)
+                st["analysis"] = adv
             summary["channels"][str(ch)] = st
         if a.out:
             path = Path(a.out).expanduser()
@@ -308,7 +320,9 @@ def cmd_capture(a) -> None:
             for ch, st in summary["channels"].items():
                 lines.append(f"CH{ch}: {st.get('points')} pts  Vpp={st.get('vpp'):.4g}V "
                              f"mean={st.get('mean'):.4g}V" +
-                             (f"  f={st['freq']:.4g}Hz" if "freq" in st else ""))
+                             (f"  f={st['freq']:.4g}Hz" if "freq" in st else "") +
+                             (f"  [{st['analysis']['waveform']['type']}]"
+                              if st.get("analysis", {}).get("waveform") else ""))
                 for w in st.get("quality", []):
                     lines.append(f"  [{w['severity']}] {w['code']}: {w['message']} -> {w['suggestion']}")
             for step in recovery:
@@ -673,6 +687,10 @@ def main() -> None:
     p.add_argument("--plot", help="write an SVG waveform plot")
     p.add_argument("--plot-points", type=int, default=4000)
     p.add_argument("--cache", nargs="?", const=True, help="write/refresh an NPZ cache")
+    p.add_argument("--single", nargs="?", const=5.0, type=float,
+                   help="arm a single sequence and wait up to N seconds before reading")
+    p.add_argument("--no-analyze", action="store_true",
+                   help="skip FFT/harmonics/waveform classification")
     p.set_defaults(fn=cmd_capture)
 
     p = sub.add_parser("measure", help="automatic measurements")

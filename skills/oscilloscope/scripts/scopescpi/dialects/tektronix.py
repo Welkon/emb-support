@@ -85,7 +85,8 @@ class TektronixDialect(Dialect):
             inst.write(f"DATa:STOP {int(points)}")
         time.sleep(0.15)          # TBS needs a moment after changing the data window
         # Text first, then the curve: querying text after a waveform block risks
-        # consuming leftovers from the transfer.
+        # consuming leftovers from the transfer. Six individual queries are much
+        # faster than the composite :WFMPre? (0.4 s vs 2.3 s on a TBS 1102B).
         meta = {key: float(_q_first(inst, cmds)) for key, cmds in TEK_PREAMBLE.items()}
         text = inst.query("CURVe?")
         samples = [float(x) for x in re.split(r"[,;\s]+", text.strip()) if x]

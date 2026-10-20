@@ -32,7 +32,7 @@ from scopescpi.acquisition import *  # noqa: F401,F403
 from scopescpi.acquisition import _edges  # noqa: F401
 from scopescpi.quality import check as check_quality  # noqa: F401
 from scopescpi.analysis import (  # noqa: F401
-    advanced, decimate, load_npz, save_npz, spectrum, write_svg,
+    advanced, classify, decimate, load_npz, save_npz, spectrum, write_svg,
 )
 from scopescpi.transport import pick_single_resource  # noqa: F401
 from scopescpi.wsl import (  # noqa: F401

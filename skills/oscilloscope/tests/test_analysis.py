@@ -37,3 +37,22 @@ def test_npz_roundtrip(scope, tmp_path):
     scope.save_npz(path, data)
     loaded = scope.load_npz(path)
     assert loaded["1"]["volts"] == [0.0, 1.0]
+
+
+def test_classify_square_sine_triangle(scope):
+    import math
+    n = 2000
+    dt = 1e-5
+    ts = [i * dt for i in range(n)]
+    square = [1.0 if (i // 50) % 2 == 0 else -1.0 for i in range(n)]
+    sine = [math.sin(2 * math.pi * 100 * t) for t in ts]
+    triangle = [4 * abs(((100 * t) % 1) - 0.5) - 1 for t in ts]
+    for waves, want in ((square, "square"), (sine, "sine"), (triangle, "triangle")):
+        st = scope.stats(waves, ts)
+        an = scope.advanced(waves, ts, {"xincr": dt})
+        got = scope.classify(waves, ts, st, an)["type"]
+        assert got == want, (want, got, an.get("thd_pct"))
+
+
+def test_classify_dc(scope):
+    assert scope.classify([1.0] * 100, [i * 1e-6 for i in range(100)], {}, {})["type"] == "dc"

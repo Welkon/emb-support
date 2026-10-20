@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from .common import block_bounds, die, is_block, load_config, parse_block
+from .common import HOME, block_bounds, die, is_block, load_config, parse_block
 from .wsl import ensure_scope_attached, is_wsl
 
 class SocketInstrument:
@@ -94,7 +94,8 @@ class SocketInstrument:
 class VisaInstrument:
     """pyvisa / pyvisa-py backend: USBTMC, VXI-11, serial, GPIB."""
 
-    def __init__(self, resource: str, timeout: float = 5.0, backend: str | None = None):
+    def __init__(self, resource: str, timeout: float = 5.0, backend: str | None = None,
+                 strict: bool = True):
         try:
             import pyvisa
         except ImportError:
@@ -109,7 +110,9 @@ class VisaInstrument:
             self.rm = pyvisa.ResourceManager(backend) if backend else pyvisa.ResourceManager()
             self.inst = self.rm.open_resource(resource)
         except Exception as e:
-            die(f"cannot open {resource}: {e}")
+            if strict:
+                die(f"cannot open {resource}: {e}")
+            raise RuntimeError(str(e))
         self.inst.timeout = int(timeout * 1000)
         try:
             self.inst.read_termination = "\n"
@@ -184,6 +187,25 @@ class UsbtmcInstrument:
         return parse_block(data) if is_block(data) else data
 
 
+_CACHE = HOME / "last_resource"
+
+
+def _cached_resource() -> str | None:
+    try:
+        value = _CACHE.read_text().strip()
+        return value or None
+    except OSError:
+        return None
+
+
+def _remember_resource(resource: str) -> None:
+    try:
+        HOME.mkdir(parents=True, exist_ok=True)
+        _CACHE.write_text(resource + "\n")
+    except OSError:
+        pass
+
+
 def pick_single_resource(resources: list[str]) -> str | None:
     """Auto-pick only when exactly one VISA instrument is present."""
     instruments = [r for r in resources
@@ -223,9 +245,17 @@ def connect(a):
     if devices:
         return UsbtmcInstrument(devices[0], timeout)
 
+    cached = _cached_resource()
+    if cached:
+        try:
+            return VisaInstrument(cached, timeout, backend, strict=False)
+        except Exception:
+            pass
+
     resources = _list_resources(backend)
     picked = pick_single_resource(resources)
     if picked:
+        _remember_resource(picked)
         return VisaInstrument(picked, timeout, backend)
 
     if is_wsl() and not no_auto_attach:
@@ -236,6 +266,7 @@ def connect(a):
         resources = _list_resources(backend)
         picked = pick_single_resource(resources)
         if picked:
+            _remember_resource(picked)
             return VisaInstrument(picked, timeout, backend)
         if outcome.get("status") == "needs-bind":
             hints = "; ".join(
