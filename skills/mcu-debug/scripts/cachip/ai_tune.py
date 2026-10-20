@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CACHIP 触摸 AI 自动调参 (极简版)"""
+"""CACHIP touch automatic tuning (minimal version)."""
 import time, statistics, argparse, sys, builtins
 sys.path.insert(0, '.')
 from cachip_touch_debug import TouchDebugger
@@ -16,10 +16,10 @@ def main():
         td.connect()
         ch = td.channels[0]
         orig = td.thresholds[ch]
-        print(f"\n=== 通道 TK{ch} 当前门限 {orig} ===")
+        print(f"\n=== channel TK{ch} current threshold {orig} ===")
 
-        # 1. 未触摸 (5 秒)
-        print("\n[1/2] 采集未触摸数据 5 秒 --- 请勿触摸! 手拿开!")
+        # 1. No touch (5 s)
+        print("\n[1/2] Capture no-touch data for 5 s. Do not touch. Move your hand away.")
         idle = []
         for i in range(50):
             d = td.poll_once()
@@ -31,10 +31,10 @@ def main():
         im = statistics.mean(idle)
         isd = statistics.stdev(idle)
         idmax = max(im - r for r in idle)
-        print(f"  完成: 均值={im:.0f} σ={isd:.1f} 范围=[{min(idle)},{max(idle)}] 最大差值={idmax:.0f}")
+        print(f"  done: mean={im:.0f} sigma={isd:.1f} range=[{min(idle)},{max(idle)}] max delta={idmax:.0f}")
 
-        # 2. 触摸 (检测 3 次)
-        print(f"\n[2/2] 请触摸 TK{ch}: 按1秒松1秒, 共3次! (30秒超时)")
+        # 2. Touch (detect 3 presses)
+        print(f"\n[2/2] Touch TK{ch}: press 1 s, release 1 s, 3 times (30 s timeout).")
         diffs = []
         ev = 0
         last = 0
@@ -44,31 +44,31 @@ def main():
             diff = im - d["raws"][ch]
             key = d["key_flags"]
             if key == 1:
-                diffs.append(diff)   # 只记录按下时的差值
+                diffs.append(diff)   # record only the delta at press time
             if key == 1 and last == 0:
                 ev += 1
-                print(f"  ✓ 触摸 {ev}/3 (差值 {diff:.0f})")
+                print(f"  OK touch {ev}/3 (delta {diff:.0f})")
             last = key
             time.sleep(0.05)
         if ev == 0:
-            print("  ❌ 未检测到触摸!")
+            print("  no touch detected!")
             return
         tmin = statistics.median(sorted(diffs))
-        print(f"  触摸差值(中位): {tmin:.0f}")
+        print(f"  touch delta (median): {tmin:.0f}")
 
-        # 3. 计算 + 写入
+        # 3. Compute and write
         best = int((idmax + tmin) / 2)
         best = max(best, 100)
-        print(f"\n=== 建议门限 {best} (当前 {orig}) ===")
+        print(f"\n=== Suggested threshold {best} (current {orig}) ===")
         td.set_threshold(ch, best)
         td.poll_once()
-        print(f"  验证: {td.thresholds[ch]} {'✅' if td.thresholds[ch]==best else '❌'}")
+        print(f"  verify: {td.thresholds[ch]} {'OK' if td.thresholds[ch]==best else 'FAIL'}")
         if not args.keep:
             td.set_threshold(ch, orig)
-            print(f"  已恢复 {orig}")
+            print(f"  restored {orig}")
         td.disconnect()
     except Exception as e:
-        print(f"错误: {e}")
+        print(f"Error: {e}")
         try: td.disconnect()
         except Exception: pass
     finally:

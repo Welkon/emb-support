@@ -3,7 +3,7 @@
 The canonical script is `scripts/xc8/build_xc8.py`.
 
 <codex_skill_adapter>
-- This skill is invoked by mentioning `$xc8-build`.
+- This skill is invoked by mentioning `$mcu-debug`.
 - If the user gives a build name, reuse it.
 - If the user asks to compile but gives no build name, choose a short purpose-based name such as `rom-check`, `stage1`, `fix-check`, or `user-test`.
 </codex_skill_adapter>
@@ -25,13 +25,13 @@ Keep all new command-line artifacts in:
 </when_to_use>
 
 <files_to_check>
-- `BUILD.md`
+- `references/xc8-build.md`
 - `scripts/build_xc8.py`
-- `references/toolchain.env.sample`
+- `scripts/xc8/toolchain.env.sample`
 </files_to_check>
 
 <process>
-1. If you need to confirm toolchain path, output layout, or file naming, read `BUILD.md`.
+1. If you need to confirm toolchain path, output layout, or file naming, read `references/xc8-build.md`.
 
 2. The canonical implementation is:
 
@@ -70,7 +70,7 @@ SCMCU IDE caution:
 3. If working from Windows PowerShell instead, use:
 
 ```powershell
-py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName <build-name>
+py -3 scripts\xc8\build_xc8.py -BuildName <build-name>
 ```
 
 Toolchain path override order:
@@ -92,7 +92,7 @@ If you need to inspect what the script can auto-detect on the current machine, u
 python3 scripts/xc8/build_xc8.py -ListToolchainCandidates
 ```
 
-If the user asks for a shell or CI sample, point them to `references/toolchain.env.sample`.
+If the user asks for a shell or CI sample, point them to `scripts/xc8/toolchain.env.sample`.
 
 4. After a successful build, inspect:
 - `build/xc8/<build-name>/cmscerr.err`
@@ -185,7 +185,7 @@ Common autodetect search patterns:
 
 Reference-only env sample:
 
-- `.codex/skills/xc8-build/references/toolchain.env.sample`
+- `scripts/xc8/toolchain.env.sample`
 
 ## Script Ownership
 
@@ -252,21 +252,21 @@ Windows PowerShell:
 
 ```powershell
 $env:SCMCU_IDE_ROOT = 'D:\path\to\SCMCU_IDE'
-py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName stage1
+py -3 scripts\xc8\build_xc8.py -BuildName stage1
 ```
 
 Windows PowerShell with direct compiler path:
 
 ```powershell
 $env:XC8_EXE = 'D:\path\to\xc8.exe'
-py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName stage1
+py -3 scripts\xc8\build_xc8.py -BuildName stage1
 ```
 
 Windows PowerShell with explicit Python path:
 
 ```powershell
 $env:XC8_EXE = 'D:\path\to\xc8.exe'
-& 'C:\path\to\python.exe' .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName stage1
+& 'C:\path\to\python.exe' scripts\xc8\build_xc8.py -BuildName stage1
 ```
 
 WSL / Linux with direct compiler path:
@@ -286,17 +286,17 @@ python3 scripts/xc8/build_xc8.py -BuildName stage1
 Explicit parameter override:
 
 ```powershell
-py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName stage1 -ToolchainRoot 'D:\path\to\SCMCU_IDE'
+py -3 scripts\xc8\build_xc8.py -BuildName stage1 -ToolchainRoot 'D:\path\to\SCMCU_IDE'
 ```
 
 ```powershell
-py -3 .\.codex\skills\xc8-build\scripts\build_xc8.py -BuildName stage1 -Xc8Exe 'D:\path\to\xc8.exe'
+py -3 scripts\xc8\build_xc8.py -BuildName stage1 -Xc8Exe 'D:\path\to\xc8.exe'
 ```
 
 Codex skill:
 
 ```text
-$xc8-build
+$mcu-debug
 ```
 
 Direct skill script entrypoint:
@@ -363,7 +363,7 @@ xc8.exe
 - `compile_flags.txt` is useful for editor tooling and ad-hoc syntax checks, but it is not a complete firmware build command.
 - If you need to compare ROM usage across experiments, use a new `-BuildName` each time so the output directories stay isolated.
 - If you want to rebuild the same experiment, rerun the same `-BuildName`. The script will reuse that directory.
-- If you update the build flow, edit `scripts/build_xc8.py`.
+- If you update the build flow, edit `scripts/xc8/build_xc8.py`.
 - If you need to change chip, source files, include paths, defines, or output prefix, update the SCMCU project file instead of editing the Python script.
 - If an agent needs a temporary or synthetic build that does not belong in the SCMCU project file, pass `-Chip`, `-SourceFile`, `-AppendSourceFile`, `-IncludeDir`, `-Define`, or `-ImagePrefix` on the command line.
 - After each build, the script parses `cmscerr.err`, `.map`, and HEX config records when present, then writes `build_summary.json`.

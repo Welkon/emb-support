@@ -1,122 +1,124 @@
 ---
 name: mcu-debug
 metadata:
-  short-description: "Debug/flash Cortex-M, build XC8 firmware, and burn/calibrate CACHIP touch MCUs"
-description: Control DAPLink / CMSIS-DAP debug probes over SWD or JTAG for ARM Cortex-M — enumerate probes, install CMSIS-Packs, flash ELF/HEX/BIN with verify, chip/sector erase, reset, read/write memory and core registers, capture SEGGER RTT logs, and run a GDB server. Use this skill whenever the user mentions DAPLink, CMSIS-DAP, DAP, SWD, SWDIO/SWCLK, pyOCD, or a CMSIS-DAP-compatible probe (ST-Link, LPC-Link, NXP/Infineon onboard debugger), or asks to 烧录 / 下载固件 / 刷板子 / 擦除 flash / 看寄存器 / 读内存 / 抓 RTT 日志 / 查 HardFault, or reports "no probe found", "target not found", "flash failed", "SWD error", even when they never name the probe. Also builds SCMCU/PIC firmware with the bundled XC8 flow and drives the CACHIP USB HID programmer for CA51 touch MCUs (burning, touch calibration, firmware slots and downloader updates). Do not use it for J-Link-native flows that depend on JLinkExe-only features (RTT Viewer, J-Link scripts) — use the jlink skill instead — and do not use it for ESP32/ESP8266 UART flashing.
+  short-description: "Debug and flash Cortex-M, build XC8 firmware, and burn CACHIP touch MCUs"
+description: "Debug and flash ARM Cortex-M targets through DAPLink, CMSIS-DAP, ST-Link, J-Link or probe-rs; build SCMCU/PIC firmware with XC8; and drive the CACHIP USB HID programmer for CA51 touch MCUs. Use this skill when the user mentions a debug probe (DAPLink, CMSIS-DAP, SWD, SWDIO, SWCLK, pyOCD, probe-rs, ST-Link, J-Link), asks to flash firmware, erase a chip, read registers or memory, set breakpoints, capture RTT or SWO output, or diagnose a HardFault. Also use it for XC8 builds (SCMCU, PIC, .scw, map file, ROM/RAM size) and CACHIP tasks (CA51M550S1B, TK3 touch, touch calibration, writer slots, downloader firmware update). Do not use it for J-Link-native flows that need JLinkExe-only features (RTT Viewer, J-Link scripts); use the jlink skill. Do not use it for ESP32 or ESP8266 UART flashing."
 ---
 
-# MCU 工具台：调试 / 烧录 / 构建
+# MCU workbench: debug, flash, build
 
-所有硬件操作都通过 `scripts/dap.py` 完成。它是 pyOCD 的薄封装：pyOCD 负责探针枚举、flash 算法、CMSIS-Packs、RTT 和 gdbserver，脚本只负责参数归一化和输出结构化 JSON，避免每次手工拼 pyOCD 命令时踩参数顺序、target 命名和阻塞等待的坑。
+This skill covers three separate toolchains. Read only the part that matches the task.
 
-**为什么用脚本而不是直接敲 `pyocd`：**
-- pyOCD 的 `cmd` / `gdbserver` 在没有探针时会**阻塞重试**，在 agent 里表现为"卡住"。脚本用 `blocking=False` 打开会话，没有探针立刻报错。
-- `pyocd json -p/-t` 的输出是嵌套结构，脚本已解析成扁平列表。
-- 错误信息会附上对应的排查建议，省掉一轮猜测。
+All hardware actions for ARM targets go through `scripts/dap.py`. The script is a thin layer over pyOCD. pyOCD does probe discovery, flash algorithms, CMSIS-Packs, RTT and the GDB server. The script only normalizes the command line and the output.
 
-## 0. 任务分流（先做这一步）
+Why the script exists:
 
-本 skill 覆盖三类互不相干的工具链，按任务只读对应资料：
+- The pyOCD `cmd` and `gdbserver` commands wait for a probe when none is attached. The script opens a session with `blocking=False`. If no probe is present, it fails in about one second.
+- `pyocd json -p/-t` returns nested data. The script flattens it.
+- Error messages include a hint for the next check.
 
-| 任务 / 关键词 | 入口 |
+## 0. Task routing
+
+Do this step first. The three toolchains are independent.
+
+| Task or keyword | Use |
 |---|---|
-| CA51 / CA51M550S1B / TK3 触摸 / TFT 仿真下载器 / CACHIP / Writer 槽 / 下载器固件升级 | `references/cachip.md` + `scripts/cachip/`（Windows + `hidapi`） |
-| PIC / SCMCU / XC8 / `.scw` / SCMCU IDE / 编译、ROM/RAM、map | `references/xc8-build.md` + `scripts/xc8/build_xc8.py`（Windows + XC8 工具链） |
-| ARM Cortex-M / DAPLink / CMSIS-DAP / ST-Link / J-Link / SWD / RTT / HardFault / probe-rs | 本文余下部分 + `scripts/dap.py` |
+| CA51, CA51M550S1B, TK3 touch, TFT emulator downloader, CACHIP, writer slot, downloader firmware update | `references/cachip.md` and `scripts/cachip/`. Windows and `hidapi` are required. |
+| PIC, SCMCU, XC8, `.scw`, SCMCU IDE, build, ROM/RAM, map file | `references/xc8-build.md` and `scripts/xc8/build_xc8.py`. Windows and the XC8 toolchain are required. |
+| ARM Cortex-M, DAPLink, CMSIS-DAP, ST-Link, J-Link, SWD, RTT, HardFault, probe-rs | The rest of this document and `scripts/dap.py`. |
 
-不要把 CACHIP/XC8 的流程套到 ARM 上，也不要拿 pyOCD 去连 CA51/PIC。
+Do not apply the CACHIP or XC8 flow to an ARM target. Do not connect pyOCD to a CA51 or PIC target.
 
-## 0.1 探针任务分类：是否该用 ARM 调试流程
+## 0.1 Probe task routing
 
-
-| 情况 | 走哪条路 |
+| Condition | Use |
 |---|---|
-| 探针是 DAPLink / CMSIS-DAP / ST-Link 兼容 | 本 skill |
-| 探针是 J-Link，且需要 RTT Viewer、J-Link 脚本、J-Flash | `jlink` skill（JLinkExe），不要混用 |
-| J-Link 只是被当成 CMSIS-DAP 用（`-f CMSIS-DAP`） | 本 skill |
-| 只通过串口看 log、没有调试器 | 串口 skill，不要本 skill |
-| 需要字段级外设语义（按 bitfield 名读写） | 本 skill 只能给原始数值；看 `references/engines.md` 里的 SVD 方案 |
+| Probe is DAPLink, CMSIS-DAP or ST-Link compatible | This skill. |
+| Probe is J-Link and the user needs RTT Viewer, J-Link scripts or J-Flash | The `jlink` skill. Do not mix tools. |
+| J-Link is configured as CMSIS-DAP (`-f CMSIS-DAP`) | This skill. |
+| The user only needs a serial log and has no debug probe | A serial skill. |
+| The user needs bit-field peripheral access by name | Read `references/engines.md`. The SVD commands provide this. |
 
-## 1. 环境自检（每次会话第一条命令）
+## 1. Environment check
+
+Run this command at the start of each session:
 
 ```bash
 python3 scripts/dap.py doctor
 ```
 
-脚本目录是 skill 所在目录；若当前工作目录不在 skill 下，用绝对路径
-`~/.pi/agent/skills/mcu-debug/scripts/dap.py`。
+The script directory is the skill directory. From another directory, use the absolute path:
 
-`doctor` 输出 JSON，重点看四个字段：
+`~/.pi/agent/skills/mcu-debug/scripts/dap.py`
 
-- `probes`：空数组 = 探针不可见。先别改代码，按 `references/troubleshooting.md#探针不可见` 排查。
-- `wsl: true`：WSL 里 USB 探针必须先挂到 Linux 侧。**任何需要探针的命令在连接失败时都会自动检测 Windows 侧**：
-  读取 `usbipd list`，若存在已 shared 的已知探针（DAPLink/ST-Link/J-Link 等）会自动 `usbipd attach --wsl`，
-  然后重试连接。可用 `--no-wsl-auto-attach` 或 `DAP_WSL_AUTO_ATTACH=0` 关闭。
-  `doctor` 会在 `windows.probes` 列出状态并给出可直接执行的命令。
-  - `dap.py wsl status`：只查看 Windows 侧设备
-  - `dap.py wsl attach --busid 2-1`：挂载（设备未 shared 时提示先以管理员运行 `usbipd bind --busid 2-1`）
-  - `dap.py doctor --attach`：自动挂载第一个未挂载的已知探针
-- `targets_cached`：内置 target 数量，0 不代表出错（内置表可能被裁剪），装 pack 即可。
-- `problems`：非空就直接读 `hints`。
+`doctor` prints JSON. Check these fields first:
 
-首次使用如果 `doctor` 报 pyOCD 缺失：
+- `probes`: An empty array means the probe is not visible. Read `references/troubleshooting.md`.
+- `wsl: true`: In WSL, the probe must be attached to Linux first. Any command that needs a probe reads the Windows-side `usbipd list` after a failed connect. If a known probe is already shared, the script runs `usbipd attach --wsl`, then retries the connect. Disable this behavior with `--no-wsl-auto-attach` or `DAP_WSL_AUTO_ATTACH=0`. `doctor` lists the Windows state in `windows.probes`.
+  - `dap.py wsl status`: Show Windows-side devices only.
+  - `dap.py wsl attach --busid 2-1`: Attach one device. If the device is not shared, the script tells the user to run `usbipd bind --busid 2-1` as administrator.
+  - `dap.py doctor --attach`: Attach the first known probe that is not attached.
+- `targets_cached`: The number of built-in targets. Zero is not an error. Install a pack.
+- `problems`: If this array is not empty, read `hints`.
+
+If pyOCD is missing, run:
 
 ```bash
-python3 scripts/dap.py setup     # 建 venv 并安装 pyOCD（需要网络，约 30s）
+python3 scripts/dap.py setup
 ```
 
-`setup` 会优先挑 Python 3.10–3.13。3.14 上部分依赖（cmsis-pack-manager）可能没有轮子，所以不要强行指定 3.14。
+`setup` creates a virtual environment and installs pyOCD. It needs network access and takes about 30 seconds. It prefers Python 3.10 to 3.13. Python 3.14 can fail because `cmsis-pack-manager` may have no wheel.
 
-## 2. 标准工作流
+## 2. Standard workflow
 
-硬件任务出错的代价通常是"把板子刷成砖"或"擦掉 option bytes"，所以按顺序做，每一步都有明确的失败出口：
+A failed hardware action can brick the board or erase option bytes. Follow the steps in order.
 
-1. **确认探针和目标**
+1. **Confirm the probe and the target**
    ```bash
    scripts/dap.py probes
    scripts/dap.py targets --search stm32f103
    ```
-   target 名字必须和 `targets` 输出完全一致。查不到就装 pack：
+   The target name must match the `targets` output. If the name is missing, install a pack:
    ```bash
    scripts/dap.py pack search GD32F303
    scripts/dap.py pack install GD32F303CC
    ```
-2. **烧录**（默认带校验；除非用户明确要求，不要加 `--no-verify` 类参数）
+2. **Flash the firmware**
    ```bash
    scripts/dap.py flash build/fw.elf -t stm32f103rc
    ```
-   - `.bin` 必须给基地址：`flash fw.bin@0x08000000 -t ...` 或 `--base 0x08000000`
-   - 目标跑在低功耗模式 / SWD 引脚被复用 / 有读保护时，加 `--frequency 1000000`，必要时先 `erase --chip-erase`
-3. **复位并验证**
+   - A `.bin` file needs a base address: `flash fw.bin@0x08000000 -t ...` or `--base 0x08000000`.
+   - If the target sleeps, shares SWD pins, or has read protection, add `--frequency 1000000`. If needed, run `erase --chip-erase` first.
+   - The flash command verifies by default. Do not disable verification unless the user asks.
+3. **Reset and verify**
    ```bash
    scripts/dap.py reset -t stm32f103rc
    scripts/dap.py mem read 0x08000000 --count 4 --json
    ```
-4. **看行为**
-   - 有 RTT：`scripts/dap.py rtt -t <target> --duration 20 --log /tmp/rtt.log`
-   - 断点：`bp set main --elf build/fw.elf --wait 10`（下断点、运行、等命中）
-   - 条件断点：`bp set main --cond "r0==3" --wait 30`，只有 r0==3 时才停
-   - 逐行/跨函数：`step --line --elf fw.elf` / `step --over --elf fw.elf`
-   - 崩溃定位：`scripts/dap.py diagnose --elf fw.elf --html /tmp/fault.html` —— 自动推断根因 + 可视化报告
-   - 要看原始现场：`scripts/dap.py fault --elf fw.elf`（寄存器/解码/栈帧/回溯/栈用量）
-   - 外设寄存器：`svd attach <chip.svd>` 后 `svd read GPIOA.CRL`，或 `svd field GPIOA.CRL.MODE0 1`
+4. **Observe the target**
+   - RTT: `scripts/dap.py rtt -t <target> --duration 20 --log /tmp/rtt.log`
+   - Breakpoint: `bp set main --elf build/fw.elf --wait 10`
+   - Conditional breakpoint: `bp set main --cond "r0==3" --wait 30`. The target stops only when `r0==3`.
+   - Step by line or over calls: `step --line --elf fw.elf` or `step --over --elf fw.elf`
+   - Crash report: `scripts/dap.py diagnose --elf fw.elf --html /tmp/fault.html`
+   - Raw crash state: `scripts/dap.py fault --elf fw.elf`
+   - Peripheral register: `svd attach <chip.svd>`, then `svd read GPIOA.CRL` or `svd field GPIOA.CRL.MODE0 1`
 
-## 3.5 进阶调试
+## 3. Advanced debug
 
-这些命令需要 `--elf`（或 `dap.py config set elf build/fw.elf` 持久化），依赖 pyOCD 自带的 pyelftools/capstone，无需额外安装。
+These commands need `--elf`. You can also run `dap.py config set elf build/fw.elf` once. The commands use pyelftools and capstone from pyOCD. No extra install is needed.
 
-**回溯**
+**Backtrace**
 ```bash
-scripts/dap.py bt            # DWARF CFI 精确展开，带 符号+offset 和 file:line
+scripts/dap.py bt
 scripts/dap.py disasm --symbol HardFault_Handler --count 20
-scripts/dap.py sym find config     # 符号搜索
-scripts/dap.py sym addr 0x08001a3c # 地址 -> 符号 + 行号
+scripts/dap.py sym find config
+scripts/dap.py sym addr 0x08001a3c
 ```
-`via: cfi` 的帧来自 `.debug_frame`/`.eh_frame`，是精确展开（寄存器按 CFI 规则逐帧重建）；
-只有缺失 CFI 时才会退回 `via: fp` / `via: stack+0x..`，那两种是启发式，可能误报。
-输出里的 `exact_frames` 给出精确帧数量。
 
-**变量与表达式（C 语法）**
+A frame with `via: cfi` comes from `.debug_frame` or `.eh_frame`. It is exact. The unwinder rebuilds the registers for each frame. If CFI data is missing, the output falls back to `via: fp` or `via: stack+0x..`. These two are heuristic and can be wrong. The `exact_frames` field gives the number of exact frames.
+
+**Variables and expressions**
 ```bash
 scripts/dap.py vars globals --filter gpio
 scripts/dap.py vars print "g_state.mode"
@@ -124,232 +126,228 @@ scripts/dap.py vars print "head->next->val + 1"
 scripts/dap.py vars print "arr[2] * 2"
 scripts/dap.py vars print "*(uint32_t*)0x40010808"
 scripts/dap.py vars print "r0 & 0xF"
-scripts/dap.py vars locals                      # 当前帧参数/局部变量
-scripts/dap.py vars locals --frame 1            # 外层帧（依赖 CFI 重建的 CFA/寄存器）
+scripts/dap.py vars locals
+scripts/dap.py vars locals --frame 1
 ```
-支持：`.` `->` `[]` `*` `&`、算术/位运算/比较/逻辑、`(type*)` 强转、枚举名、`uint8_t..uint64_t/int/char` 等基础类型。
-局部变量用 CFA 作为 frame base；外层帧依赖 CFI，缺 CFI 时才是估算。
 
-**实时监视（Live Watch）**
+The evaluator supports `.`, `->`, `[]`, `*`, `&`, arithmetic, bit operations, comparisons, logical operations, `(type*)` casts, enum names, and the base types `uint8_t` to `uint64_t`, `int` and `char`. Local variables use the CFA as the frame base. Outer frames depend on CFI. Without CFI, the values are estimates.
+
+**Live watch**
 ```bash
 scripts/dap.py watch "g_state.count" --interval 0.2 --count 50
 scripts/dap.py watch "adc_buf[0]" -n 100 --interval 0.05
 ```
-返回时间序列、min/max、是否变化。目标可继续运行（全局变量可读；局部变量需要 halt）。
+
+The command returns a time series, min, max, and a change flag. The target can keep running. Global variables are readable while the target runs. Local variables need a halted target.
 
 **RTOS**
 ```bash
-scripts/dap.py rtos                # 自动识别 FreeRTOS/RTX5/ThreadX/Zephyr, 列出任务
+scripts/dap.py rtos
 scripts/dap.py rtos --rtos freertos
 ```
 
-**条件断点与日志**
+**Conditional breakpoints and logging**
 ```bash
 scripts/dap.py bp set 0x08000abc --cond "[0x20000000]==1" --log "r0" --wait 30 --max-hits 3
 ```
-条件语法：`寄存器/立即数/[地址]` + `== != > < >= <=`。`[0x20000000:1]` 可指定宽度。命中后条件为假会自动继续，`--max-hits` 限制记录次数。
 
-**交互式会话（GDB 式）**
+The condition uses a register, a constant, or `[address]` with `==`, `!=`, `>`, `<`, `>=` or `<=`. Use `[0x20000000:1]` to set the width. If the condition is false, the target continues. `--max-hits` limits the number of recorded hits.
 
+**Interactive session**
 ```bash
 scripts/dap.py repl --elf fw.elf
-# 非交互批处理
 scripts/dap.py repl --elf fw.elf -c "bp main" -c "run 5" -c "bt" -c "p g_state.mode" -c quit
 ```
 
-一个连接内完成所有操作，断点/运行状态/core 选择在会话内保持，避免逐条命令重连。
-命令集：`run/step/next/finish/line`、`bp`（含 `if EXPR` 条件）、`wp`、`bt`、`print`、`locals`、
-`globals`、`regs`、`mem`、`disasm`、`fault`、`watch`、`core`、`source`。输入 `help` 查看。
+The session uses one connection. Breakpoints, run state and core selection persist. This avoids a reconnect for each command. Commands: `run`, `step`, `next`, `finish`, `line`, `bp` (with `if EXPR`), `wp`, `bt`, `print`, `locals`, `globals`, `regs`, `mem`, `disasm`, `fault`, `watch`, `core`, `source`. Enter `help` for the full list.
 
-**Trace / 性能**
-
+**Trace and performance**
 ```bash
 scripts/dap.py swo --cpu-freq 72000000 --swo-freq 2000000 --duration 5
-scripts/dap.py swo --raw /tmp/swo.bin --duration 10     # 同时保存原始流
+scripts/dap.py swo --raw /tmp/swo.bin --duration 10
 scripts/dap.py profile --elf fw.elf --duration 5 --interval 0.01
-scripts/dap.py cycles --enable --reset                  # 开始计数
-scripts/dap.py cycles --hz 72000000                     # 读 CYCCNT 并换算秒
+scripts/dap.py cycles --enable --reset
+scripts/dap.py cycles --hz 72000000
 ```
 
-`swo` 直接把 ITM/printf 解码到终端，依赖探针支持 SWO（DAPLink v2 / ST-Link 可以，CMSIS-DAP v1 HID 通常不行，会明确报错）。
-`profile` 通过周期性 halt 采样 PC，能定位热点但会扰动运行；无损剖析请用 `swo` 的 periodic PC 或 ETM。
+`swo` decodes ITM and printf data to the terminal. The probe must support SWO. DAPLink v2 and ST-Link support it. CMSIS-DAP v1 HID usually does not, and the command reports an error. `profile` samples the PC with periodic halts. It finds hot spots but disturbs the target. For lossless profiling, use periodic PC over SWO or ETM.
 
-**多核**
-
+**Multicore**
 ```bash
 scripts/dap.py cores
 scripts/dap.py regs --core 1
 scripts/dap.py bp set main --core 1 --elf fw.elf
 ```
 
-**flash 断点（谨慎）**
-
+**Flash breakpoints**
 ```bash
-scripts/dap.py bp set 0x08001234 --type flash --yes   # 会擦写整块扇区
-scripts/dap.py bp clear 0x08001234                    # 从备份恢复
+scripts/dap.py bp set 0x08001234 --type flash --yes
+scripts/dap.py bp clear 0x08001234
 ```
 
-原扇区会备份到 `~/.local/share/mcu-debug/flash_bp.json`；断电或恢复失败需要重新烧录。优先用 HW 断点。
+The command erases and rewrites the whole sector. It backs up the sector to `~/.local/share/mcu-debug/flash_bp.json`. If power fails during the write, flash the board again. Prefer hardware breakpoints.
 
 **Semihosting**
-
 ```bash
 scripts/dap.py semi --duration 10 --elf fw.elf
 ```
-目标执行 `bkpt #0xAB` 时由主机服务 `SYS_WRITE0` 等请求，输出直接到终端；遇到真正的断点/异常会停下。
 
-**上板自检**
+The host serves `SYS_WRITE0` and other requests when the target runs `bkpt #0xAB`. Output goes to the terminal. The command stops on a real breakpoint or fault.
 
+**On-board self-check**
 ```bash
 scripts/dap.py selfcheck --elf fw.elf --json
 ```
-非破坏性检查：探针、target、寄存器、内存/向量表、SP、HW 断点、CFI 回溯、行号、探针能力。
-全通过退出码为 0。完整验收矩阵见 `references/validation.md`。
 
-**断点命中脚本**
+The check is non-destructive. It tests the probe, target, registers, memory, vector table, SP, a hardware breakpoint, CFI unwinding, line info and probe capabilities. The exit code is 0 only if all checks pass. See `references/validation.md` for the full acceptance matrix.
 
+**Breakpoint on-hit script**
 ```bash
 scripts/dap.py bp set 0x08001234 --on-hit "print r0; bt; continue" --max-hits 5 --wait 30
 ```
-支持 `print EXPR`、`bt`、`continue`、`stop`、`silent`，分号分隔；命中后自动执行。
 
-**故障定位与可视化**
+The script supports `print EXPR`, `bt`, `continue`, `stop` and `silent`. Separate the commands with a semicolon. The commands run on each hit.
 
+**Fault analysis and report**
 ```bash
 scripts/dap.py diagnose --elf fw.elf --html /tmp/fault.html --rtt-log /tmp/rtt.log --open
 ```
 
-一次采集并做规则推理，输出按置信度排序的根因假设（每条带证据和下一步），同时生成自包含 HTML：
-内存映射上的 PC/SP/故障地址、故障标志位解码、回溯表、出错位置反汇编（高亮出错指令）、栈 hex（绿色标出可用作返回地址的字）。
+The command captures one snapshot, applies the rule engine, and writes ranked root-cause hypotheses. Each hypothesis includes evidence and next steps. It also writes a self-contained HTML report with these items:
 
-规则覆盖：空指针（BFAR 接近 0）、外设时钟未开（故障地址落在 DEVICE 区）、栈溢出（SP 越出 RAM/MSTKERR/STKERR）、
-执行了数据（PC 不在可执行段）、非法指令/Thumb 状态损坏、非精确总线错误（写缓冲延迟）、除零、非对齐、FPU 未使能、
-栈保护触发（回溯含 `__stack_chk_fail`）等。
+- The memory map, with the PC, SP and fault address.
+- The decoded fault flags.
+- The backtrace table.
+- Disassembly at the fault address, with the faulting instruction highlighted.
+- A stack hex dump, with plausible return addresses in green.
 
-离线复用：`diagnose --save /tmp/crash.json`，之后 `diagnose --snapshot /tmp/crash.json --html report.html`，
-不需要探针即可复盘（也适合把现场发给别人）。
+The rules cover NULL pointers (BFAR near 0), disabled peripheral clocks (fault address in the DEVICE region), stack overflow (SP outside RAM, MSTKERR, STKERR), execution from data (PC outside an executable segment), invalid instruction or Thumb state, imprecise bus errors (write buffer delay), divide by zero, unaligned access, disabled FPU, and stack protector failures (`__stack_chk_fail` in the backtrace).
 
-**内存快照 / 对比**
+For offline analysis, save the snapshot and replay it:
+
+```bash
+scripts/dap.py diagnose --save /tmp/crash.json
+scripts/dap.py diagnose --snapshot /tmp/crash.json --html report.html
+```
+
+**Memory snapshot and compare**
 ```bash
 scripts/dap.py snapshot save /tmp/ram.bin --addr 0x20000000 --len 0x4000
 scripts/dap.py snapshot diff /tmp/ram.bin --addr 0x20000000
 ```
-适合做“正常/异常两次运行”的 RAM 对比。
 
-**需要完整 GDB 时**
+Use this command to compare RAM after a normal run and after a fault.
+
+**Full GDB fallback**
 ```bash
 scripts/dap.py gdb-batch --elf fw.elf -ex "bt full" -ex "info locals" -ex "p/x *0x40010808"
 ```
-自动启动 `pyocd gdbserver`、跑完命令后关闭。前提是系统里有 `arm-none-eabi-gdb` / `gdb-multiarch`（或设 `DAP_GDB`）。没有 GDB 时以上原生命令覆盖大部分场景。
 
-## 3. 命令速查
+The command starts `pyocd gdbserver`, runs the GDB commands, and stops the server. It needs `arm-none-eabi-gdb` or `gdb-multiarch`, or `DAP_GDB` set to a GDB path. The native commands cover most cases when GDB is not available.
 
-| 命令 | 作用 | 关键参数 |
+## 4. Command reference
+
+| Command | Purpose | Key options |
 |---|---|---|
-| `doctor` | 环境 + 探针 + target 缓存诊断（WSL 含 Windows 侧探针） | `--attach` |
-| `wsl status/attach/detach` | WSL：探测/挂载 Windows 侧 USB 探针 | `--busid`、`--dry-run` |
-| `engines` | 列出 pyOCD / probe-rs 可用性 | 无 |
-| `setup` | 建 venv、装 pyOCD | `DAPLINK_PYTHON` |
-| `probes` / `connect` / `status` | 探针列表 / 连接并报 target / 运行状态 | `--json` |
-| `targets` | 列出/搜索 target | `--search/-s`、`--limit/-n` |
-| `pack search/install/list` | 管理 CMSIS-Packs | 查询词 |
-| `flash FILE` | 烧录（默认校验） | `-t`、`-u`、`-f`、`-e`、`--base`、`--no-reset` |
-| `verify FILE` | 只比对不写：ELF/HEX/BIN vs 目标内存 | `--base`、`--max-report` |
-| `erase` | 擦除 | `--chip-erase`（危险）、`--range` |
-| `reset` | 复位 | `--halt` |
-| `halt` / `resume` / `step` | 运行控制 | `--count`、`--over`、`--out`、`--line` |
-| `wait` | resume 后等命中 | `--cond`、`--log`、`--max-hits`、`--continue` |
-| `bp set/list/clear` | 断点（hw/sw/auto/flash） | `SYMBOL`、`file.c:LINE`、`--cond`、`--on-hit`、`--wait`、`--all` |
-| `wp set/list/clear` | 数据监视点 | `--size`、`--type r/w/rw` |
-| `mem read/write ADDR` | 内存读写 | `--width 8/16/32`、`--count N` |
-| `regs` / `regset NAME V` | 读 / 写核心寄存器 | `--json` |
-| `state` | 寄存器 + Fault 解码 + 异常栈帧 | 无 |
-| `fault` | 事后分析：Fault + 栈帧 + 回溯 + 栈用量 | `--limit`、`--max-stack` |
-| `diagnose` | 根因推断 + 可选 HTML 报告 | `--html`、`--save`、`--rtt-log`、`--snapshot`、`--open` |
-| `bt` | 回溯（符号 + 行号） | `--limit`、`--max-stack` |
-| `disasm` | 反汇编 | `--at`、`--symbol`、`--count`、`--mode` |
-| `sym list/find/addr` | 符号与地址/行号互查 | `--limit` |
-| `vars globals/locals/print` | DWARF 变量（含结构体/数组/枚举） | `--filter`、`a.b.c` |
-| `rtos` | RTOS 任务列表 | `--rtos freertos/rtx5/threadx/zephyr` |
-| `snapshot save/load/diff` | RAM 快照与对比 | `--addr`、`--len` |
-| `gdb-batch` | 外部 GDB 批处理（DWARF/表达式/条件断点） | `-ex ...`、`--elf` |
-| `repl` | 长驻会话（GDB 式交互/批处理） | `-c 'cmd'`（可重复） |
-| `cores` | 多核列表 | `--core` 用于其它命令 |
-| `cycles` | DWT 周期计数器 | `--enable`、`--reset`、`--hz` |
-| `profile` | PC 采样性能剖析 | `--duration`、`--interval`、`--top` |
-| `swo` | SWO/ITM 实时 trace | `--cpu-freq`、`--swo-freq`、`--duration`、`--raw` |
-| `semi` | ARM semihosting 控制台 | `--duration` |
-| `selfcheck` | 上板非破坏性自检 | `--elf`、`--json` |
-| `bp --type flash` | 写入 flash 的 BKPT 断点 | `--yes`（会擦写扇区） |
-| `svd attach/list/read/write/field` | SVD 外设与位域 | `PERIPH.REG[.FIELD]`、`--svd` |
-| `dapreg read/write` | 原始 DP 寄存器 | `ADDR [VALUE]` |
-| `option read/write` | option bytes（必须显式地址） | `--addr`、`--yes` |
-| `config get/set/unset/list` | 持久化默认值 | `target/probe/frequency/pack/elf/svd` |
-| `rtt` | SEGGER RTT 日志 | `-a`、`--duration`、`-d` |
-| `gdb` | 启 GDB server | `-p 3333`、`--detach`、`--persist` |
-| `info` | 目标信息 | 通用会话参数 |
+| `doctor` | Check the environment, probe and target cache. Includes Windows-side probes in WSL. | `--attach` |
+| `wsl status/attach/detach` | Find or attach Windows-side USB probes in WSL. | `--busid`, `--dry-run` |
+| `engines` | Show pyOCD and probe-rs availability. | None |
+| `setup` | Create the venv and install pyOCD. | `DAPLINK_PYTHON` |
+| `probes`, `connect`, `status` | List probes, connect and report the target, or show run state. | `--json` |
+| `targets` | List or search targets. | `--search/-s`, `--limit/-n` |
+| `pack search/install/list` | Manage CMSIS-Packs. | Query string |
+| `flash FILE` | Flash the firmware. Verification is on by default. | `-t`, `-u`, `-f`, `-e`, `--base`, `--no-reset` |
+| `verify FILE` | Compare ELF, HEX or BIN with target memory. Do not write. | `--base`, `--max-report` |
+| `erase` | Erase flash. | `--chip-erase` (dangerous), `--range` |
+| `reset` | Reset the target. | `--halt` |
+| `halt`, `resume`, `step` | Control execution. | `--count`, `--over`, `--out`, `--line` |
+| `wait` | Resume and wait for a hit. | `--cond`, `--log`, `--max-hits`, `--continue` |
+| `bp set/list/clear` | Manage breakpoints (hardware, software, auto, flash). | `SYMBOL`, `file.c:LINE`, `--cond`, `--on-hit`, `--wait`, `--all` |
+| `wp set/list/clear` | Manage data watchpoints. | `--size`, `--type r/w/rw` |
+| `mem read/write ADDR` | Read or write memory. | `--width 8/16/32`, `--count N` |
+| `regs`, `regset NAME V` | Read or write core registers. | `--json` |
+| `state` | Show registers, fault decode and the exception frame. | None |
+| `fault` | Show the fault, exception frame, backtrace and stack use. | `--limit`, `--max-stack` |
+| `diagnose` | Rank root causes and write an optional HTML report. | `--html`, `--save`, `--rtt-log`, `--snapshot`, `--open` |
+| `bt` | Show the backtrace with symbols and line numbers. | `--limit`, `--max-stack` |
+| `disasm` | Disassemble code. | `--at`, `--symbol`, `--count`, `--mode` |
+| `sym list/find/addr` | Search symbols or map an address to a line. | `--limit` |
+| `vars globals/locals/print` | Read DWARF variables, including structs, arrays and enums. | `--filter`, `a.b.c` |
+| `rtos` | List RTOS tasks. | `--rtos freertos/rtx5/threadx/zephyr` |
+| `snapshot save/load/diff` | Save, restore or compare a RAM region. | `--addr`, `--len` |
+| `gdb-batch` | Run GDB commands in batch. | `-ex ...`, `--elf` |
+| `repl` | Start a persistent GDB-style session. | `-c 'cmd'` (repeatable) |
+| `cores` | List cores. | Use `--core` with other commands. |
+| `cycles` | Read the DWT cycle counter. | `--enable`, `--reset`, `--hz` |
+| `profile` | Sample the PC and list hot functions. | `--duration`, `--interval`, `--top` |
+| `swo` | Decode SWO/ITM trace. | `--cpu-freq`, `--swo-freq`, `--duration`, `--raw` |
+| `semi` | Serve the ARM semihosting console. | `--duration` |
+| `selfcheck` | Run the non-destructive hardware self-check. | `--elf`, `--json` |
+| `bp --type flash` | Write a BKPT instruction to flash. | `--yes` (erases a sector) |
+| `svd attach/list/read/write/field` | Read or write SVD peripherals and bit fields. | `PERIPH.REG[.FIELD]`, `--svd` |
+| `dapreg read/write` | Access raw DP registers. | `ADDR [VALUE]` |
+| `option read/write` | Read or write option bytes. An explicit address is required. | `--addr`, `--yes` |
+| `config get/set/unset/list` | Store default values. | `target/probe/frequency/pack/elf/svd` |
+| `rtt` | Read the SEGGER RTT log. | `-a`, `--duration`, `-d` |
+| `gdb` | Start a GDB server. | `-p 3333`, `--detach`, `--persist` |
+| `info` | Show target information. | Session options |
 
-通用会话参数：`-t/--target`、`-u/--probe`、`-f/--frequency`、`--pack`、`--elf`（符号解析）、`--connect halt/pre-reset/under-reset/attach`、`--engine auto/pyocd/probe-rs`、`--chip`（probe-rs 器件名）。
+Session options: `-t/--target`, `-u/--probe`, `-f/--frequency`, `--pack`, `--elf`, `--connect halt/pre-reset/under-reset/attach`, `--engine auto/pyocd/probe-rs`, `--chip` (probe-rs chip name).
 
-**两个引擎**：默认 pyOCD（可运行时装 CMSIS-Pack，适合国产芯片、SVD、RTOS、故障分析）。
-probe-rs 更快，且提供 RTT/defmt、SWO/ITM/ETF、统计剖析：
+**Two engines**: pyOCD is the default. It can install CMSIS-Packs at run time, and it supports SVD, RTOS and fault analysis. probe-rs is faster. It provides RTT/defmt, SWO/ITM/ETF and statistical profiling.
 
 ```bash
-scripts/dap.py engines                                   # 看哪个可用
+scripts/dap.py engines
 scripts/dap.py flash fw.elf --engine probe-rs --chip STM32F103RC
 scripts/dap.py rtt --engine probe-rs --chip STM32F103RC --elf fw.elf
 scripts/dap.py profile --engine probe-rs --chip STM32F103RC --elf fw.elf --duration 5
 scripts/dap.py swo --engine probe-rs --chip STM32F103RC --duration 5
 ```
 
-`--engine auto`（默认）在 probe-rs 可用且能解析出芯片名时自动选它；解析顺序是 `--chip` → config → 用 pyOCD target 名去 `probe-rs chip list` 做精确/唯一前缀匹配。器件名两边不同
-（pyOCD `stm32f103rc` vs probe-rs `STM32F103RC`），用 `--chip` 明确指定。详见 `references/engines.md`。
-默认值可持久化：`dap.py config set target stm32f103rc`，之后不必每条命令都写 `-t`。
+`--engine auto` is the default. It selects probe-rs when probe-rs is installed and the chip name resolves. Resolution order: `--chip`, then config, then an exact or unique-prefix match of the pyOCD target name against `probe-rs chip list`. The two engines use different chip names (pyOCD `stm32f103rc` vs probe-rs `STM32F103RC`). Set `--chip` when the names differ. See `references/engines.md`.
 
-硬件断点存放在 FPB 里，跨进程调用仍然有效，所以 `bp set 0x08000abc` 之后单独跑 `wait` 能命中；复位会清掉它们。
+Store defaults with `dap.py config set target stm32f103rc`. Then you do not need `-t` on each command.
 
-## 4. 安全边界
+Hardware breakpoints live in the FPB. They survive between processes. After `bp set 0x08000abc`, a separate `wait` command can hit the breakpoint. A reset clears it.
 
-这些操作不可逆，执行前必须让用户明确确认：
+## 5. Safety
 
-- `erase --chip-erase`：擦掉整片 flash，包括 bootloader 和标定数据。
-- `mem write` 到 option bytes / 读保护寄存器（如 STM32 的 `0x1FFFF800`、`0x40022020`）：写错会让芯片锁死或无法再次连接。
-- `flash` 到错误 target：pyOCD 会按错误的内存映射下算法，可能写坏非 flash 区域。
-- `bp set --type flash`：会擦除并重写整个扇区（含备份/恢复）；执行中掉电需要重新烧录。
-- `swo`/`profile` 会改变目标运行状态；`profile` 的 halt 采样会让实时性敏感代码行为失真。
+The following actions are not reversible. Get explicit confirmation from the user before you run them.
 
-判断依据：如果用户没有明确说出"擦全片""解锁""写 option bytes"，就不要主动做。芯片被读保护锁住时，正确做法是提示用户用 `--connect under-reset` 或厂商工具解锁，而不是自己猜寄存器。
+- `erase --chip-erase`: Erases all flash, including the bootloader and calibration data.
+- `mem write` to option bytes or read-protection registers (for example STM32 `0x1FFFF800` or `0x40022020`): A wrong value can lock the chip or block future connects.
+- `flash` with the wrong target: pyOCD uses the wrong memory map and can write outside the flash region.
+- `bp set --type flash`: Erases and rewrites the whole sector. A power loss during the write needs a new flash.
+- `swo` and `profile` change the run state. The halt sampling in `profile` distorts timing-sensitive code.
 
-## 5. 排错
+Do not erase the whole chip, unlock protection, or write option bytes unless the user asks for it. If read protection blocks the probe, tell the user to use `--connect under-reset` or a vendor tool. Do not guess register values.
 
-常见症状（探针不可见、权限、`target not found`、flash 超时、SWD 不稳、RTT 抓不到、GDB 连不上）都在
-`references/troubleshooting.md`，按症状查，不要从头读。
+## 6. Troubleshooting
 
-脚本本身出问题时的定位顺序：`doctor` → 加 `pyocd -v` 看底层日志 → 看 `references/engines.md` 决定是否换引擎。
+Read `references/troubleshooting.md` for these symptoms: probe not visible, permission error, `target not found`, flash timeout, unstable SWD, missing RTT, and GDB connect failure. Find the symptom and read only that section.
 
-## 6. 什么时候换工具
+If the script itself fails, run `doctor`, then `pyocd -v` for the low-level log, then read `references/engines.md`.
 
-与现成 `cmsis-dap-mcp` 的逐项能力对照见 `references/parity.md`（含 4 项未覆盖能力及替代方案）。
+## 7. When to use another tool
 
-pyOCD 覆盖面最广（CMSIS-Pack、内置 flash 算法、RTT、gdbserver），但不是万能的：
+See `references/parity.md` for the feature comparison with `cmsis-dap-mcp`.
 
-- 芯片没有 CMSIS-Pack、pyOCD 也没有内置 target → 换 OpenOCD（见 `references/engines.md#没有-pack-的芯片`）。
-- 需要更强的 RTT/SWO/实时变量采样 → 见 `references/engines.md` 的 probe-rs 方案。
-- 需要 AI 直接持有结构化调试工具（而不是 shell 命令）→ 可接 `cmsis-dap-mcp`（npx 零安装），但那是另一套权限模型；本 skill 默认不引入。
+pyOCD has the widest coverage: CMSIS-Packs, built-in flash algorithms, RTT and GDB server. It is not universal.
 
-先读 `references/engines.md` 再决定，不要在同一任务里混用两套引擎的命令。
+- No CMSIS-Pack and no built-in target: use OpenOCD. See `references/engines.md`.
+- Need better RTT, SWO or live variable sampling: use the probe-rs path in `references/engines.md`.
+- Need an AI-facing structured debug tool instead of shell commands: `cmsis-dap-mcp` (zero-install with `npx`) is an option. It uses a different permission model. This skill does not include it by default.
 
-## 7. 自测与 CI（无需硬件）
+Read `references/engines.md` before you change engines. Do not mix commands from two engines in one task.
+
+## 8. Tests and CI
 
 ```bash
-~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q   # 101 tests, ~7s
-scripts/dap.py setup --dev                                  # 安装 pytest
-ruff check scripts tests                                    # 静态检查
+~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q
+scripts/dap.py setup --dev
+ruff check scripts tests
 ```
 
-CI 配置在 `.github/workflows/ci.yml`（Python 3.11/3.13，ruff + pytest）；
-运行时版本固定为 `pyocd==0.46.0`（可用 `DAPLINK_PYOCD` 覆盖）。
+CI runs `.github/workflows/ci.yml` on Python 3.11 and 3.13 with `ruff` and `pytest`. The runtime pins `pyocd==0.46.0`. Override it with `DAPLINK_PYOCD`.
 
-测试用 `gcc -g` 生成的真实 DWARF ELF + 假目标/假内存，覆盖 ELF 解析、DWARF 类型与局部变量、
-C 表达式、CFI 展开、故障规则、文本/HTML 报告、CLI 与 REPL。所有持久状态重定向到临时目录。
-硬件相关路径（SWD 时序、flash 算法、SWO、多核芯片）仍需上板验证，见 `tests/README.md`。
+The tests use a real DWARF ELF from `gcc -g` and a fake target and memory. They cover ELF parsing, DWARF types and locals, C expressions, CFI unwinding, fault rules, text and HTML reports, the CLI and the REPL. All persistent state goes to a temporary directory. Hardware paths (SWD timing, flash algorithms, SWO, multicore) still need an on-board check. See `references/validation.md`.

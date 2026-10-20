@@ -1,74 +1,88 @@
-# CACHIP toolchain (merged from the former `cachip` skill)
+# CACHIP toolchain
 
-Scripts live in `scripts/cachip/`. Requires `hidapi` and a CACHIP USB HID
-downloader (VID 0xFFCA / PID 0x0125).
+This document is the reference for the CACHIP USB HID programmer. Scripts are in
+`scripts/cachip/`.
 
-# CACHIP 烧录器工具链
+## Hardware
 
-通过 TFT 仿真下载器(USB HID, VID 0xFFCA / PID 0x0125)与目标板交互。设备实体是 STM32F103 高密度 MCU + SPI Flash + OLED/TFT 彩屏;目标板典型为 CA51M550S1B(TK3 触摸,通道号 3)。协议为厂商自定义 HID(64B report,单字节命令)。
+The programmer is a TFT emulator downloader. It uses USB HID with VID `0xFFCA`
+and PID `0x0125`. The device is an STM32F103 high-density MCU with SPI flash and
+an OLED/TFT display. The usual target is a CA51M550S1B touch MCU with TK3 touch
+and channel 3.
 
-**脚本运行环境**:Windows 上需 `hidapi` 的 Python 绑定(`pip install hidapi`);Linux 需 libusb 权限(udev rule,见 LINUX_DEPLOY.md)。所有脚本 `sys.path` 同目录即可互相 import。
+The protocol is a vendor HID protocol. Each report is 64 bytes. Each command
+starts with one command byte.
 
-## 工具清单(`scripts/`)
+## Script environment
 
-| 脚本 | 功能 |
+- Windows: install the Python binding for `hidapi`: `pip install hidapi`.
+- Linux: add a udev rule for USB access. See `LINUX_DEPLOY.md` in the original
+  CACHIP bundle if it is available.
+- All scripts import each other from the same directory. Use `sys.path` with
+  `scripts/cachip/`.
+
+## Tools
+
+| Script | Function |
 |---|---|
-| `cachip_burner.py` | 烧录目标固件(hex): Connect(型号回显+电压检查)→擦除→写→校验;每条命令校验状态字节 |
-| `cachip_touch_debug.py` | 触摸调试库: TD_Connect/GetState/GetChannelCount/GetBaselineData/GetRawData/GetThresholdData/SetThresholdData;也可作 CLI |
-| `fw_manager.py` | Writer/软件管理: FW_List(0x60)/Info(0x61)/Create(0x62)/Delete(0x63)/SyncCache(0x66)/SetKey(0x67)/GetLimit(0x69) |
-| `fw_update.py` | 下载器固件升级/还原(完整时序,见下) |
-| `ai_tune.py` | AI 标定: 采集基线(手拿开)→采集触摸(按 3 次)→建议门限→在线写入并验证 |
-| `optimize.py` | 门限贝叶斯寻优(权衡曲线 + 离线模拟) |
-| `waveform.py` | 波形分析: 快采样 + ASCII 波形 + 轻点/长按/连点/误触分类 |
-| `mcu_table.py` | 160+ 目标芯片型号表(hex→型号映射,0x028F=CA51M550S1B) |
-| `PROTOCOL.md` | 完整协议文档(命令表/帧格式/时序) |
+| `cachip_burner.py` | Burns a target HEX file. Runs Connect (model echo and voltage check), erase, write and verify. It checks the status byte of each command. |
+| `cachip_touch_debug.py` | Touch debug library and CLI. Commands: TD_Connect, GetState, GetChannelCount, GetBaselineData, GetRawData, GetThresholdData and SetThresholdData. |
+| `fw_manager.py` | Writer and slot management. Commands: FW_List (0x60), Info (0x61), Create (0x62), Delete (0x63), SyncCache (0x66), SetKey (0x67) and GetLimit (0x69). |
+| `fw_update.py` | Updates or restores the downloader firmware. See the update sequence below. |
+| `ai_tune.py` | Automatic calibration. It records the baseline with no touch, records three touches, suggests thresholds, writes them and verifies the result. |
+| `optimize.py` | Bayesian threshold search. It returns a trade-off curve and an offline simulation. |
+| `waveform.py` | Waveform analysis. Fast sampling, ASCII waveform, and classification of tap, long press, multi-tap and false touch. |
+| `mcu_table.py` | Table of more than 160 target chips (HEX model ID to name). `0x028F` is CA51M550S1B. |
+| `PROTOCOL.md` | Full protocol documentation: command table, frame format and timing. |
 
-## 快速使用
+## Quick use
 
 ```bash
-# 烧录(先 Connect 目标板;hex 或 bin 均可)
+# Burn a target. Run Connect first. HEX or BIN is accepted.
 python scripts/cachip/cachip_burner.py target.hex --name CA51M550S1B
 
-# 触摸调试(实时数据流)
+# Touch debug with a live data stream.
 python scripts/cachip/cachip_touch_debug.py --count 10 --interval 0.1
 
-# AI 标定(用户配合: 第一步手拿开, 提示后按 TK3 三次, 每次1秒)
+# Automatic calibration. The user removes the hand, then presses TK3 three times for 1 s.
 python scripts/cachip/ai_tune.py
 
-# Writer 软件槽列表/删除/创建
+# Writer slot list, delete or create.
 python scripts/cachip/fw_manager.py list
 
-# 下载器固件更新(升级/还原/定制后刷入)
+# Downloader firmware update or restore.
 python scripts/cachip/fw_update.py update CACHIP_TOOL_v1.1.0.8_20260507.bin
 ```
 
-## 协议要点(实测验证)
+## Protocol facts (measured)
 
-- **固件更新帧**: `[cmd]+[00]+[地址4B LE]+[长度1B]+[00]+[数据]`,总长 ≤64(E2 正好 64B;前缀 1B,2B 会截断丢数据)。
-- **固件更新时序**: E0(升级开始)→心跳→E4(只发不读)→延时 2s 重连(USB 重枚举,句柄失效!)→E3(2KB 扇区擦除)→E2(写块 56B)→E1(校验 60B 到 0x0802ACB0)→E4 00(清升级标志)→**物理拔插**(软件无法触发 MCU 内部复位)。
-- **状态校验**: 心跳(0x00)不查状态;电源(0x11)看电压>2V;其余命令响应 `[1]==0x00` 才算成功。Connect 响应 = 型号回显 `[2:4]`,响应慢(>3s),超时 10s。
-- **触摸响应**: `cmd+00+通道+值 2B LE`;TK3 实测 raw ≈ 8100-8300,基线自动跟踪,门限默认 500。
-- **Writer 槽地址**: 0x0833E0 起始 + 0xA780 间隔(SPI Flash)。
+- **Firmware update frame**: `[cmd] + [00] + [address 4B LE] + [length 1B] + [00] + [data]`. The total length must be 64 bytes or less. Command E2 uses exactly 64 bytes. A 1-byte prefix works. A 2-byte prefix truncates data.
+- **Firmware update sequence**: E0 (start) → heartbeat → E4 (send only, do not read) → wait 2 s and reconnect. USB re-enumerates and the old handle becomes invalid. Then E3 (erase 2 KB sector), E2 (write 56 B blocks), E1 (verify 60 B at 0x0802ACB0), E4 00 (clear the update flag). Then unplug and replug. Software cannot reset the MCU.
+- **Status check**: Do not check the status byte for a heartbeat (0x00). For power (0x11), check that the voltage is above 2 V. For all other commands, byte `[1]` must be `0x00`. The Connect response is the model echo in bytes `[2:4]`. Connect is slow (more than 3 s). Its timeout is 10 s.
+- **Touch response**: `cmd + 00 + channel + value 2B LE`. On TK3, the measured raw value is about 8100 to 8300. The baseline tracks automatically. The default threshold is 500.
+- **Writer slot address**: start at 0x0833E0 with a step of 0xA780 in SPI flash.
 
-## 经验教训(每条都曾翻车)
+## Lessons learned
 
-1. **固件字符串替换必须等长**(填充到原长度,再校验固件总长度 assert)——不等长会让固件错位 → **变砖**,需 ST-Link 全片擦除重刷。
-2. **长字符串**(>原长度): 挪到空数据区(固件区 0x5804 的 0xFF 空洞)+ 改指针(版本指针在池 0xFAFC)。
-3. **deep_reset(51×3)在新固件会导致连接异常** → 默认流程移除,`connect(deep=False)`。
-4. **设备半恢复**(CM_Reenumerate 后): 10 00 响应状态 9D/F1/E3/B8 等非 0 → 需物理拔插。
-5. **官方工具和脚本不能同时连**(设备独占);Frida/python 残留进程需清理。
-6. **升级失败会变砖**(OLED 显示升级模式或黑屏) → ST-Link 救砖: NUCLEO-C031C6 板载 ST-Link(SWDIO/SWCLK/GND/VDD)+ STM32CubeProgrammer 全片擦除 → 下载 bin @0x08000000。
-7. 烧录必须检查电压 + 状态字节(不能只看 Connect 成功)。
+Each item below caused a failure in the past.
 
-## 固件定制(已验证)
+1. **Firmware string replacement must keep the length.** Pad to the original length and assert the total firmware length. A length change shifts the firmware and bricks the device. Recovery needs a full chip erase with ST-Link and a new flash.
+2. **Long strings**: Move the string to empty data space (the 0xFF gap at firmware offset 0x5804) and change the pointer. The version pointer is in the pool at 0xFAFC.
+3. **Deep reset (51x3) breaks the connection on new firmware.** Remove it from the default flow. Use `connect(deep=False)`.
+4. **Half recovery after CM_Reenumerate**: The response to `10 00` has a non-zero state such as 9D, F1, E3 or B8. Unplug and replug the device.
+5. **The official tool and the scripts cannot connect at the same time.** The device is exclusive. Stop leftover Frida or Python processes.
+6. **A failed update bricks the device.** The OLED shows update mode or stays black. Recovery: use the ST-Link on a NUCLEO-C031C6 board (SWDIO, SWCLK, GND, VDD) with STM32CubeProgrammer. Erase the whole chip, then download the bin at 0x08000000.
+7. **Always check the voltage and the status byte before a burn.** A successful Connect alone is not enough.
 
-- 版本字符串 @0x0293BA("VER1.1.0"→"VER1.2.0" 等长替换即可)。
-- 开机 LOGO: 上=CACHIP(红)、中=公司名(白)、下=版本;LOGO 图片数据未定位(疑在外置 SPI Flash 出厂区,需拆机确认 W25Q 芯片)。
-- 改 bin → `fw_update.py update` 刷入 → 拔插生效(任何定位到的数据都能改)。
-- 固件备份: `scripts/CACHIP_TOOL_v1.1.0.8_20260507.bin`(官方原版 175,544B)。
+## Firmware customization (tested)
 
-## 目标板触摸标定(标准流程)
+- Version string at 0x0293BA. An equal-length replacement works, for example `VER1.1.0` to `VER1.2.0`.
+- Boot logo: top line CACHIP (red), middle line company name (white), bottom line version. The logo image data is not located. It is probably in a factory area of the external SPI flash. Check the W25Q part on the board.
+- Edit the bin, run `fw_update.py update`, then unplug and replug. Any located data can be changed.
+- Firmware backup: `scripts/cachip/CACHIP_TOOL_v1.1.0.8_20260507.bin` (official version, 175,544 B).
 
-1. `python scripts/cachip/ai_tune.py` 一键标定(基线 σ<5 为优;触摸差值/2 + 噪声裕量 = 建议门限)。
-2. 门限写入为**运行时设置**(重启恢复固件默认 500);固化需改固件默认门限表或研究 SPI Flash 保存机制。
-3. 验证: 读门限(0x58 00 ch)→按 TK3→看 key flag=1 且差值>门限。
+## Target touch calibration (standard flow)
+
+1. Run `python scripts/cachip/ai_tune.py`. The script tunes all channels. A baseline sigma below 5 is good. The suggested threshold is `touch delta / 2 + noise margin`.
+2. The threshold write is a run-time setting. A reboot restores the firmware default of 500. To make it permanent, change the default threshold table in the firmware or find the SPI flash storage mechanism.
+3. Verify: read the threshold (0x58 00 channel), press TK3, then check that the key flag is 1 and the delta is above the threshold.
