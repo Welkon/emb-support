@@ -1,8 +1,7 @@
 import pathlib
 
-import pytest
-
 import dap
+import pytest
 
 
 @pytest.fixture
