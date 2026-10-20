@@ -625,12 +625,16 @@ export default function App() {
                   vManual={vManual} iManual={iManual} smooth={chartSettings.smooth} delayMs={chartSettings.delay} />
                 </div>
                 <div className="hidden w-[82px] shrink-0 flex-col items-center justify-center gap-2 border-l border-border/60 pl-2 md:flex">
-                  <div className="flex flex-col items-center gap-0.5">
+                  <div className="flex w-full gap-1 px-1">
                     <button onClick={autoSet} title="Auto set and save to MAN"
-                      className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[9px] tracking-widest text-primary">
+                      className="flex-1 rounded border border-primary/40 bg-primary/10 py-0.5 font-mono text-[9px] tracking-widest text-primary">
                       AUTO
                     </button>
-                    <span className="font-mono text-[8px] tracking-widest text-muted-foreground">{scopeMode}</span>
+                    <button onClick={() => setScopeMode("MAN")} title="Manual"
+                      className={cn("flex-1 rounded border py-0.5 font-mono text-[9px] tracking-widest",
+                        scopeMode === "MAN" ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground")}>
+                      MAN
+                    </button>
                   </div>
                   <ScopeKnob label={t.voltsPerDiv}
                     value={vDivIndex / (VDIV.length - 1)}
@@ -846,15 +850,26 @@ function ScopeKnob({ label, value, display, onChange, wheelStep = 0.02 }: {
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
+  const v = Math.min(1, Math.max(0, value));
   return (
     <div ref={ref} tabIndex={0} title={`${label} · scroll to adjust`}
       className="flex w-full flex-col items-center gap-0.5 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-muted/50">
-        <CircularInput value={Math.min(1, Math.max(0, value))} radius={21} onChange={onChange} aria-label={label}>
-          <CircularTrack stroke="hsl(var(--border))" strokeWidth={3} />
-          <CircularProgress stroke="hsl(var(--primary))" strokeWidth={3} />
-          <CircularThumb r={4} fill="hsl(var(--primary))" />
-        </CircularInput>
+      <div className="relative h-14 w-14">
+        <div className="absolute inset-0 rounded-full border border-black/10 bg-[radial-gradient(circle_at_35%_28%,#ffffff,#e9e4da_58%,#cfc7b8)] shadow-[0_4px_10px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-2px_4px_rgba(0,0,0,0.15)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_35%_28%,#4c4841,#292620_58%,#151311)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-3px_6px_rgba(0,0,0,0.65)]">
+          <div className="absolute inset-[3px] rounded-full opacity-40 dark:opacity-30"
+            style={{ background: "repeating-conic-gradient(from 0deg, rgba(0,0,0,0.16) 0deg 2deg, transparent 2deg 6deg)" }} />
+          <div className="absolute inset-[6px] rounded-full border border-black/10 bg-[radial-gradient(circle_at_38%_30%,#fbfaf6,#ddd6c8_70%,#bfb6a6)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.7),inset_0_-2px_4px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_38%_30%,#57524a,#26231e_70%,#171512)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),inset_0_-2px_4px_rgba(0,0,0,0.55)]" />
+          <div className="absolute inset-0" style={{ transform: `rotate(${v * 270 - 135}deg)` }}>
+            <span className="absolute left-1/2 top-1.5 h-3 w-[2px] -translate-x-1/2 rounded-full bg-primary shadow-[0_0_5px_hsl(var(--primary)/0.6)]" />
+          </div>
+          <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/30 ring-1 ring-white/10 dark:bg-black/60" />
+          <CircularInput value={v} radius={23} onChange={onChange} aria-label={label}
+            className="absolute inset-0 h-full w-full">
+            <CircularTrack stroke="transparent" strokeWidth={3} />
+            <CircularProgress stroke="hsl(var(--primary))" strokeWidth={2} />
+            <CircularThumb r={3} fill="hsl(var(--primary))" />
+          </CircularInput>
+        </div>
       </div>
       <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       <span className="font-mono text-[10px] tabular-nums">{display}</span>
