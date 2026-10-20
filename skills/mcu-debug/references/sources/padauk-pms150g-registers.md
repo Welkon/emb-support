@@ -97,6 +97,11 @@ It is NOT a complete register manual.
   - 4 internal reference formulas
 - Current tool output:
   - `$ GPCS [Output,]VDD*<numerator>/<denominator>;`
+- Candidate numerators per reference case, from the retired device binding
+  (`9/32`, `1/24`, `9/40`, `1/32` for cases `00`, `01`, `10`, `11`).
+  These differ from `PMB180B` (`8/32`, `0/24`, `8/40`, `0/32`), and this summary
+  does not list them from the manual, so treat the exact level as unverified
+  until the datasheet is checked.
 
 ### `BANDGAP`
 
