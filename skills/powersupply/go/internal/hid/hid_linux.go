@@ -51,6 +51,9 @@ func Open(vid, pid uint16) (Transport, error) {
 }
 
 func (d *linuxDevice) Write(p []byte) error {
+	if len(p) < 64 {
+		p = append(p, make([]byte, 64-len(p))...)
+	}
 	n, err := unix.Write(d.fd, p)
 	if err != nil {
 		return err

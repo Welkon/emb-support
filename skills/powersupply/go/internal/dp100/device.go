@@ -14,33 +14,33 @@ const (
 )
 
 type Info struct {
-	Model      string
-	Hardware   float64
-	App        float64
-	Bootloader float64
-	SerialHex  string
+	Model      string  `json:"model"`
+	Hardware   float64 `json:"hardware"`
+	App        float64 `json:"app"`
+	Bootloader float64 `json:"bootloader"`
+	SerialHex  string  `json:"serial_hex"`
 }
 
 type Status struct {
-	OutputMode string
-	WorkState  byte
+	OutputMode string `json:"output_mode"`
+	WorkState  byte   `json:"work_state"`
 }
 
 type Measurement struct {
-	Voltage      float64
-	Current      float64
-	Power        float64
-	InputVoltage float64
-	Temperature  float64
+	Voltage      float64 `json:"voltage"`
+	Current      float64 `json:"current"`
+	Power        float64 `json:"power"`
+	InputVoltage float64 `json:"input_voltage"`
+	Temperature  float64 `json:"temperature"`
 }
 
 type Snapshot struct {
-	Output      string
-	VSet        float64
-	ISet        float64
-	Measurement Measurement
-	Status      Status
-	MaxVoltage  float64
+	Output      string      `json:"output"`
+	VSet        float64     `json:"vset"`
+	ISet        float64     `json:"iset"`
+	Measurement Measurement `json:"measurement"`
+	Status      Status      `json:"status"`
+	MaxVoltage  float64     `json:"max_voltage"`
 }
 
 type Device struct {

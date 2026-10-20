@@ -13,6 +13,15 @@ Prototype of the Go power-supply core.
 - CLI: `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`.
 - Golden-frame and fake-transport tests.
 
+## Verified on hardware
+
+Windows, pure Go HID, CGO disabled:
+
+- Device info and snapshot.
+- Setpoint and output ON/OFF.
+- Protection write with index `0x40`.
+- OVP trip: output turned off and `work_state` became 1.
+
 ## Not yet
 
 - HTTP/SSE server.

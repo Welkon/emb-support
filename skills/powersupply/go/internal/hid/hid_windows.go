@@ -4,6 +4,7 @@ package hid
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"unsafe"
@@ -23,11 +24,12 @@ const (
 )
 
 var (
-	hidGUID = windows.GUID{
-		Data1: 0x4D1E55B2, Data2: 0xF16F, Data3: 0x11CF,
-		Data4: [8]byte{0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30},
-	}
 	setupapi           = windows.NewLazySystemDLL("setupapi.dll")
+	hidapi             = windows.NewLazySystemDLL("hid.dll")
+	procGetHidGuid     = hidapi.NewProc("HidD_GetHidGuid")
+	procGetPreparsed   = hidapi.NewProc("HidD_GetPreparsedData")
+	procFreePreparsed  = hidapi.NewProc("HidD_FreePreparsedData")
+	procGetCaps        = hidapi.NewProc("HidP_GetCaps")
 	procGetClassDevs   = setupapi.NewProc("SetupDiGetClassDevsW")
 	procEnumInterfaces = setupapi.NewProc("SetupDiEnumDeviceInterfaces")
 	procGetDetail      = setupapi.NewProc("SetupDiGetDeviceInterfaceDetailW")
@@ -42,25 +44,38 @@ type deviceInterfaceData struct {
 }
 
 type winDevice struct {
-	h     windows.Handle
-	event windows.Handle
-	path  string
+	h      windows.Handle
+	event  windows.Handle
+	path   string
+	inLen  int
+	outLen int
 }
 
 func Open(vid, pid uint16) (Transport, error) {
-	hdev, _, err := procGetClassDevs.Call(uintptr(unsafe.Pointer(&hidGUID)), 0, 0,
+	var classGUID windows.GUID
+	procGetHidGuid.Call(uintptr(unsafe.Pointer(&classGUID)))
+	if os.Getenv("PSU_HID_DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "HID GUID=%08x-%04x-%04x-%x\n", classGUID.Data1, classGUID.Data2, classGUID.Data3, classGUID.Data4)
+	}
+	hdev, _, err := procGetClassDevs.Call(uintptr(unsafe.Pointer(&classGUID)), 0, 0,
 		digcfPresent|digcfDeviceInterface)
 	if windows.Handle(hdev) == windows.InvalidHandle {
 		return nil, fmt.Errorf("SetupDiGetClassDevs: %w", err)
+	}
+	if os.Getenv("PSU_HID_DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "HDEVINFO=%x err=%v\n", hdev, err)
 	}
 	defer procDestroy.Call(hdev)
 	want := fmt.Sprintf("vid_%04x&pid_%04x", vid, pid)
 	for index := uint32(0); ; index++ {
 		var did deviceInterfaceData
 		did.CbSize = uint32(unsafe.Sizeof(did))
-		r, _, e := procEnumInterfaces.Call(hdev, uintptr(index),
-			uintptr(unsafe.Pointer(&hidGUID)), uintptr(unsafe.Pointer(&did)))
+		r, _, e := procEnumInterfaces.Call(hdev, 0,
+			uintptr(unsafe.Pointer(&classGUID)), uintptr(index), uintptr(unsafe.Pointer(&did)))
 		if r == 0 {
+			if os.Getenv("PSU_HID_DEBUG") != "" {
+				fmt.Fprintf(os.Stderr, "enum %d failed err=%v\n", index, e)
+			}
 			if e == windows.ERROR_NO_MORE_ITEMS {
 				break
 			}
@@ -84,6 +99,9 @@ func Open(vid, pid uint16) (Transport, error) {
 			continue
 		}
 		path := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(&buf[4])))
+		if os.Getenv("PSU_HID_DEBUG") != "" {
+			fmt.Fprintln(os.Stderr, "HID path:", path)
+		}
 		if !strings.Contains(strings.ToLower(path), want) {
 			continue
 		}
@@ -100,15 +118,32 @@ func Open(vid, pid uint16) (Transport, error) {
 			windows.CloseHandle(handle)
 			return nil, fmt.Errorf("CreateEvent: %w", err)
 		}
-		return &winDevice{h: handle, event: event, path: path}, nil
+		d := &winDevice{h: handle, event: event, path: path, inLen: 64, outLen: 64}
+		var preparsed uintptr
+		if r, _, _ := procGetPreparsed.Call(uintptr(handle), uintptr(unsafe.Pointer(&preparsed))); r != 0 {
+			var caps [256]byte
+			if r, _, _ := procGetCaps.Call(preparsed, uintptr(unsafe.Pointer(&caps[0]))); r != 0 {
+				d.inLen = int(uint16(caps[4]) | uint16(caps[5])<<8)
+				d.outLen = int(uint16(caps[6]) | uint16(caps[7])<<8)
+			}
+			procFreePreparsed.Call(preparsed)
+		}
+		if os.Getenv("PSU_HID_DEBUG") != "" {
+			fmt.Fprintf(os.Stderr, "HID report lengths in=%d out=%d\n", d.inLen, d.outLen)
+		}
+		return d, nil
 	}
 	return nil, fmt.Errorf("no HID device with VID %04x PID %04x", vid, pid)
 }
 
 func (d *winDevice) Write(p []byte) error {
-	// Windows HID requires a report ID prefix. DP100 uses report ID 0.
-	if len(p) == 64 {
+	if len(p) < 64 {
+		p = append(p, make([]byte, 64-len(p))...)
+	}
+	if d.outLen == len(p)+1 {
 		p = append([]byte{0}, p...)
+	} else if d.outLen != len(p) {
+		return fmt.Errorf("HID output length %d does not match report length %d", len(p), d.outLen)
 	}
 	ov := &windows.Overlapped{HEvent: d.event}
 	windows.ResetEvent(d.event)
@@ -133,7 +168,7 @@ func (d *winDevice) Write(p []byte) error {
 }
 
 func (d *winDevice) Read(n, timeoutMS int) ([]byte, error) {
-	buf := make([]byte, n+1)
+	buf := make([]byte, d.inLen)
 	ov := &windows.Overlapped{HEvent: d.event}
 	windows.ResetEvent(d.event)
 	var done uint32
@@ -154,7 +189,7 @@ func (d *winDevice) Read(n, timeoutMS int) ([]byte, error) {
 		return nil, fmt.Errorf("empty HID report")
 	}
 	out := buf[:done]
-	if len(out) > n && out[0] == 0 {
+	if len(out) == n+1 && out[0] == 0 {
 		out = out[1:]
 	}
 	return out, nil
