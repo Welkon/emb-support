@@ -4,7 +4,6 @@ package hid
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"unsafe"
@@ -51,31 +50,23 @@ type winDevice struct {
 	outLen int
 }
 
-func Open(vid, pid uint16) (Transport, error) {
+func Paths(vid, pid uint16) ([]string, error) {
 	var classGUID windows.GUID
 	procGetHidGuid.Call(uintptr(unsafe.Pointer(&classGUID)))
-	if os.Getenv("PSU_HID_DEBUG") != "" {
-		fmt.Fprintf(os.Stderr, "HID GUID=%08x-%04x-%04x-%x\n", classGUID.Data1, classGUID.Data2, classGUID.Data3, classGUID.Data4)
-	}
 	hdev, _, err := procGetClassDevs.Call(uintptr(unsafe.Pointer(&classGUID)), 0, 0,
 		digcfPresent|digcfDeviceInterface)
 	if windows.Handle(hdev) == windows.InvalidHandle {
 		return nil, fmt.Errorf("SetupDiGetClassDevs: %w", err)
 	}
-	if os.Getenv("PSU_HID_DEBUG") != "" {
-		fmt.Fprintf(os.Stderr, "HDEVINFO=%x err=%v\n", hdev, err)
-	}
 	defer procDestroy.Call(hdev)
 	want := fmt.Sprintf("vid_%04x&pid_%04x", vid, pid)
+	var paths []string
 	for index := uint32(0); ; index++ {
 		var did deviceInterfaceData
 		did.CbSize = uint32(unsafe.Sizeof(did))
 		r, _, e := procEnumInterfaces.Call(hdev, 0,
 			uintptr(unsafe.Pointer(&classGUID)), uintptr(index), uintptr(unsafe.Pointer(&did)))
 		if r == 0 {
-			if os.Getenv("PSU_HID_DEBUG") != "" {
-				fmt.Fprintf(os.Stderr, "enum %d failed err=%v\n", index, e)
-			}
 			if e == windows.ERROR_NO_MORE_ITEMS {
 				break
 			}
@@ -93,47 +84,54 @@ func Open(vid, pid uint16) (Transport, error) {
 			DevicePath [1]uint16
 		})(unsafe.Pointer(&buf[0]))
 		detail.CbSize = uint32(unsafe.Sizeof(*detail))
-		r, _, e = procGetDetail.Call(hdev, uintptr(unsafe.Pointer(&did)),
-			uintptr(unsafe.Pointer(detail)), uintptr(required), 0, 0)
-		if r == 0 {
+		if r, _, _ = procGetDetail.Call(hdev, uintptr(unsafe.Pointer(&did)),
+			uintptr(unsafe.Pointer(detail)), uintptr(required), 0, 0); r == 0 {
 			continue
 		}
 		path := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(&buf[4])))
-		if os.Getenv("PSU_HID_DEBUG") != "" {
-			fmt.Fprintln(os.Stderr, "HID path:", path)
+		if strings.Contains(strings.ToLower(path), want) {
+			paths = append(paths, path)
 		}
-		if !strings.Contains(strings.ToLower(path), want) {
-			continue
-		}
-		handle, err := windows.CreateFile(
-			windows.StringToUTF16Ptr(path),
-			genericRead|genericWrite,
-			fileShareRead|fileShareWrite,
-			nil, openExisting, fileFlagOverlapped, 0)
-		if err != nil {
-			return nil, fmt.Errorf("open %s: %w", path, err)
-		}
-		event, err := windows.CreateEvent(nil, 1, 0, nil)
-		if err != nil {
-			windows.CloseHandle(handle)
-			return nil, fmt.Errorf("CreateEvent: %w", err)
-		}
-		d := &winDevice{h: handle, event: event, path: path, inLen: 64, outLen: 64}
-		var preparsed uintptr
-		if r, _, _ := procGetPreparsed.Call(uintptr(handle), uintptr(unsafe.Pointer(&preparsed))); r != 0 {
-			var caps [256]byte
-			if r, _, _ := procGetCaps.Call(preparsed, uintptr(unsafe.Pointer(&caps[0]))); r != 0 {
-				d.inLen = int(uint16(caps[4]) | uint16(caps[5])<<8)
-				d.outLen = int(uint16(caps[6]) | uint16(caps[7])<<8)
-			}
-			procFreePreparsed.Call(preparsed)
-		}
-		if os.Getenv("PSU_HID_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "HID report lengths in=%d out=%d\n", d.inLen, d.outLen)
-		}
-		return d, nil
 	}
-	return nil, fmt.Errorf("no HID device with VID %04x PID %04x", vid, pid)
+	return paths, nil
+}
+
+func Open(vid, pid uint16) (Transport, error) {
+	paths, err := Paths(vid, pid)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no HID device with VID %04x PID %04x", vid, pid)
+	}
+	return OpenPath(paths[0])
+}
+
+func OpenPath(path string) (Transport, error) {
+	handle, err := windows.CreateFile(
+		windows.StringToUTF16Ptr(path),
+		genericRead|genericWrite,
+		fileShareRead|fileShareWrite,
+		nil, openExisting, fileFlagOverlapped, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	event, err := windows.CreateEvent(nil, 1, 0, nil)
+	if err != nil {
+		windows.CloseHandle(handle)
+		return nil, fmt.Errorf("CreateEvent: %w", err)
+	}
+	d := &winDevice{h: handle, event: event, path: path, inLen: 64, outLen: 64}
+	var preparsed uintptr
+	if r, _, _ := procGetPreparsed.Call(uintptr(handle), uintptr(unsafe.Pointer(&preparsed))); r != 0 {
+		var caps [256]byte
+		if r, _, _ := procGetCaps.Call(preparsed, uintptr(unsafe.Pointer(&caps[0]))); r != 0 {
+			d.inLen = int(uint16(caps[4]) | uint16(caps[5])<<8)
+			d.outLen = int(uint16(caps[6]) | uint16(caps[7])<<8)
+		}
+		procFreePreparsed.Call(preparsed)
+	}
+	return d, nil
 }
 
 func (d *winDevice) Write(p []byte) error {

@@ -28,9 +28,9 @@ type Backend interface {
 	SetOVP(float64) error
 	SetOCP(float64) error
 	DeviceInfo() dp100.Info
-	Setpoints() (float64, float64)
+	Setpoints() (voltage, current float64)
 	OutputOn() bool
-	Limits() (float64, float64)
+	Limits() (maxV, maxI float64)
 	Close() error
 }
 
@@ -52,16 +52,33 @@ type Options struct {
 	AllowOrigin string
 }
 
-type Server struct {
+// Unit is one connected power supply. ID must be stable for the lifetime of the
+// process; the DP100 serial number is the natural choice.
+type Unit struct {
+	ID   string
+	Name string
+	Dev  Backend
+}
+
+type deviceState struct {
+	id    string
+	name  string
 	dev   Backend
-	opt   Options
 	mu    sync.RWMutex
 	devMu sync.Mutex
 	hist  []Sample
 	stop  chan struct{}
 }
 
-func New(dev Backend, opt Options) *Server {
+type Server struct {
+	opt       Options
+	units     []*deviceState
+	byID      map[string]*deviceState
+	defaultID string
+	wg        sync.WaitGroup
+}
+
+func normalizeOptions(opt Options) Options {
 	if opt.MaxVoltage == 0 {
 		opt.MaxVoltage = dp100.MaxVoltage
 	}
@@ -71,52 +88,106 @@ func New(dev Backend, opt Options) *Server {
 	if opt.SampleHz == 0 {
 		opt.SampleHz = 20
 	}
-	s := &Server{dev: dev, opt: opt, stop: make(chan struct{})}
-	go s.sampleLoop()
+	return opt
+}
+
+// New keeps the single-device API. Multiple devices use NewMulti.
+func New(dev Backend, opt Options) *Server {
+	return NewMulti([]Unit{{ID: "default", Dev: dev}}, opt)
+}
+
+func NewMulti(units []Unit, opt Options) *Server {
+	s := &Server{opt: normalizeOptions(opt), byID: make(map[string]*deviceState)}
+	for i, unit := range units {
+		if unit.Dev == nil {
+			continue
+		}
+		id := strings.TrimSpace(unit.ID)
+		if id == "" {
+			id = fmt.Sprintf("device-%d", i+1)
+		}
+		base := id
+		for n := 2; s.byID[id] != nil; n++ {
+			id = fmt.Sprintf("%s-%d", base, n)
+		}
+		name := strings.TrimSpace(unit.Name)
+		if name == "" {
+			name = id
+		}
+		u := &deviceState{id: id, name: name, dev: unit.Dev, stop: make(chan struct{})}
+		s.units = append(s.units, u)
+		s.byID[id] = u
+		if s.defaultID == "" {
+			s.defaultID = id
+		}
+		s.wg.Add(1)
+		go s.sampleLoop(u)
+	}
 	return s
 }
 
 func (s *Server) Close() {
-	select {
-	case <-s.stop:
-	default:
-		close(s.stop)
+	for _, u := range s.units {
+		select {
+		case <-u.stop:
+		default:
+			close(u.stop)
+		}
 	}
+	s.wg.Wait()
 }
 
 func (s *Server) Stop() { s.Close() }
 
-func (s *Server) sampleLoop() {
+func (s *Server) sampleLoop(u *deviceState) {
+	defer s.wg.Done()
 	period := time.Second / time.Duration(s.opt.SampleHz)
 	for {
 		start := time.Now()
-		s.devMu.Lock()
-		m, err := s.dev.Measurement()
-		s.devMu.Unlock()
+		u.devMu.Lock()
+		m, err := u.dev.Measurement()
+		u.devMu.Unlock()
 		if err == nil {
 			iv, tv := m.InputVoltage, m.Temperature
-			s.mu.Lock()
-			s.hist = append(s.hist, Sample{
+			u.mu.Lock()
+			u.hist = append(u.hist, Sample{
 				T: time.Now().UnixMilli(), Voltage: m.Voltage, Current: m.Current,
 				Power: m.Power, InputVoltage: &iv, Temperature: &tv,
 			})
-			if len(s.hist) > s.opt.SampleHz*240 {
-				s.hist = s.hist[len(s.hist)-s.opt.SampleHz*240:]
+			limit := s.opt.SampleHz * 240
+			if len(u.hist) > limit {
+				u.hist = u.hist[len(u.hist)-limit:]
 			}
-			s.mu.Unlock()
+			u.mu.Unlock()
 		}
 		if d := period - time.Since(start); d > 0 {
 			select {
 			case <-time.After(d):
-			case <-s.stop:
+			case <-u.stop:
 				return
 			}
 		}
 	}
 }
 
+func (s *Server) unit(r *http.Request, requested string) (*deviceState, error) {
+	id := strings.TrimSpace(requested)
+	if id == "" {
+		id = strings.TrimSpace(r.URL.Query().Get("device"))
+	}
+	if id == "" {
+		id = s.defaultID
+	}
+	u := s.byID[id]
+	if u == nil {
+		return nil, fmt.Errorf("unknown device %q", id)
+	}
+	return u, nil
+}
+
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/devices", s.devices)
 	mux.HandleFunc("/api/state", s.state)
 	mux.HandleFunc("/api/history", s.history)
 	mux.HandleFunc("/api/stream", s.stream)
@@ -146,30 +217,54 @@ func (s *Server) cors(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) state(w http.ResponseWriter, r *http.Request) {
-	ch := 1
-	s.mu.RLock()
-	var last Sample
-	have := len(s.hist) > 0
-	if have {
-		last = s.hist[len(s.hist)-1]
+func (s *Server) devices(w http.ResponseWriter, r *http.Request) {
+	out := make([]map[string]any, 0, len(s.units))
+	for _, u := range s.units {
+		info := u.dev.DeviceInfo()
+		out = append(out, map[string]any{
+			"id": u.id, "name": u.name,
+			"idn":   fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
+			"model": info.Model, "serial_number_hex": info.SerialHex,
+			"app_version": info.App, "hardware_version": info.Hardware,
+			"output": map[bool]string{false: "OFF", true: "ON"}[u.dev.OutputOn()],
+		})
 	}
-	s.mu.RUnlock()
+	writeJSON(w, 200, map[string]any{"ok": true, "devices": out, "default": s.defaultID})
+}
 
-	s.devMu.Lock()
-	info := s.dev.DeviceInfo()
-	vset, iset := s.dev.Setpoints()
-	out := s.dev.OutputOn()
-	maxV, _ := s.dev.Limits()
-	mode, work := s.dev.Status()
+func (s *Server) state(w http.ResponseWriter, r *http.Request) {
+	u, err := s.unit(r, "")
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	s.writeState(w, u)
+}
+
+func (s *Server) writeState(w http.ResponseWriter, u *deviceState) {
+	ch := 1
+	u.mu.RLock()
+	var last Sample
+	have := len(u.hist) > 0
+	if have {
+		last = u.hist[len(u.hist)-1]
+	}
+	u.mu.RUnlock()
+
+	u.devMu.Lock()
+	info := u.dev.DeviceInfo()
+	vset, iset := u.dev.Setpoints()
+	out := u.dev.OutputOn()
+	maxV, _ := u.dev.Limits()
+	mode, work := u.dev.Status()
 	if !have {
-		if m, err := s.dev.Measurement(); err == nil {
+		if m, err := u.dev.Measurement(); err == nil {
 			last = Sample{Voltage: m.Voltage, Current: m.Current, Power: m.Power,
 				InputVoltage: &m.InputVoltage, Temperature: &m.Temperature}
 			have = true
 		}
 	}
-	s.devMu.Unlock()
+	u.devMu.Unlock()
 
 	measurement := map[string]any{"voltage": 0.0, "current": 0.0, "power": 0.0}
 	if have {
@@ -188,7 +283,8 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	}
 	status := map[string]any{"output_mode": modeName, "work_state": work}
 	writeJSON(w, 200, map[string]any{
-		"ok": true, "idn": fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
+		"ok": true, "device": u.id, "device_name": u.name,
+		"idn":    fmt.Sprintf("ALIENTEK,DP100,%s,%.1f", info.SerialHex, info.App),
 		"family": "dp100", "device_info": map[string]any{
 			"model": info.Model, "hardware_version": info.Hardware, "app_version": info.App,
 			"bootloader_version": info.Bootloader, "serial_number_hex": info.SerialHex,
@@ -204,6 +300,11 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {
+	u, err := s.unit(r, "")
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	seconds := 62.0
 	if v := r.URL.Query().Get("seconds"); v != "" {
 		fmt.Sscanf(v, "%f", &seconds)
@@ -212,18 +313,23 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 		seconds = 62
 	}
 	cutoff := time.Now().Add(-time.Duration(seconds * float64(time.Second))).UnixMilli()
-	s.mu.RLock()
-	out := make([]Sample, 0, len(s.hist))
-	for _, sample := range s.hist {
+	u.mu.RLock()
+	out := make([]Sample, 0, len(u.hist))
+	for _, sample := range u.hist {
 		if sample.T >= cutoff {
 			out = append(out, sample)
 		}
 	}
-	s.mu.RUnlock()
-	writeJSON(w, 200, map[string]any{"ok": true, "ch": 1, "samples": out})
+	u.mu.RUnlock()
+	writeJSON(w, 200, map[string]any{"ok": true, "device": u.id, "ch": 1, "samples": out})
 }
 
 func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
+	u, err := s.unit(r, "")
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	hz := 20.0
 	if v := r.URL.Query().Get("hz"); v != "" {
 		fmt.Sscanf(v, "%f", &hz)
@@ -246,19 +352,19 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-s.stop:
+		case <-u.stop:
 			return
 		default:
 		}
-		s.mu.RLock()
+		u.mu.RLock()
 		var latest *Sample
-		if len(s.hist) > 0 {
-			x := s.hist[len(s.hist)-1]
+		if len(u.hist) > 0 {
+			x := u.hist[len(u.hist)-1]
 			if x.T > last {
 				latest = &x
 			}
 		}
-		s.mu.RUnlock()
+		u.mu.RUnlock()
 		if latest != nil {
 			last = latest.T
 			b, _ := json.Marshal(latest)
@@ -275,12 +381,18 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) set(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		Device  string   `json:"device"`
 		Ch      int      `json:"ch"`
 		Voltage *float64 `json:"voltage"`
 		Current *float64 `json:"current"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	u, err := s.unit(r, body.Device)
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 	if body.Voltage != nil && (*body.Voltage < 0 || *body.Voltage > s.opt.MaxVoltage) {
@@ -291,75 +403,104 @@ func (s *Server) set(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": "current limit"})
 		return
 	}
-	s.devMu.Lock()
-	var err error
+	u.devMu.Lock()
 	if body.Voltage != nil {
-		err = s.dev.SetVoltage(*body.Voltage)
+		err = u.dev.SetVoltage(*body.Voltage)
 	}
 	if err == nil && body.Current != nil {
-		err = s.dev.SetCurrent(*body.Current)
+		err = u.dev.SetCurrent(*body.Current)
 	}
-	s.devMu.Unlock()
+	u.devMu.Unlock()
 	if err != nil {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	s.state(w, r)
+	s.writeState(w, u)
 }
 
 func (s *Server) output(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Ch      int  `json:"ch"`
-		On      bool `json:"on"`
-		Confirm bool `json:"confirm"`
+		Device  string `json:"device"`
+		Ch      int    `json:"ch"`
+		On      bool   `json:"on"`
+		Confirm bool   `json:"confirm"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	u, err := s.unit(r, body.Device)
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 	if body.On && !body.Confirm {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": "output ON requires confirm=true"})
 		return
 	}
-	s.devMu.Lock()
-	err := s.dev.SetOutput(body.On)
-	s.devMu.Unlock()
+	u.devMu.Lock()
+	err = u.dev.SetOutput(body.On)
+	u.devMu.Unlock()
 	if err != nil {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	s.state(w, r)
+	s.writeState(w, u)
 }
 
 func (s *Server) protect(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Ch  int      `json:"ch"`
-		OVP *float64 `json:"ovp"`
-		OCP *float64 `json:"ocp"`
+		Device string   `json:"device"`
+		Ch     int      `json:"ch"`
+		OVP    *float64 `json:"ovp"`
+		OCP    *float64 `json:"ocp"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	s.devMu.Lock()
-	var err error
+	u, err := s.unit(r, body.Device)
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	u.devMu.Lock()
 	if body.OVP != nil {
-		err = s.dev.SetOVP(*body.OVP)
+		err = u.dev.SetOVP(*body.OVP)
 	}
 	if err == nil && body.OCP != nil {
-		err = s.dev.SetOCP(*body.OCP)
+		err = u.dev.SetOCP(*body.OCP)
 	}
-	s.devMu.Unlock()
+	u.devMu.Unlock()
 	if err != nil {
 		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	s.state(w, r)
+	s.writeState(w, u)
 }
 
 func (s *Server) allOff(w http.ResponseWriter, r *http.Request) {
-	s.devMu.Lock()
-	err := s.dev.SetOutput(false)
-	s.devMu.Unlock()
-	if err != nil {
-		writeJSON(w, 400, map[string]any{"ok": false, "error": err.Error()})
-		return
+	var body struct {
+		Device string `json:"device"`
 	}
-	writeJSON(w, 200, map[string]any{"ok": true, "outputs_off": []int{1}})
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&body)
+	}
+	targets := s.units
+	if body.Device != "" || r.URL.Query().Get("device") != "" {
+		u, err := s.unit(r, body.Device)
+		if err != nil {
+			writeJSON(w, 404, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		targets = []*deviceState{u}
+	}
+	off := make([]string, 0, len(targets))
+	for _, u := range targets {
+		u.devMu.Lock()
+		err := u.dev.SetOutput(false)
+		u.devMu.Unlock()
+		if err != nil {
+			writeJSON(w, 500, map[string]any{"ok": false, "device": u.id, "error": err.Error()})
+			return
+		}
+		off = append(off, u.id)
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "outputs_off": off})
 }
 
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {

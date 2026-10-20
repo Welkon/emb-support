@@ -88,10 +88,25 @@ func Open(t hid.Transport) (*Device, error) {
 
 func (d *Device) Close() error { return d.t.Close() }
 
-func (d *Device) DeviceInfo() Info              { return d.Info }
-func (d *Device) Setpoints() (float64, float64) { return d.V, d.I }
-func (d *Device) OutputOn() bool                { return d.Out }
-func (d *Device) Limits() (maxV, maxI float64)  { return d.MaxV, d.MaxI }
+func (d *Device) DeviceInfo() Info { return d.Info }
+
+func (d *Device) Setpoints() (float64, float64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.V, d.I
+}
+
+func (d *Device) OutputOn() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.Out
+}
+
+func (d *Device) Limits() (maxV, maxI float64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.MaxV, d.MaxI
+}
 
 func (d *Device) Status() (mode, work byte) {
 	d.mu.Lock()

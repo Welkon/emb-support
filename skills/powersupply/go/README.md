@@ -10,10 +10,13 @@ Prototype of the Go power-supply core.
 - Limits: 30 V, 5 A, OVP 30.5 V, OCP 5.05 A.
 - Pure-Go Windows HID transport (SetupAPI + overlapped I/O).
 - Linux hidraw transport.
-- CLI: `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`, `web`.
-- HTTP API: `/api/state`, `/api/history`, `/api/stream` (SSE), `/api/set`,
-  `/api/output`, `/api/protect`, `/api/all-off`.
-- Background 20 Hz sampler with a 4-minute ring buffer.
+- CLI: `list`, `idn`, `get`, `measure`, `snapshot`, `set`, `output`, `protect`, `web`.
+- HTTP API: `/api/devices`, `/api/state`, `/api/history`, `/api/stream` (SSE),
+  `/api/set`, `/api/output`, `/api/protect`, `/api/all-off`.
+- Multiple DP100 devices. Each unit is sampled independently at 20 Hz and keeps
+  its own 4-minute history. API requests select a unit with `device=<serial>`.
+- The desktop UI shows one tab per connected unit. Both units stay active while
+  you switch tabs. `All off` turns off every output.
 - Static React UI and optional CORS for a standalone single-file build.
 - Wails v3 frameless desktop window with custom drag, minimise, maximise, and close.
 - Desktop chart polling through `/api/history`; the browser keeps SSE.
@@ -32,8 +35,8 @@ Windows, pure Go HID, CGO disabled:
 
 ## Not yet
 
-- Config, logging, sequences, scans, presets.
-- Tray icon and signed updater.
+- Config, logging, tray icon, and signed updater.
+- Hot-plug detection after the app starts.
 - Windows signing and updater.
 
 ## Build
@@ -58,7 +61,8 @@ embedded copy.
 Run only with the DP100 on the same OS:
 
 ```sh
-psu idn --json
+psu list
+psu idn --serial 86759d000040041622272d --json
 psu get
 psu measure
 psu set --voltage 3.3 --current 0.5

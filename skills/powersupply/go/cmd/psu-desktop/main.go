@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -32,17 +33,55 @@ func externalWebDir() string {
 	return ""
 }
 
+func openAll() ([]server.Unit, []*dp100.Device, error) {
+	paths, err := hid.Paths(0x2E3C, 0xAF01)
+	if err != nil {
+		return nil, nil, err
+	}
+	var units []server.Unit
+	var devices []*dp100.Device
+	seen := make(map[string]bool)
+	for _, path := range paths {
+		t, err := hid.OpenPath(path)
+		if err != nil {
+			log.Printf("skip %s: %v", path, err)
+			continue
+		}
+		dev, err := dp100.Open(t)
+		if err != nil {
+			t.Close()
+			log.Printf("skip %s: %v", path, err)
+			continue
+		}
+		info := dev.DeviceInfo()
+		id := info.SerialHex
+		if id == "" {
+			id = path
+		}
+		if seen[id] {
+			dev.Close()
+			continue
+		}
+		seen[id] = true
+		units = append(units, server.Unit{ID: id, Name: info.Model, Dev: dev})
+		devices = append(devices, dev)
+	}
+	if len(units) == 0 {
+		return nil, nil, fmt.Errorf("no DP100 found on %d HID path(s)", len(paths))
+	}
+	return units, devices, nil
+}
+
 func main() {
-	t, err := hid.Open(0x2E3C, 0xAF01)
+	units, devices, err := openAll()
 	if err != nil {
 		log.Fatal("DP100: ", err)
 	}
-	dev, err := dp100.Open(t)
-	if err != nil {
-		t.Close()
-		log.Fatal("DP100: ", err)
-	}
-	defer dev.Close()
+	defer func() {
+		for _, dev := range devices {
+			dev.Close()
+		}
+	}()
 
 	assets, err := fs.Sub(webassets.FS, "dist")
 	if err != nil {
@@ -53,7 +92,7 @@ func main() {
 	if dir := externalWebDir(); dir != "" {
 		assets = os.DirFS(dir)
 	}
-	srv := server.New(dev, server.Options{DistFS: assets})
+	srv := server.NewMulti(units, server.Options{DistFS: assets})
 	defer srv.Close()
 
 	app := application.New(application.Options{

@@ -193,3 +193,70 @@ func TestDesktopRuntimeInjection(t *testing.T) {
 		t.Fatal("browser index must not inject the Wails runtime")
 	}
 }
+
+func TestMultipleDevices(t *testing.T) {
+	a := &fakeDev{v: 1, i: 0.1}
+	b := &fakeDev{v: 2, i: 0.2}
+	s := NewMulti([]Unit{{ID: "a", Name: "A", Dev: a}, {ID: "b", Name: "B", Dev: b}}, Options{SampleHz: 100})
+	defer s.Close()
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/devices")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list struct {
+		Devices []struct {
+			ID string `json:"id"`
+		} `json:"devices"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if len(list.Devices) != 2 || list.Devices[0].ID != "a" || list.Devices[1].ID != "b" {
+		t.Fatalf("devices = %+v", list.Devices)
+	}
+
+	body := strings.NewReader(`{"device":"b","voltage":5,"current":1}`)
+	res, err = http.Post(ts.URL+"/api/set", "application/json", body)
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("set b: %v %v", err, res.StatusCode)
+	}
+	res.Body.Close()
+	if a.v != 1 || b.v != 5 {
+		t.Fatalf("setpoints crossed: a=%.2f b=%.2f", a.v, b.v)
+	}
+
+	res, err = http.Get(ts.URL + "/api/state?device=a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Device string `json:"device"`
+	}
+	json.NewDecoder(res.Body).Decode(&state)
+	res.Body.Close()
+	if state.Device != "a" {
+		t.Fatalf("state device = %q", state.Device)
+	}
+
+	res, err = http.Get(ts.URL + "/api/state?device=missing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 404 {
+		t.Fatalf("unknown device status = %d", res.StatusCode)
+	}
+
+	res, err = http.Post(ts.URL+"/api/all-off", "application/json", strings.NewReader(`{}`))
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("all off: %v %v", err, res.StatusCode)
+	}
+	res.Body.Close()
+	if a.out || b.out {
+		t.Fatal("all-off did not turn off both devices")
+	}
+}

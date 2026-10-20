@@ -32,8 +32,12 @@ const DEFAULT_PRESETS: Preset[] = [
   { v: 9, i: 1 }, { v: 12, i: 1 }, { v: 24, i: 0.5 },
 ];
 
+type Device = {
+  id: string; name: string; idn: string; model: string; serial_number_hex: string;
+  app_version: number; hardware_version: number; output: string;
+};
 type State = {
-  ok: boolean; idn: string; family: string; channels: number[]; ch: number;
+  ok: boolean; idn: string; family: string; channels: number[]; ch: number; device?: string; device_name?: string;
   output: string | null; setpoint: { voltage: number | null; current: number | null };
   measurement: Measurement; status: { output_mode?: string; work_state?: number } | null;
   capabilities: Caps; limits: Limits; device_info: Record<string, unknown>;
@@ -70,6 +74,7 @@ const STR = {
     outputPower: "Output power", inputVoltage: "Input voltage", vset: "VSET", iset: "ISET",
     limit: "limit", dcInput: "DC input", mode: "mode", state: "state", channel: "channel", of: "of",
     polling: "5 Hz live", history: "Live", control: "Control", apply: "Apply setpoints",
+    devices: "Devices", allOff: "All off",
     on: "ON", off: "OFF", ovp: "OVP", ocp: "OCP", setProtection: "Set protection",
     outputNote: "Output ON requires confirmation. Limits are enforced by the server, not only by this page.",
     status: "Status", setpoint: "Setpoint", limits: "Limits", voltage: "Voltage", current: "Current",
@@ -116,6 +121,7 @@ const STR = {
     outputPower: "输出功率", inputVoltage: "输入电压", vset: "设定电压", iset: "设定电流",
     limit: "上限", dcInput: "直流输入", mode: "模式", state: "状态", channel: "通道", of: "共",
     polling: "5 Hz 实时", history: "实时曲线", control: "控制", apply: "应用设定值",
+    devices: "设备", allOff: "全部关闭",
     on: "开", off: "关", ovp: "过压保护", ocp: "过流保护", setProtection: "设置保护",
     outputNote: "开启输出需要二次确认；限值由服务端强制，不只是页面限制。",
     status: "状态", setpoint: "设定值", limits: "限值", voltage: "电压", current: "电流",
@@ -255,6 +261,8 @@ export default function App() {
   const [headerH, setHeaderH] = useState(72);
   const [desktop] = useState(() => new URLSearchParams(location.search).has("desktop") || Boolean((window as any).wails?.Window));
   const wailsWindow = () => (window as any).wails?.Window;
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [deviceId, setDeviceId] = useState(() => localStorage.getItem("psu-device") || "");
   const [toast, setToast] = useState<{ title: string; detail: string } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [sound, setSound] = useState(() => localStorage.getItem("psu-sound") !== "0");
@@ -332,10 +340,45 @@ export default function App() {
   }, []);
 
   const refresh = useCallback(async (ch = channel) => {
-    try { applyState(await api(`/api/state?ch=${ch}`)); }
+    const q = deviceId ? `&device=${encodeURIComponent(deviceId)}` : "";
+    try { applyState(await api(`/api/state?ch=${ch}${q}`)); }
     catch (e) { setConnected(false); setError((e as Error).message); }
-  }, [applyState, channel]);
+  }, [applyState, channel, deviceId]);
 
+  const loadDevices = useCallback(async () => {
+    try {
+      const d = await (await fetch("/api/devices")).json();
+      const list: Device[] = d?.devices ?? [];
+      setDevices(list);
+      setDeviceId((prev) => {
+        const saved = localStorage.getItem("psu-device") || "";
+        const found = [prev, saved, d?.default, list[0]?.id].find((id) => typeof id === "string" && list.some((x) => x.id === id));
+        return found ?? "";
+      });
+    } catch { /* keep the last list */ }
+  }, []);
+  useEffect(() => {
+    loadDevices();
+    const id = window.setInterval(loadDevices, 5000);
+    return () => window.clearInterval(id);
+  }, [loadDevices]);
+  useEffect(() => {
+    if (deviceId) localStorage.setItem("psu-device", deviceId);
+  }, [deviceId]);
+  useEffect(() => {
+    setData(null);
+    setConnected(false);
+    setVset("");
+    setIset("");
+    prevOutputRef.current = null;
+  }, [deviceId]);
+  const allOff = async () => {
+    try {
+      await api("/api/all-off", {});
+      await loadDevices();
+      refresh();
+    } catch (e) { setError((e as Error).message); }
+  };
   const autoRate = data?.family === "dp100" ? 20 : 10;
   const hz = autoRate;
   useEffect(() => {
@@ -386,9 +429,9 @@ export default function App() {
     finally { if (!quiet) setBusy(false); }
   };
 
-  const setpoints = () => run(() => api("/api/set", { ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }), true);
-  const output = (on: boolean) => run(() => api("/api/output", { ch: channel, on, confirm: on }));
-  const protect = () => run(() => api("/api/protect", { ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp) }));
+  const setpoints = () => run(() => api("/api/set", { device: deviceId, ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }), true);
+  const output = (on: boolean) => run(() => api("/api/output", { device: deviceId, ch: channel, on, confirm: on })).then(loadDevices);
+  const protect = () => run(() => api("/api/protect", { device: deviceId, ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp) }));
 
   const caps = data?.capabilities;
   const on = (data?.output || "").toUpperCase() === "ON";
@@ -402,7 +445,7 @@ export default function App() {
     // Optimistically move the UI so the selection is visible immediately.
     setData((prev) => prev ? { ...prev, setpoint: { voltage: preset.v, current: preset.i } } : prev);
     // Presets are explicit user intent: apply both setpoints even while output is ON.
-    run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }), true);
+    run(() => api("/api/set", { device: deviceId, ch: channel, voltage: preset.v, current: preset.i }), true);
   };
   const savePreset = () => {
     const v = parseFloat(vset), i = parseFloat(iset);
@@ -597,6 +640,32 @@ export default function App() {
           </div>
           </div>
           </div>
+          {devices.length > 1 && (
+            <div className="border-t border-border/50 bg-background/50">
+              <div className="mx-auto flex max-w-[1440px] items-center gap-1.5 overflow-x-auto px-5 py-1.5 lg:px-8">
+                <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t.devices}</span>
+                {devices.map((d) => {
+                  const active = d.id === deviceId;
+                  const dOn = (d.output || "").toUpperCase() === "ON";
+                  const short = d.serial_number_hex ? d.serial_number_hex.slice(-6).toUpperCase() : d.id.slice(-6);
+                  return (
+                    <button key={d.id} type="button" onClick={() => setDeviceId(d.id)}
+                      className={cn("flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1 text-[11px] transition-colors",
+                        active ? "border-primary/40 bg-primary/10 text-foreground" : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground")}>
+                      <span className={cn("h-1.5 w-1.5 rounded-full", dOn ? "bg-success" : "bg-muted-foreground/40")} />
+                      <span className="font-medium">{d.model || "DP100"}</span>
+                      <span className="font-mono opacity-70">{short}</span>
+                      <span className={cn("font-mono text-[9px] tracking-wide", dOn ? "text-success" : "opacity-60")}>{d.output || "—"}</span>
+                    </button>
+                  );
+                })}
+                <button type="button" onClick={allOff} title={t.allOff}
+                  className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
+                  <Power className="h-3 w-3" /> {t.allOff}
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
         {tab === "basic" && (!data ? <MetricsSkeleton /> : (
@@ -676,9 +745,9 @@ export default function App() {
               <CardContent>
                 <div className="flex gap-3">
                 <div className="min-w-0 flex-1">
-                <LiveChart ref={chartRef} key={channel}
-                  streamUrl={`/api/stream?ch=${channel}&hz=${hz}`}
-                  historyUrl={`/api/history?ch=${channel}&seconds=62`}
+                <LiveChart key={deviceId} ref={chartRef} key={channel}
+                  streamUrl={`/api/stream?ch=${channel}&hz=${hz}${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ""}`}
+                  historyUrl={`/api/history?ch=${channel}&seconds=62${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ""}`}
                   poll={desktop}
                   dark={dark} height={400} windowMs={windowMs}
                   cache={cache} vset={data?.setpoint.voltage} iset={data?.setpoint.current}
@@ -744,12 +813,12 @@ export default function App() {
         ) : (
           <motion.div key="advanced" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: "easeOut" }} className="space-y-8">
-            <SequencePanel t={t} channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+            <SequencePanel t={t} channel={channel} device={deviceId} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
               onState={applyState} setError={setError} />
             <div className="grid gap-8 border-t border-border pt-8 xl:grid-cols-2">
-              <ScanPanel t={t} kind="voltage" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+              <ScanPanel t={t} kind="voltage" channel={channel} device={deviceId} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
                 onState={applyState} setError={setError} />
-              <ScanPanel t={t} kind="current" channel={channel} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
+              <ScanPanel t={t} kind="current" channel={channel} device={deviceId} maxV={data?.limits.max_voltage} maxI={data?.limits.max_current}
                 onState={applyState} setError={setError} />
             </div>
             <div className="grid gap-8 border-t border-border pt-8 md:grid-cols-2">
@@ -1108,8 +1177,8 @@ function ControlCard({ t, caps, data, busy, vset, iset, ovp, ocp, setVset, setIs
 
 type SeqRow = { v: string; i: string; delay: string };
 
-function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
-  t: Dict; channel: number; maxV?: number; maxI?: number;
+function SequencePanel({ t, channel, device, maxV, maxI, onState, setError }: {
+  t: Dict; channel: number; device: string; maxV?: number; maxI?: number;
   onState: (s: State) => void; setError: (e: string) => void;
 }) {
   const [rows, setRows] = useState<SeqRow[]>([
@@ -1134,6 +1203,7 @@ function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
         setProgress(i);
         const v = parseFloat(rows[i].v), cur = parseFloat(rows[i].i);
         onState(await api("/api/set", {
+          device,
           ch: channel,
           voltage: Number.isFinite(v) ? v : undefined,
           current: Number.isFinite(cur) ? cur : undefined,
@@ -1194,8 +1264,8 @@ function SequencePanel({ t, channel, maxV, maxI, onState, setError }: {
   );
 }
 
-function ScanPanel({ t, kind, channel, maxV, maxI, onState, setError }: {
-  t: Dict; kind: "voltage" | "current"; channel: number; maxV?: number; maxI?: number;
+function ScanPanel({ t, kind, channel, device, maxV, maxI, onState, setError }: {
+  t: Dict; kind: "voltage" | "current"; channel: number; device: string; maxV?: number; maxI?: number;
   onState: (s: State) => void; setError: (e: string) => void;
 }) {
   const isV = kind === "voltage";
@@ -1221,8 +1291,8 @@ function ScanPanel({ t, kind, channel, maxV, maxI, onState, setError }: {
         if (stopRef.current) break;
         setCurrent(x);
         onState(await api("/api/set", isV
-          ? { ch: channel, voltage: +x.toFixed(4), current: Number.isFinite(fixed) ? fixed : undefined }
-          : { ch: channel, current: +x.toFixed(4), voltage: Number.isFinite(fixed) ? fixed : undefined }));
+          ? { device, ch: channel, voltage: +x.toFixed(4), current: Number.isFinite(fixed) ? fixed : undefined }
+          : { device, ch: channel, current: +x.toFixed(4), voltage: Number.isFinite(fixed) ? fixed : undefined }));
         await sleep(d * 1000);
       }
     } catch (e) { setError((e as Error).message); }

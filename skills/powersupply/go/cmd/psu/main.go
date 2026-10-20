@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/dp100"
 	"github.com/Welkon/emb-support/skills/powersupply/go/internal/hid"
@@ -22,6 +23,8 @@ func main() {
 	}
 	var err error
 	switch os.Args[1] {
+	case "list":
+		err = cmdList(os.Args[2:])
 	case "idn":
 		err = cmdIDN(os.Args[2:])
 	case "get":
@@ -48,12 +51,101 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: psu <idn|get|measure|snapshot|set|output|protect|web> [options]")
+	fmt.Fprintln(os.Stderr, "usage: psu <list|idn|get|measure|snapshot|set|output|protect|web> [--serial <id>] [options]")
 	os.Exit(2)
 }
 
-func open() (*dp100.Device, error) {
-	t, err := hid.Open(0x2E3C, 0xAF01)
+type selector struct {
+	serial string
+	path   string
+}
+
+func addSelector(fs *flag.FlagSet) *selector {
+	sel := &selector{}
+	fs.StringVar(&sel.serial, "serial", "", "DP100 serial number")
+	fs.StringVar(&sel.path, "path", "", "HID device path")
+	return sel
+}
+
+func (s *selector) open() (*dp100.Device, error) {
+	paths, err := hid.Paths(0x2E3C, 0xAF01)
+	if err != nil {
+		return nil, err
+	}
+	if s.path != "" {
+		return openPath(s.path)
+	}
+	if s.serial != "" {
+		for _, path := range paths {
+			d, err := openPath(path)
+			if err != nil {
+				continue
+			}
+			if strings.EqualFold(d.Info.SerialHex, s.serial) {
+				return d, nil
+			}
+			d.Close()
+		}
+		return nil, fmt.Errorf("no DP100 with serial %q", s.serial)
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no DP100 found")
+	}
+	if len(paths) > 1 {
+		var found []string
+		for _, path := range paths {
+			d, err := openPath(path)
+			if err != nil {
+				continue
+			}
+			found = append(found, d.Info.SerialHex)
+			d.Close()
+		}
+		return nil, fmt.Errorf("multiple DP100 devices found (%s); use --serial", strings.Join(found, ", "))
+	}
+	return openPath(paths[0])
+}
+
+func (s *selector) openAll() ([]server.Unit, []*dp100.Device, error) {
+	if s.serial != "" || s.path != "" {
+		d, err := s.open()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []server.Unit{{ID: d.Info.SerialHex, Name: d.Info.Model, Dev: d}}, []*dp100.Device{d}, nil
+	}
+	paths, err := hid.Paths(0x2E3C, 0xAF01)
+	if err != nil {
+		return nil, nil, err
+	}
+	var units []server.Unit
+	var devices []*dp100.Device
+	seen := make(map[string]bool)
+	for _, path := range paths {
+		d, err := openPath(path)
+		if err != nil {
+			continue
+		}
+		id := d.Info.SerialHex
+		if id == "" {
+			id = path
+		}
+		if seen[id] {
+			d.Close()
+			continue
+		}
+		seen[id] = true
+		units = append(units, server.Unit{ID: id, Name: d.Info.Model, Dev: d})
+		devices = append(devices, d)
+	}
+	if len(units) == 0 {
+		return nil, nil, fmt.Errorf("no DP100 found")
+	}
+	return units, devices, nil
+}
+
+func openPath(path string) (*dp100.Device, error) {
+	t, err := hid.OpenPath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +155,12 @@ func open() (*dp100.Device, error) {
 		return nil, err
 	}
 	return d, nil
+}
+
+func closeAll(devices []*dp100.Device) {
+	for _, d := range devices {
+		d.Close()
+	}
 }
 
 func emit(v any, asJSON *bool) {
@@ -88,11 +186,43 @@ func emit(v any, asJSON *bool) {
 	}
 }
 
+func cmdList(args []string) error {
+	fs := flag.NewFlagSet("list", flag.ExitOnError)
+	asJSON := fs.Bool("json", false, "")
+	fs.Parse(args)
+	paths, err := hid.Paths(0x2E3C, 0xAF01)
+	if err != nil {
+		return err
+	}
+	var out []dp100.Info
+	for _, path := range paths {
+		d, err := openPath(path)
+		if err != nil {
+			continue
+		}
+		out = append(out, d.Info)
+		d.Close()
+	}
+	if *asJSON {
+		b, _ := json.MarshalIndent(out, "", "  ")
+		fmt.Println(string(b))
+		return nil
+	}
+	for _, info := range out {
+		fmt.Printf("%s %s fw=%.1f hw=%.1f\n", info.SerialHex, info.Model, info.App, info.Hardware)
+	}
+	if len(out) == 0 {
+		fmt.Println("no DP100 found")
+	}
+	return nil
+}
+
 func cmdIDN(args []string) error {
 	fs := flag.NewFlagSet("idn", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -104,8 +234,9 @@ func cmdIDN(args []string) error {
 func cmdGet(args []string) error {
 	fs := flag.NewFlagSet("get", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -117,8 +248,9 @@ func cmdGet(args []string) error {
 func cmdMeasure(args []string) error {
 	fs := flag.NewFlagSet("measure", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -135,8 +267,9 @@ func cmdMeasure(args []string) error {
 func cmdSnapshot(args []string) error {
 	fs := flag.NewFlagSet("snapshot", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -154,8 +287,9 @@ func cmdSet(args []string) error {
 	voltage := fs.Float64("voltage", -1, "voltage setpoint")
 	current := fs.Float64("current", -1, "current setpoint")
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -177,7 +311,9 @@ func cmdSet(args []string) error {
 func cmdOutput(args []string) error {
 	yes, asJSON, on := false, false, false
 	found := false
-	for _, a := range args {
+	sel := &selector{}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch a {
 		case "on":
 			on, found = true, true
@@ -187,6 +323,18 @@ func cmdOutput(args []string) error {
 			yes = true
 		case "--json", "-json":
 			asJSON = true
+		case "--serial", "-serial":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--serial needs a value")
+			}
+			i++
+			sel.serial = args[i]
+		case "--path", "-path":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--path needs a value")
+			}
+			i++
+			sel.path = args[i]
 		default:
 			return fmt.Errorf("usage: psu output on|off --yes")
 		}
@@ -197,7 +345,7 @@ func cmdOutput(args []string) error {
 	if on && !yes {
 		return fmt.Errorf("output ON requires --yes")
 	}
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -218,8 +366,9 @@ func cmdProtect(args []string) error {
 	ovp := fs.Float64("ovp", -1, "OVP")
 	ocp := fs.Float64("ocp", -1, "OCP")
 	asJSON := fs.Bool("json", false, "")
+	sel := addSelector(fs)
 	fs.Parse(args)
-	d, err := open()
+	d, err := sel.open()
 	if err != nil {
 		return err
 	}
@@ -245,18 +394,19 @@ func cmdWeb(args []string) error {
 	openFlag := fs.Bool("open", false, "open the default browser")
 	allowOrigin := fs.String("allow-origin", "", "CORS origin, for example * or null")
 	dist := fs.String("webapp", "", "path to webapp/dist")
+	sel := addSelector(fs)
 	fs.Parse(args)
 
 	root := *dist
 	if root == "" {
 		root = findWebapp()
 	}
-	d, err := open()
+	units, devices, err := sel.openAll()
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	srv := server.New(d, server.Options{DistDir: root, AllowOrigin: *allowOrigin})
+	defer closeAll(devices)
+	srv := server.NewMulti(units, server.Options{DistDir: root, AllowOrigin: *allowOrigin})
 	defer srv.Close()
 	addr := net.JoinHostPort(*bind, fmt.Sprint(*port))
 	url := fmt.Sprintf("http://localhost:%d/", *port)

@@ -18,8 +18,9 @@ type linuxDevice struct {
 }
 
 // Open finds a hidraw node with the given VID/PID.
-func Open(vid, pid uint16) (Transport, error) {
+func Paths(vid, pid uint16) ([]string, error) {
 	matches, _ := filepath.Glob("/sys/class/hidraw/hidraw*/device/uevent")
+	var paths []string
 	for _, uevent := range matches {
 		b, err := os.ReadFile(uevent)
 		if err != nil {
@@ -39,15 +40,30 @@ func Open(vid, pid uint16) (Transport, error) {
 				continue
 			}
 			name := filepath.Base(filepath.Dir(filepath.Dir(uevent)))
-			path := "/dev/" + name
-			fd, err := unix.Open(path, unix.O_RDWR|unix.O_CLOEXEC, 0)
-			if err != nil {
-				return nil, fmt.Errorf("open %s: %w", path, err)
-			}
-			return &linuxDevice{fd: fd, path: path}, nil
+			paths = append(paths, "/dev/"+name)
+			break
 		}
 	}
-	return nil, fmt.Errorf("no hidraw device with VID %04x PID %04x", vid, pid)
+	return paths, nil
+}
+
+func Open(vid, pid uint16) (Transport, error) {
+	paths, err := Paths(vid, pid)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no hidraw device with VID %04x PID %04x", vid, pid)
+	}
+	return OpenPath(paths[0])
+}
+
+func OpenPath(path string) (Transport, error) {
+	fd, err := unix.Open(path, unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	return &linuxDevice{fd: fd, path: path}, nil
 }
 
 func (d *linuxDevice) Write(p []byte) error {
