@@ -41,7 +41,7 @@ scripts/psu.py setup                          # 安装 pyvisa/pyvisa-py/pyusb/py
 - DP100（USB HID）：`--hid dp100`（自动枚举设备）。
 - DPS-150（USB CDC）：`--serial /dev/ttyACM0 --family dps150`。
 - B&K 168x / Manson：`--serial /dev/ttyUSB0 --family bk168x`（1685B 加 `--current-decimals 2`）。
-- Linux/WSL 权限：`scripts/install_udev.sh`。
+- Linux/WSL 权限：`sudo bash scripts/install_udev.sh`（安装后重新 replug 或重新 `usbipd attach`）。
 - WSL 会自动检测：启动时识别 WSL；连接时若本地没有设备，会对 Windows 侧
   **已 Shared** 的电源自动执行 `usbipd attach`；`doctor --attach-usb` 可手动触发。
 

@@ -209,7 +209,17 @@ class Dp100Device(Device):
         except ImportError:
             die("hidapi is required for DP100. Run: psu.py setup")
         try:
-            self.dev = hid.Device(path=path) if path else hid.Device(DP100_VID, DP100_PID)
+            # hidapi >= 0.15 exposes `hid.device` (lowercase) with open/open_path;
+            # older bindings expose `hid.Device(...)`.
+            Device = getattr(hid, "Device", None)
+            if Device is not None:
+                self.dev = Device(path=path) if path else Device(DP100_VID, DP100_PID)
+            else:
+                self.dev = hid.device()
+                if path:
+                    self.dev.open_path(path.encode() if isinstance(path, str) else path)
+                else:
+                    self.dev.open(DP100_VID, DP100_PID)
         except Exception as e:
             die(f"cannot open DP100: {e} (check udev/hidraw permissions)")
         self.resource = f"hid:{DP100_VID:04x}:{DP100_PID:04x}"
