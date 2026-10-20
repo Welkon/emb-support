@@ -377,14 +377,14 @@ export default function App() {
     prevOutputRef.current = current;
   }, [data?.output, playTone]);
 
-  const run = async (fn: () => Promise<State>) => {
-    setBusy(true);
+  const run = async (fn: () => Promise<State>, quiet = false) => {
+    if (!quiet) setBusy(true);
     try { applyState(await fn()); }
     catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+    finally { if (!quiet) setBusy(false); }
   };
 
-  const setpoints = () => run(() => api("/api/set", { ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }));
+  const setpoints = () => run(() => api("/api/set", { ch: channel, voltage: parseFloat(vset), current: parseFloat(iset) }), true);
   const output = (on: boolean) => run(() => api("/api/output", { ch: channel, on, confirm: on }));
   const protect = () => run(() => api("/api/protect", { ch: channel, ovp: ovp === "" ? undefined : parseFloat(ovp), ocp: ocp === "" ? undefined : parseFloat(ocp) }));
 
@@ -400,7 +400,7 @@ export default function App() {
     // Optimistically move the UI so the selection is visible immediately.
     setData((prev) => prev ? { ...prev, setpoint: { voltage: preset.v, current: preset.i } } : prev);
     // Presets are explicit user intent: apply both setpoints even while output is ON.
-    run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }));
+    run(() => api("/api/set", { ch: channel, voltage: preset.v, current: preset.i }), true);
   };
   const savePreset = () => {
     const v = parseFloat(vset), i = parseFloat(iset);
