@@ -233,6 +233,19 @@ export const LiveChart = forwardRef<LiveChartHandle, {
   }, [draw]);
 
   useEffect(() => { scheduleDraw(); }, [dark, showV, showA, paused, scheduleDraw]);
+
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const tick = (ts: number) => {
+      raf = requestAnimationFrame(tick);
+      if (document.hidden || pausedRef.current || ts - last < 33) return;
+      last = ts;
+      draw();
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [draw]);
   useEffect(() => {
     if (!enabled) {
       bufferRef.current = [];
