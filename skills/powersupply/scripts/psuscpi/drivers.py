@@ -150,7 +150,8 @@ _DP_D2H = 0xFA
 _OP_INFO = 0x10
 _OP_BASIC = 0x30
 _OP_SET = 0x35
-_SET_MODIFY = 0x20
+_SET_OUTPUT = 0x20
+_SET_PROTECT = 0x40
 
 
 def _crc16_modbus(data: bytes) -> int:
@@ -314,9 +315,18 @@ class Dp100Device(Device):
             raise RuntimeError(f"DP100 current {self._i} A outside 0..{self.MAX_CURRENT:.2f} A")
         v_mv = int(round(self._v * 1000))
         i_ma = int(round(self._i * 1000))
+        payload = bytes([_SET_OUTPUT, 1 if self._out else 0,
+                         v_mv & 0xFF, (v_mv >> 8) & 0xFF,
+                         i_ma & 0xFF, (i_ma >> 8) & 0xFF,
+                         0, 0, 0, 0])
+        self._exchange(_OP_SET, payload)
+
+    def _apply_protection(self):
+        v_mv = int(round(self._v * 1000))
+        i_ma = int(round(self._i * 1000))
         ovp = int(round((self._ovp if self._ovp is not None else self._v * 1.1) * 1000))
         ocp = int(round((self._ocp if self._ocp is not None else self._i * 1.1) * 1000))
-        payload = bytes([_SET_MODIFY, 1 if self._out else 0,
+        payload = bytes([_SET_PROTECT, 1 if self._out else 0,
                          v_mv & 0xFF, (v_mv >> 8) & 0xFF,
                          i_ma & 0xFF, (i_ma >> 8) & 0xFF,
                          ovp & 0xFF, (ovp >> 8) & 0xFF,
@@ -401,13 +411,13 @@ class Dp100Device(Device):
         if v < 0 or v > self.MAX_OVP + 1e-9:
             raise RuntimeError(f"DP100 OVP {v} V outside 0..{self.MAX_OVP} V")
         self._ovp = float(v)
-        self._apply()
+        self._apply_protection()
 
     def set_ocp(self, ch, a):
         if a < 0 or a > self.MAX_OCP + 1e-9:
             raise RuntimeError(f"DP100 OCP {a} A outside 0..{self.MAX_OCP} A")
         self._ocp = float(a)
-        self._apply()
+        self._apply_protection()
 
 
 # -------------------------------------------------------------------- BK168x

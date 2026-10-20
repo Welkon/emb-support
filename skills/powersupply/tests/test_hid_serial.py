@@ -70,6 +70,7 @@ def test_dp100_driver(monkeypatch):
     dev.set_voltage(1, 12)
     payload = fake.frames[-1]
     assert payload[1] == 0x35
+    assert payload[4] == 0x20
     assert int.from_bytes(payload[6:8], "little") == 12000
     dev.set_current(1, 0.5)
     assert int.from_bytes(fake.frames[-1][8:10], "little") == 500
@@ -88,7 +89,15 @@ def test_dp100_driver(monkeypatch):
     assert dev.limits["max_voltage"] == 30.0
     assert dev.limits["max_ovp"] == 30.5
     dev.set_ovp(1, 30.5)
+    frame = fake.frames[-1]
+    assert frame[4] == 0x40, "protection writes must use index 0x40"
+    assert int.from_bytes(frame[6:8], "little") == 12000, "protection write must preserve vset"
+    assert int.from_bytes(frame[8:10], "little") == 500, "protection write must preserve iset"
+    assert int.from_bytes(frame[10:12], "little") == 30500
     dev.set_ocp(1, 5.05)
+    frame = fake.frames[-1]
+    assert frame[4] == 0x40
+    assert int.from_bytes(frame[12:14], "little") == 5050
     with pytest.raises(RuntimeError):
         dev.set_ovp(1, 31)
     with pytest.raises(RuntimeError):
