@@ -18,14 +18,19 @@ Design notes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import socket
 import subprocess
 import sys
+import tarfile
+import tempfile
 import time
+import urllib.request
 from pathlib import Path
 
 from dap_debug import (
@@ -404,13 +409,19 @@ def cmd_setup(a) -> None:
         rc2, out2, err2 = run([str(pip), "install", "-U", "pytest"], timeout=600)
         if rc2 != 0:
             die(f"pytest install failed: {(err2 or out2)[-1500:]}")
+    probe_rs_version = None
+    if getattr(a, "probe_rs", False):
+        probe_rs_version = install_probe_rs(HOME / "bin")
     rc, out, _ = run([str(venv_bin("pyocd")), "--version"], timeout=60)
     hints = []
     if sys.platform.startswith("linux"):
         hints.append("If the probe reports a permission error, install the udev rule -> references/troubleshooting.md#permissions")
     if Path("/proc/version").exists() and "microsoft" in Path("/proc/version").read_text().lower():
         hints.append("WSL: run `usbipd attach --wsl --busid <id>` on Windows")
-    emit({"ok": True, "venv": str(VENV), "pyocd": out.strip(), "hints": hints}, as_json=True)
+    result = {"ok": True, "venv": str(VENV), "pyocd": out.strip(), "hints": hints}
+    if probe_rs_version:
+        result["probe_rs"] = probe_rs_version
+    emit(result, as_json=True)
 
 
 def _find_python() -> str:
@@ -3533,6 +3544,90 @@ def _fw_format(path: Path, explicit: str | None) -> str:
     return {".elf": "elf", ".axf": "elf", ".hex": "hex", ".bin": "bin"}.get(suffix, "target")
 
 
+PROBE_RS_VERSION = "v0.32.0"
+
+
+def probe_rs_triple() -> str | None:
+    """Return the probe-rs release triple for this platform, or None."""
+    sysname = platform.system().lower()
+    machine = platform.machine().lower()
+    if sysname == "linux":
+        if machine in ("x86_64", "amd64"):
+            return "x86_64-unknown-linux-gnu"
+        if machine in ("aarch64", "arm64"):
+            return "aarch64-unknown-linux-gnu"
+    if sysname == "darwin":
+        if machine in ("x86_64", "amd64"):
+            return "x86_64-apple-darwin"
+        if machine in ("aarch64", "arm64"):
+            return "aarch64-apple-darwin"
+    return None
+
+
+def install_probe_rs(dest_dir: Path) -> str:
+    """Download the pinned probe-rs release into dest_dir. Return the version."""
+    triple = probe_rs_triple()
+    if not triple:
+        die("No prebuilt probe-rs for this platform. See https://probe.rs/docs/getting-started/installation")
+    asset = f"probe-rs-tools-{triple}.tar.xz"
+    base = f"https://github.com/probe-rs/probe-rs/releases/download/{PROBE_RS_VERSION}"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    target = dest_dir / "probe-rs"
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / asset
+        print(f"downloading {asset}...", file=sys.stderr)
+        urllib.request.urlretrieve(f"{base}/{asset}", archive)
+        try:
+            expected = urllib.request.urlopen(f"{base}/{asset}.sha256", timeout=30).read().decode().split()[0]
+            actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+            if expected and expected != actual:
+                die("probe-rs download checksum mismatch")
+        except Exception as exc:
+            if os.environ.get("DAP_DEBUG"):
+                print(f"checksum check skipped: {exc}", file=sys.stderr)
+        with tarfile.open(archive, "r:xz") as tf:
+            member = next((m for m in tf.getmembers() if m.name.endswith("/probe-rs")), None)
+            if member is None or not member.isfile():
+                die("probe-rs binary not found in the archive")
+            data = tf.extractfile(member)
+            target.write_bytes(data.read())
+    target.chmod(0o755)
+    rc, out, err = run([str(target), "--version"], 30)
+    if rc != 0:
+        die(f"probe-rs install failed: {(err or out).strip()[:300]}")
+    return out.strip()
+
+
+def cmd_env(a) -> None:
+    skill = Path(__file__).resolve().parents[1]
+    cli = venv_bin("pyocd")
+    emit({"home": str(HOME), "home_exists": HOME.exists(), "venv": str(VENV),
+          "venv_python": str(venv_python()), "venv_exists": venv_python().exists(),
+          "python": sys.executable, "skill": str(skill),
+          "pyocd": str(cli) if cli.exists() else shutil.which("pyocd"),
+          "probe_rs": probe_rs_path()}, as_json=True)
+
+
+def cmd_test(a) -> None:
+    skill = Path(__file__).resolve().parents[1]
+    py = venv_python()
+    if not py.exists():
+        die(f"venv is missing: {py}. Run: dap.py setup --dev")
+    rc, out, err = run([str(py), "-c", "import pytest"], 60)
+    if rc != 0:
+        if not a.install:
+            die("pytest is not installed. Run: dap.py test --install")
+        rc, out, err = run([str(venv_bin("pip")), "install", "-U", "pytest"], 600)
+        if rc != 0:
+            die(f"pytest install failed: {(err or out)[-1000:]}")
+    cmd = [str(py), "-m", "pytest", "tests", "-q"]
+    if a.verbose:
+        cmd.append("-v")
+    if a.k:
+        cmd += ["-k", a.k]
+    sys.exit(subprocess.call(cmd, cwd=str(skill)))
+
+
 def cmd_engines(a) -> None:
     py = venv_python()
     if py.exists() and Path(sys.executable).resolve() != py.resolve():
@@ -3551,6 +3646,8 @@ def cmd_engines(a) -> None:
     if prs:
         rc, o, _ = run([prs, "--version"], 15)
         entry["version"] = o.strip() if rc == 0 else "?"
+    else:
+        entry["hint"] = "Run: dap.py setup --probe-rs"
     out["probe-rs"] = entry
     out["default"] = load_config().get("engine") or "pyocd"
     emit(out, as_json=True)
@@ -3576,6 +3673,7 @@ def main() -> None:
 
     p = sub.add_parser("setup", help="create venv and install pyOCD")
     p.add_argument("--dev", action="store_true", help="also install pytest for the test suite")
+    p.add_argument("--probe-rs", action="store_true", help="download the pinned probe-rs release into the data dir")
     p.set_defaults(fn=cmd_setup)
     p = sub.add_parser("doctor", help="environment + probe diagnostics")
     p.add_argument("--attach", action="store_true", help="attach the first Windows-side probe automatically (WSL)")
@@ -3730,6 +3828,15 @@ def main() -> None:
 
     p = sub.add_parser("engines", help="show available backends")
     p.set_defaults(fn=cmd_engines)
+
+    p = sub.add_parser("env", help="show resolved paths (data dir, venv, engines)")
+    p.set_defaults(fn=cmd_env)
+
+    p = sub.add_parser("test", help="run the offline test suite with the skill venv")
+    p.add_argument("--install", action="store_true", help="install pytest if it is missing")
+    p.add_argument("-k", help="pytest -k expression")
+    p.add_argument("--verbose", action="store_true")
+    p.set_defaults(fn=cmd_test)
 
     p = sub.add_parser("cores", help="list cores of a multi-core target")
     sess(p, 60); p.set_defaults(fn=cmd_cores)

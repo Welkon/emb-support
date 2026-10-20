@@ -69,6 +69,21 @@ def test_flash_without_probe_fails_fast(home, elf):
     assert time.time() - t0 < 25
 
 
+def test_env_reports_paths(home):
+    p = run(["env"], home)
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["home"] == str(home)
+    assert "venv_python" in data and "skill" in data
+    assert Path(data["skill"]).name == "mcu-debug"
+
+
+def test_test_command_help(home):
+    p = run(["test", "--help"], home)
+    assert p.returncode == 0
+    assert "--install" in p.stdout
+
+
 def test_config_roundtrip(home):
     assert run(["config", "set", "target", "stm32f103rc"], home).returncode == 0
     p = run(["config", "get", "target"], home)

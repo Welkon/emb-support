@@ -108,9 +108,11 @@ Limits versus pyOCD:
 ## Installing
 
 ```bash
-# probe-rs (prebuilt, recommended)
+# probe-rs (pinned release, installed into the data dir)
+dap.py setup --probe-rs
+
+# or install it yourself
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
-# or: cargo install probe-rs-tools --locked
 
 # pyOCD
 dap.py setup

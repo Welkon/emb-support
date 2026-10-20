@@ -69,6 +69,15 @@ python3 scripts/dap.py setup
 
 `setup` creates a virtual environment and installs pyOCD. It needs network access and takes about 30 seconds. It prefers Python 3.10 to 3.13. Python 3.14 can fail because `cmsis-pack-manager` may have no wheel.
 
+To install the optional tools:
+
+```bash
+python3 scripts/dap.py setup --dev        # adds pytest for the test suite
+python3 scripts/dap.py setup --probe-rs   # downloads the pinned probe-rs release
+```
+
+`dap.py env` prints the resolved data directory, venv path, and engine paths. Use it when a documented path does not exist. The data directory can fall back to the legacy `~/.local/share/daplink`.
+
 ## 2. Standard workflow
 
 A failed hardware action can brick the board or erase option bytes. Follow the steps in order.
@@ -304,6 +313,8 @@ scripts/dap.py profile --engine probe-rs --chip STM32F103RC --elf fw.elf --durat
 scripts/dap.py swo --engine probe-rs --chip STM32F103RC --duration 5
 ```
 
+`dap.py engines` shows the state of each engine. If probe-rs is missing, run `dap.py setup --probe-rs`.
+
 `--engine auto` is the default. It selects probe-rs when probe-rs is installed and the chip name resolves. Resolution order: `--chip`, then config, then an exact or unique-prefix match of the pyOCD target name against `probe-rs chip list`. The two engines use different chip names (pyOCD `stm32f103rc` vs probe-rs `STM32F103RC`). Set `--chip` when the names differ. See `references/engines.md`.
 
 Store defaults with `dap.py config set target stm32f103rc`. Then you do not need `-t` on each command.
@@ -343,8 +354,7 @@ Read `references/engines.md` before you change engines. Do not mix commands from
 ## 8. Tests and CI
 
 ```bash
-~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q
-scripts/dap.py setup --dev
+scripts/dap.py test --install     # uses the real venv, installs pytest if needed
 ruff check scripts tests
 ```
 

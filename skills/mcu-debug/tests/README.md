@@ -5,14 +5,12 @@ Offline test suite. No probe or target hardware is required.
 ## Run
 
 ```bash
-~/.local/share/mcu-debug/venv/bin/python -m pytest tests -q
+scripts/dap.py test --install
 ```
 
-If pytest is missing:
-
-```bash
-scripts/dap.py setup --dev
-```
+The command uses the real data directory and venv. It installs pytest when it is
+missing. `dap.py env` prints the resolved paths. The data directory can fall back
+to the legacy `~/.local/share/daplink`.
 
 ## What is covered
 
