@@ -58,7 +58,30 @@ def _ensure_runtime() -> None:
         os.execv(target[0], target)
 
 
+def _run_bridge() -> None:
+    """Forward to the Windows interpreter when --bridge windows is given."""
+    from scopescpi import bridge
+
+    argv, win_python = bridge.extract_python_flag(sys.argv)
+    sys.argv = argv
+    requested = bridge.wants_bridge(sys.argv)
+    if not requested:
+        return
+    if requested != bridge.BRIDGE_WINDOWS:
+        print(json.dumps({"ok": False, "error":
+                          f"unknown bridge '{requested}'; the only bridge is 'windows'"},
+                         ensure_ascii=False), file=sys.stderr)
+        sys.exit(2)
+    try:
+        sys.exit(bridge.run(sys.argv, win_python))
+    except (bridge.BridgeError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc), "bridge": "windows"},
+                         ensure_ascii=False), file=sys.stderr)
+        sys.exit(2)
+
+
 if __name__ == "__main__":
+    _run_bridge()
     _ensure_runtime()
     try:
         main()

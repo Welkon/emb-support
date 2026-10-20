@@ -48,6 +48,31 @@ class Dialect:
     def arm_single(self): return [self.single()]
     def state_queries(self): return [":TRIGger:STATe?", ":ACQuire:STATE?"]
 
+    # --- status snapshot (read-only)
+    # One query set so `status` can describe the instrument in a single
+    # connection: on a sandboxed host every extra command is an approval prompt.
+    def status_queries(self) -> "dict[str, str]":
+        return {
+            "timebase_scale": ":TIMebase:SCALe?",
+            "timebase_offset": ":TIMebase:OFFSet?",
+            "trigger_status": ":TRIGger:STATus?",
+            "trigger_mode": ":TRIGger:MODE?",
+            "trigger_source": ":TRIGger:EDGE:SOURce?",
+            "trigger_level": ":TRIGger:EDGE:LEVel?",
+            "acquire_points": ":ACQuire:POINts?",
+            "acquire_type": ":ACQuire:TYPE?",
+            "sample_rate": ":ACQuire:SRATe?",
+        }
+
+    def channel_status_queries(self, n: int) -> "dict[str, str]":
+        return {
+            "display": f":{self.ch(n)}:DISPlay?",
+            "scale": f":{self.ch(n)}:SCALe?",
+            "offset": f":{self.ch(n)}:OFFSet?",
+            "coupling": f":{self.ch(n)}:COUPling?",
+            "probe": f":{self.ch(n)}:PROBe?",
+        }
+
     # --- waveform transfer
     def waveform_setup(self, n: int, points: int | None) -> list[str]:
         cmds = [f":WAVeform:SOURce {self.wave_source(n)}",

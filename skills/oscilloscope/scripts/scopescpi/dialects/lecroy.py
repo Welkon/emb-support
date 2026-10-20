@@ -92,6 +92,25 @@ class LeCroyDialect(Dialect):
     def arm_single(self): return ["TRMD SINGLE"]
     def state_queries(self): return []
 
+    def status_queries(self):
+        return {
+            "timebase_scale": "TDIV?",
+            "timebase_offset": "TIME?",
+            "trigger_status": "TRIG:STAT?",
+            "trigger_mode": "TRMD?",
+            "trigger_level": "TRLV?",
+            "acquire_points": "MSIZ?",
+        }
+
+    def channel_status_queries(self, n):
+        return {
+            "display": f"C{n}:TRA?",
+            "scale": f"C{n}:VDIV?",
+            "offset": f"C{n}:OFST?",
+            "coupling": f"C{n}:CPL?",
+            "probe": f"C{n}:ATTN?",
+        }
+
     MEAS = {"vpp": "VPP", "vmax": "MAX", "vmin": "MIN", "mean": "MEAN",
             "rms": "RMS", "freq": "FREQ", "period": "PER"}
 

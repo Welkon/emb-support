@@ -116,6 +116,7 @@ The tool checks max_voltage and max_current at each step. On an error, it turns 
 
 | Command | Function | Key options |
 |---|---|---|
+| status | Read everything (setpoints, measurements, output, limits) in one connection | none |
 | idn, channels | Identify the supply and its channels | --family |
 | set | Set voltage and current | --ch, --voltage, --current, --verify |
 | get | Read setpoints | --ch |
@@ -132,6 +133,10 @@ The tool checks max_voltage and max_current at each step. On an error, it turns 
 | test | Run the skill test suite | --install, -k |
 
 Common connection options: --host, --port 5025, --resource, --serial, --baud, --backend, --family, --timeout, --max-voltage, and --max-current.
+
+Start with `status`: it is read-only and needs one connection instead of `idn` + `channels` + `get` + `measure` + `output`.
+
+WSL with a Windows-only supply: `scripts/psu.py --bridge windows status --hid dp100`. The command runs on the Windows interpreter, so the same driver and the same JSON come back; add `--win-python C:\path\to\python.exe` (or set `PSU_WIN_PYTHON`) to use a Windows venv that has `hidapi` or `pyvisa`. Do not hand-write a wrapper: a throwaway wrapper once sent a malformed HID report and cost a debugging session.
 
 ## 5.5 Web UI
 

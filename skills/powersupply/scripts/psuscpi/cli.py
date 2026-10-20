@@ -131,6 +131,9 @@ def cmd_doctor(a) -> None:
             info["hints"].append("WSL: attempted usbipd attach for shared supply devices")
         info["wsl"] = wsl
         info["hints"].append("WSL detected: attach USB supplies with usbipd before use")
+        info["hints"].append(
+            "if the supply is visible to Windows only, run the same command with "
+            "`--bridge windows` (add `--win-python <path>` for a Windows venv that has hidapi)")
     if not info["resources"] and not info["usbtmc"] and not info["serial"] and not info["hid"]:
         info["hints"].append("no instrument found: check cable, driver/udev, and SCPI mode")
     emit(info, as_json=True)
@@ -223,6 +226,69 @@ def cmd_channels(a) -> None:
                   "power": dev.supports_power,
               },
               "limits": getattr(dev, "limits", None)}, as_json=True)
+    finally:
+        dev.close()
+
+
+def _safe(fn, *args):
+    """Call a device read without letting one unsupported field sink the reply."""
+    try:
+        return fn(*args), None
+    except Exception as exc:  # a bench read is allowed to fail per field
+        return None, str(exc)
+
+
+def cmd_status(a) -> None:
+    """Read everything about the supply in one connection.
+
+    One command instead of idn+channels+get+measure+output. On a sandboxed host
+    every separate command is a separate approval prompt, and every extra
+    connection is another chance for the supply to be busy.
+    """
+    dev = open_device(a)
+    try:
+        errors = []
+        channels = {}
+        for ch in dev.channels:
+            item = {}
+            reads = [("voltage_set", dev.get_voltage), ("current_set", dev.get_current),
+                     ("voltage", dev.measure_voltage), ("current", dev.measure_current)]
+            if dev.supports_power:
+                reads.append(("power", dev.measure_power))
+            if dev.supports_output_state:
+                reads.append(("output", dev.output_state))
+            if dev.supports_input_voltage:
+                reads.append(("input_voltage", dev.measure_input_voltage))
+            if dev.supports_temperature:
+                reads.append(("temperature", dev.measure_temperature))
+            for key, fn in reads:
+                value, err = _safe(fn, ch)
+                item[key] = value
+                if err:
+                    errors.append(f"ch{ch} {key}: {err}")
+            channels[str(ch)] = item
+
+        out = {"ok": True, "idn": dev.idn, "family": dev.family,
+               "resource": getattr(dev, "resource", None),
+               "channels": channels,
+               "capabilities": {
+                   "output_state": dev.supports_output_state,
+                   "ovp": dev.supports_ovp,
+                   "ocp": dev.supports_ocp,
+                   "power": dev.supports_power,
+                   "input_voltage": dev.supports_input_voltage,
+                   "temperature": dev.supports_temperature,
+               },
+               "limits": getattr(dev, "limits", None)}
+
+        live = [ch for ch, item in channels.items() if item.get("output") in ("ON", True, 1)]
+        if live:
+            out["warnings"] = [
+                f"output is ON on channel {', '.join(live)}; status does not change it"
+            ]
+        if errors:
+            out["errors"] = errors
+        emit(out, as_json=True)
     finally:
         dev.close()
 
@@ -531,6 +597,10 @@ def main() -> None:
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
     p.set_defaults(fn=cmd_config)
+
+    p = sub.add_parser("status", help="one read-only read of the whole supply")
+    add_conn(p)
+    p.set_defaults(fn=cmd_status)
 
     p = sub.add_parser("channels", help="list channels and capabilities")
     add_conn(p)

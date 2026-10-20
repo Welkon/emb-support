@@ -129,6 +129,7 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 
 | Command | Function | Key options |
 |---|---|---|
+| `status` | Read the whole instrument in one connection: timebase, trigger, acquisition and per-channel settings. | `--channels`, `--json` |
 | `idn` | Read `*IDN?` and select the dialect. | `--family` |
 | `list`, `discover` | List VISA resources or scan a subnet. | `--scan`, `--backend` |
 | `doctor` | Check the environment and the connection. | `--host`, `--attach-usb` |
@@ -146,6 +147,10 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `config` | Store default values. | `set`, `get`, `list`, `unset` |
 
 Connection options: `--host`, `--port 5025`, `--resource`, `--backend`, `--family`, `--timeout`, `--json`.
+
+Start with `status`: it is read-only and needs one connection instead of `idn` + `channel` + `timebase` + `trigger` + `run`. Queries the instrument does not implement come back as `null` and are listed under `unsupported`.
+
+WSL with an instrument only Windows can see: `scripts/scope.py --bridge windows status --json`. The command runs on the Windows interpreter with the same dialect code; add `--win-python C:\path\to\python.exe` (or set `SCOPE_WIN_PYTHON`) to pick a Windows venv that has pyvisa.
 
 ## 7. Recovery and signal quality
 

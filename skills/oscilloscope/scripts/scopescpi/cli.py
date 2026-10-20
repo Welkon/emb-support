@@ -108,6 +108,9 @@ def cmd_doctor(a) -> None:
             wsl["attach"] = attach_scope_devices()
         info["wsl"] = wsl
         info["hints"].append("WSL detected: USB instruments must be attached with usbipd before they appear here")
+        info["hints"].append(
+            "if the instrument is visible to Windows only, run the same command with "
+            "`--bridge windows` (add `--win-python <path>` for a Windows venv that has pyvisa)")
     if not info["usbtmc"] and not info["resources"]:
         info["hints"].append("no USB instrument visible: check cable, usbtmc module, and udev permissions")
     emit(info, as_json=True)
@@ -365,6 +368,58 @@ def _write_csv(path: Path, data: dict) -> None:
         for i in range(n):
             w.writerow([f"{data[chans[0]]['times'][i]:.12g}"] +
                        [f"{data[c]['volts'][i]:.9g}" for c in chans])
+
+
+def _query_or_none(inst, cmd):
+    """Ask once; an instrument that does not implement a query must not sink the rest."""
+    try:
+        value = inst.query(cmd)
+    except Exception as exc:
+        return None, str(exc)
+    value = (value or "").strip()
+    return (value or None), None
+
+
+def cmd_status(a) -> None:
+    """Describe the whole instrument in one connection (read-only).
+
+    Replaces the usual idn + channel + timebase + trigger + run chain: on a
+    sandboxed host every separate command is an approval prompt, and each extra
+    connection is another chance for the instrument to be busy.
+    """
+    inst = connect(a)
+    try:
+        d, idn = _dialect_for(a, inst)
+        channels = [int(x) for x in (a.channels or "1").split(",") if x.strip()]
+        problems = []
+
+        settings = {}
+        for key, cmd in d.status_queries().items():
+            value, err = _query_or_none(inst, cmd)
+            settings[key] = value
+            if err:
+                problems.append(f"{key}: {err}")
+
+        per_channel = {}
+        for n in channels:
+            item = {}
+            for key, cmd in d.channel_status_queries(n).items():
+                value, err = _query_or_none(inst, cmd)
+                item[key] = value
+                if err:
+                    problems.append(f"CH{n} {key}: {err}")
+            per_channel[str(n)] = item
+
+        out = {"ok": True, "idn": idn, "family": d.name, "settings": settings,
+               "channels": per_channel}
+        unsupported = [k for k, v in settings.items() if v is None]
+        if unsupported:
+            out["unsupported"] = unsupported
+        if problems:
+            out["errors"] = problems
+        emit(out, as_json=True)
+    finally:
+        inst.close()
 
 
 def cmd_measure(a) -> None:
@@ -664,6 +719,11 @@ def main() -> None:
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_discover)
+
+    p = sub.add_parser("status", help="one read-only read of the whole instrument")
+    add_conn(p)
+    p.add_argument("--channels", default="1", help="comma-separated channel list")
+    p.set_defaults(fn=cmd_status)
 
     p = sub.add_parser("idn", help="identify the instrument and dialect")
     add_conn(p)
