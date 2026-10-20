@@ -1,52 +1,68 @@
-# 方言与命令差异
+# Dialects and command differences
 
-本 skill 用方言类生成 SCPI；`idn` 自动选择，`--family` 可覆盖。所有命令都可以用
-`scope.py scpi "<任意 SCPI>" --query` 绕过方言层。
+The skill uses a dialect class for each instrument family. The `idn` command selects the dialect automatically. Use `--family` to select a dialect manually.
 
-## 通道
+To send a command that the dialect layer does not support, use the `scpi` command:
 
-| 操作 | rigol / keysight / siglent | tektronix | 通用 |
+```bash
+scripts/scope.py scpi --host <ip> "<SCPI command>" --query
+```
+
+## Channel commands
+
+| Function | Rigol, Keysight, Siglent | Tektronix | Generic |
 |---|---|---|---|
-| 垂直档位 | `:CHANnel1:SCALe 0.5` | `:CH1:SCALe 0.5` | 同左 |
-| 偏移 | `:CHANnel1:OFFSet 0` | `:CH1:OFFSet 0` | 同左 |
-| 耦合 | `:CHANnel1:COUPling DC` | `:CH1:COUPling DC` | 同左 |
-| 探头 | `:CHANnel1:PROBe 10` | `:CH1:PROBe 10` | 同左 |
-| 显示 | `:CHANnel1:DISPlay ON` | `:CH1:DISPlay ON` | 同左 |
+| Vertical scale | `:CHANnel1:SCALe 0.5` | `:CH1:SCALe 0.5` | Same as left |
+| Offset | `:CHANnel1:OFFSet 0` | `:CH1:OFFSet 0` | Same as left |
+| Coupling | `:CHANnel1:COUPling DC` | `:CH1:COUPling DC` | Same as left |
+| Probe ratio | `:CHANnel1:PROBe 10` | `:CH1:PROBe 10` | Same as left |
+| Display | `:CHANnel1:DISPlay ON` | `:CH1:DISPlay ON` | Same as left |
 
-## 时基与触发
+## Timebase and trigger commands
 
-| 操作 | rigol | keysight | siglent | tektronix |
+| Function | Rigol | Keysight | Siglent | Tektronix |
 |---|---|---|---|---|
-| 时基 | `:TIMebase:MAIN:SCALe` | `:TIMebase:SCALe` | `:TDIV` | `:HORizontal:SCAle` |
-| 触发电平 | `:TRIGger:EDGE:LEVel` | 同左 | 同左 | `:TRIGger:A:EDGE:LEVel` |
-| 触发源 | `CHANnel1` | `CHANnel1` | `C1` | `CH1` |
-| 斜率 | `POSitive/NEGative` | 同左 | 同左 | `SLOpe RISe/FALL` |
-| 扫描模式 | `:TRIGger:SWEep NORMal` | 同左 | 同左 | `:TRIGger:A:MODe NORMal` |
+| Timebase | `:TIMebase:MAIN:SCALe` | `:TIMebase:SCALe` | `:TDIV` | `:HORizontal:SCAle` |
+| Trigger level | `:TRIGger:EDGE:LEVel` | Same | Same | `:TRIGger:A:EDGE:LEVel` |
+| Trigger source | `CHANnel1` | `CHANnel1` | `C1` | `CH1` |
+| Slope | `POSitive` or `NEGative` | Same | Same | `SLOpe RISe` or `FALL` |
+| Sweep mode | `:TRIGger:SWEep NORMal` | Same | Same | `:TRIGger:A:MODe NORMal` |
 
-脉冲宽度触发目前只在 Tektronix 方言里映射：
-`:TRIGger:A:TYPe PULSe` + `:PULse:WIDth:WHEn` + `:PULse:WIDth:WIDth` + `:PULse:POLarity`。
-其它品牌会降级到边沿触发并给出警告；需要时用 `scpi` 发送品牌专用命令。
+The Tektronix dialect maps pulse-width trigger commands:
 
-## 波形传输
+```
+:TRIGger:A:TYPe PULSe
+:TRIGger:A:PULse:WIDth:WHEn LESSthan|GREATERthan
+:TRIGger:A:PULse:WIDth:WIDth <seconds>
+:TRIGger:A:PULse:POLarity POSitive|NEGative
+```
 
-### Rigol / Keysight / Siglent（`:WAVeform` 家族）
+Other families use an edge trigger and write a warning. Use `scpi` to send a vendor-specific pulse trigger command.
+
+## Waveform transfer
+
+### Rigol, Keysight, and Siglent
 
 ```
 :WAVeform:SOURce CHANnel1
 :WAVeform:FORMat BYTE
-:WAVeform:POINts <n>        # 部分型号需要 :WAVeform:MODE RAW
+:WAVeform:POINts <n>        # Some models also need :WAVeform:MODE RAW
 :WAVeform:PREamble?         # format,type,points,count,xincr,xorig,xref,yincr,yorig,yref
 :WAVeform:DATA?             # IEEE-488.2 block
 ```
 
-电压：`(raw - yref) * yincr + yorig`；时间：`(i - xref) * xincr + xorig`。
+Use these formulas:
 
-Siglent 部分型号的 preamble 只有 5 个字段（points, xincr, xorig, yincr, yorig），
-方言里已兼容。
+```
+voltage = (raw - yref) * yincr + yorig
+time    = (i - xref) * xincr + xorig
+```
 
-### Tektronix（`CURVe?` + `WFMOutpre`）
+Some Siglent models return a preamble with 5 fields: points, xincr, xorig, yincr, and yorig. The dialect supports this format.
 
-本 skill 采用在 TBS1102B 上验证过的 ASCII 路径：
+### Tektronix
+
+The skill uses the ASCII path that was verified on a TBS 1102B:
 
 ```
 DATa:SOUrce CH1
@@ -57,172 +73,225 @@ DATa:STOP <n>
 CURVe?
 ```
 
-缩放字段按 `WFMPre:*` → `WFMOutpre:*` → `WFMPRE:*` 顺序回退尝试：
-`XINcr, XZEro, PT_Off, YMUlt, YZEro, YOFf, NR_Pt`。
-电压：`(raw - YOFf) * YMUlt + YZEro`；时间：`(i - PT_Off) * XINcr + XZEro`。
+The dialect tries these scaling fields in this order: `WFMPre:*`, then `WFMOutpre:*`, then `WFMPRE:*`.
 
-## 截图
+The fields are `XINcr`, `XZEro`, `PT_Off`, `YMUlt`, `YZEro`, and `YOFf`.
 
-| 品牌 | 命令 | 说明 |
-|---|---|---|
-| Rigol | `:DISPlay:DATA?` | 返回 PNG/BMP，取决于型号 |
-| Keysight | `:DISPlay:DATA? PNG,SCReen,COLor` | 标准 PNG |
-| Siglent | `:SCReen:DATA?` / `:DISPlay:DATA?` | 固件差异大 |
-| Tektronix | `:SAVE:IMAGe:FILEFormat PNG` | TBS1102B 的 hardcopy 主要走前面板/USB，不保证可下载 |
-| LeCroy | `:HARDcopy:SETUP? PNG` | 取决于选件 |
+```
+voltage = (raw - YOFf) * YMUlt + YZEro
+time    = (i - PT_Off) * XINcr + XZEro
+```
 
-`shot` 会依次尝试方言里的候选命令，只接受真正的 PNG/JPEG 数据。
+Read the text fields before you read `CURVe?`. If you read text after the curve, the transfer can leave bytes in the queue.
 
-## 测量
+### OWON and Hanmatek
 
-| 品牌 | 自动测量 | 说明 |
-|---|---|---|
-| Rigol | `:MEASure:VPP? CHANnel1` | 支持 VPP/VRMS/FREQ/PER 等 |
-| Keysight | `:MEASure:VPP? CHANnel1` | 同上 |
-| Siglent | `:MEASure:VPP? C1` | 同上 |
-| Tektronix | 不映射 | 用 `capture` 后的波形计算 |
-| LeCroy / 通用 | 不映射 | 同上 |
+OWON uses a custom frame. It does not use an IEEE-488.2 block.
 
-不支持的项会回退到波形计算（Vpp/Vmin/Vmax/mean/RMS/freq/period/duty/rise/fall）。
-
-## 新增品牌
-
-在 `scripts/scope.py` 里继承 `Dialect`，只覆盖不同的方法，然后注册到 `FAMILIES` 和
-`detect_family()`。最少只需要覆盖：
-
-- `ch()` / `timebase_scale()` / `trigger_*()`
-- `acquire()`（如果波形传输不是 `:WAVeform` 家族）
-- `measure_query()` / `screenshot_queries()`
-
-加完用 mock server 写一条方言测试，避免回归。
-
-
-## 新增方言（来自公开仓库）
-
-以下命令集来自 GitHub 上经过实机验证的项目，按置信度标注。
-
-| family | 来源 | 已验证内容 | 置信度 |
-|---|---|---|---|
-| `owon` | `bushjavier/hanmatek-dos1104-py`（Owon SDS1104 命令集，实机 V1.2.0） | 通道/时基/触发/测量/波形/截图 | 高 |
-| `hantek` | `p96xl/hantek-dso2000-esu-tester`（DSO2C50，101 条查询实测 94 条应答） | 通道/时基/触发/测量/状态/波形 | 中高；波形走私有 `PRIVate:WAVeform:DATA:ALL?` 多包协议 |
-| `micsig` | `tralamazza/micsig-rs`（MHO14-200N） | run/stop/single、测量、截图 | 中；波形导出未实现 |
-| `bkprecision` | `robertozeitoun/bkprecision`（LeCroy MAUI 命令集） | 通道/时基/触发/测量/波形（WAVEDESC） | 中高；波形解析已实现 |
-| `unit` | UNI-T 官方手册 | 通道/时基/触发/波形 | 高 |
-| `fluke` | Fluke PM3390 手册 | 通道/时基/触发/TRACe 波形 | 中；TRACe 缩放按手册公式 |
-| `zlg` | 无公开手册 | 仅 IDN 识别 | 低；通用 SCPI |
-
-### OWON / Hanmatek 的自定义帧
-
-与 IEEE-488.2 块不同：
-
-- 波形和截图：`[4 字节小端长度][payload]`
-- `:DATA:WAVE:SCREEN:HEAD?` 返回 JSON header（时基、采样率、每通道 V/div、探头）
-- 采样点是 16 位小端 ADC 码；`volts = code * V/div / 6400`
-- 查询回复以 `->` 结尾，需要去掉；测量回复形如 `Vpp : 2.040V->`，带单位
+- Waveform and screenshot frame: `[4-byte little-endian length][payload]`
+- `:DATA:WAVE:SCREEN:HEAD?` returns a JSON header. The header contains the timebase, the sample rate, the V/div for each channel, and the probe ratio.
+- Each sample is a 16-bit little-endian ADC code.
+- `voltage = code * V/div / 6400`
+- A query reply ends with `->`. Remove this suffix.
+- A measurement reply has a unit, for example `Vpp : 2.040V->`.
 
 ### Hantek DSO2000
 
-- 测量：`:MEASure:CHANnel<n>:ITEM? VPP`（不是 `:MEAS:CH1:PKPK?`）
-- 时基位置是 `:TIMebase:POSition`，不是 `:TIMebase:OFFSet`
-- `:MEASure:...:ITEM? VRMS` 返回的是频率，不要用；RMS 用波形计算
-- 波形导出：`PRIVate:WAVeform:DATA:ALL?`（私有格式，本 skill 不做解码）
+The private export command is `PRIVate:WAVeform:DATA:ALL?`. The reply has several packets:
+
+```
+[0:2]    "#9"
+[2:11]   9-digit packet length
+[11:20]  9-digit total byte count (total)
+[20:29]  9-digit current offset (off)
+[29:128] 99-byte header (channel enable bits at [46:50])
+[128:]   data (int8, interleaved in 2000-sample blocks per channel)
+```
+
+Join the packets in `off` order.
+
+```
+voltage = code / 25 * V/div - offset
+dt      = :WAVeform:XINCrement?
+```
+
+Do not use `:MEASure:...:ITEM? VRMS`. This query returns a frequency on this firmware. Calculate the RMS value from the waveform.
+
+The timebase position command is `:TIMebase:POSition`. The command `:TIMebase:OFFSet` does not exist.
 
 ### Micsig
 
-- 查询判定按 header 里的 `?`，参数化查询如 `:MEASure:PKPK? CH1` 不以 `?` 结尾
-- 波形块的长度字段是采样点数而不是字节数，raw TCP 会读断；只用 USB 或 `micsig-rs`
-- 截图 `:SYS:SCR?` 返回 JPEG（固件 JFIF 头可能损坏，需修复）
+- A query has a `?` in the header. A parameterized query such as `:MEASure:PKPK? CH1` does not end with `?`.
+- The length field of a waveform block is the sample count, not the byte count. A raw TCP read can stop early. Use USB, or use the `micsig-rs` tool.
+- `:SYS:SCR?` returns a JPEG image. The JFIF header can be corrupt. Repair the header before you use the image.
+- The preamble has 9 fields: format, type, count, xincr, xorig, xref, yincr, yorig, yref. The dialect parses this format.
 
-### BK Precision / LeCroy MAUI
+### LeCroy and BK Precision (MAUI)
 
-- 通道 `C1:VDIV`、`C1:OFST`、`C1:CPL`
-- 时基 `TDIV`
-- 触发 `TRMD`、`TRLV`、`TRSL`、`TRSE EDGE,SR,C1,...`
-- 测量 `C1:PAVA? VPP`
-- 波形 `C1:WF? DAT2` 返回 WAVEDESC + 采样点；已实现解析：
-  `comm_type`（8/16 位）、`wave_array_1`、`wave_array_count`、
-  `vertical_gain/offset`、`horiz_interval/offset`，以及 `C1:WF? DAT2` 前的命令回显前缀。
-  `volt = gain * raw - offset`；`time = i * interval + horiz_offset`。
-- BK Precision 2540/2560 直接复用该方言（`BkPrecisionDialect(LeCroyDialect)`）
+- Channel: `C1:VDIV`, `C1:OFST`, `C1:CPL`
+- Timebase: `TDIV`
+- Trigger: `TRMD`, `TRLV`, `TRSL`, `TRSE EDGE,SR,C1,...`
+- Measurement: `C1:PAVA? VPP`
+- Waveform: `C1:WF? DAT2` returns a WAVEDESC descriptor and the samples.
 
+The WAVEDESC parser reads these fields:
 
-## 搜索引擎找到的厂商手册（国产为主）
+- `comm_type` (8-bit or 16-bit samples)
+- `wave_array_1` (data length in bytes)
+- `wave_array_count`
+- `vertical_gain` and `vertical_offset`
+- `horiz_interval` and `horiz_offset`
 
-用 Brave 搜索（Bing RSS 对中文/型号会串结果，DuckDuckGo 被拦）拿到以下官方或半官方文档。
+The parser also accepts a command echo before `#9`, for example `C1:WF DAT2,#9...`.
 
-| 品牌 | 文档 | 关键结论 |
+```
+voltage = gain * raw - offset
+time    = i * interval + horiz_offset
+```
+
+BK Precision 2540 and 2560 use the same dialect: `BkPrecisionDialect(LeCroyDialect)`.
+
+### Rohde & Schwarz and Hameg
+
+- Set `FORMat UINT,8`.
+- Read `CHANnel<n>:DATA?`.
+- Read `CHANnel<n>:DATA:XINCrement?`, `XORigin?`, `YINCrement?`, and `YORigin?`.
+
+```
+voltage = raw * YINCrement + YORigin
+time    = i * XINCrement + XORigin
+```
+
+This dialect applies to the HMO1002 and HMO1202. The RTB and RTO families use the same commands.
+
+### Fluke CombiScope
+
+- Channel on and off: `SENSe:FUNCtion:ON "XTIMe:VOLTage<n>"`
+- Vertical: `SENSe:VOLTage:RANGe:PTPeak`, `SENSe:VOLTage:RANGe:OFFSet`
+- Timebase: `SENSe:SWEep:TIME`, `SENSe:SWEep:OFFSet:TIME`
+- Trigger: `TRIGger:SOURce INTernal<n>`, `TRIGger:LEVel`
+- Waveform: `FORMat INTeger,8|16`, then `TRACe:POINts CH<n>,<n>`, then `TRACe? CH<n>`
+
+The reply has a format byte, the samples, a checksum, and a newline. A 16-bit sample is big-endian.
+
+```
+voltage = raw / 200 * PTPeak - offset       (8-bit)
+voltage = raw / 51200 * PTPeak - offset     (16-bit)
+time    = -sweep/2 + i * sweep / points
+```
+
+## Screenshot commands
+
+| Family | Command | Note |
 |---|---|---|
-| UNI-T 优利德 | [UPO 3000E/2000E Programming Manual](https://unitrend.oss-cn-hongkong.aliyuncs.com/uploads/attach/20250624/171046f30ffda67ff849c78002191.pdf) | `:CHANn:SCAL`、`:TIMebase:SCALe`、`:WAVeform:PREamble?`（10 字段）、`:DISPlay:DATA?` |
-| Micsig 麦科信 | [Micsig SCPI Command Manual](https://www.micsig.com/uploads/Micsig-Oscilloscope-SCPI-Command-Manual-EN-2024.5.21_1716272598.pdf) | `:TIMebase:EXTent`、`:MENU:RUN/STOP/SINGLE`、`:WAVeform:PREamble?`（**9 字段**） |
-| PeakTech | [SCPI 13 Series Oscilloscope v1.5](https://www.peaktech.de/media/e7/ac/4c/1638517336/SCPI%2013%20Series%20Oscilloscope%20v1.5.pdf) | 与 Owon 同协议（`:DATA:WAVE:SCREen:HEAD?`、4 字节长度帧） |
-| Fluke | [PM3370/3380/3390 SCPI User's Manual](https://xdevs.com/doc/Fluke/Fluke%20PM%203370,%203380,%203390%20Series%20SCPI%20User's%20Manual.pdf) | `SENSe:SWEep:TIME`、`TRACe? CHn`、`TRIGger:SOURce INTernaln` |
-| Hantek 汉泰 | [DSO2000 SCPI Programmer's Manual](https://www.hantek.com/uploadpic/hantek/files/20211231/DSO2000%20Series%C2%A0SCPI%C2%A0Programmers%C2%A0Manual.pdf) | `:MEASure:CHANnel<n>:ITEM?`、私有波形导出 |
-| Siglent 鼎阳 | [SDS Programming Guide](https://siglentna.com/wp-content/uploads/dlm_uploads/2023/04/SDS-Series_ProgrammingGuide_EN11D.pdf) | 已在 `siglent` 方言覆盖 |
-| Rigol 普源 | [MSO/DS1000Z Programming Guide](https://www.batronix.com/files/Rigol/Oszilloskope/_DS&MSO1000Z/MSO_DS1000Z_ProgrammingGuide_EN.pdf) | 已在 `rigol` 方言覆盖 |
-| R&S / Hameg | [HMO1002 Programming Manual](https://www.batronix.com/files/Rohde-&-Schwarz/Oscilloscope/HMO1xx2/HMO1002_1202_ProgrammingManual_en.pdf) | 与 Keysight 风格一致，`rns` 方言可用 |
+| Rigol | `:DISPlay:DATA?` | Returns PNG or BMP. The format depends on the model. |
+| Keysight | `:DISPlay:DATA? PNG,SCReen,COLor` | Standard PNG. |
+| Siglent | `:SCReen:DATA?` or `:DISPlay:DATA?` | The command depends on the firmware. |
+| Tektronix | `:SAVE:IMAGe:FILEFormat PNG` | A TBS 1102B saves hardcopy to the front panel or a USB device. A host download is not available. |
+| LeCroy | `:HARDcopy:SETUP? PNG` | The command depends on the option. |
+| OWON | `:DATA:WAVE:SCREEN:BMP?` | Custom frame with a BMP payload. |
+| Micsig | `:SYS:SCR?` | JPEG. |
+| R&S | `:DISPlay:DATA?` | Model-dependent. |
 
-### UNI-T UPO（`unit`）
+The `shot` command tries each candidate command for the dialect. It accepts only PNG, JPEG, or BMP data. When no command works, the skill captures CH1 and writes an SVG waveform plot. The JSON output has `fallback: waveform-plot`.
 
-- 通道：`:CHAN<n>:SCAL`、`:OFFS`、`:COUP`、`:PROB`、`:DISP`
-- 时基：`:TIMebase:SCALe`、`:TIMebase:OFFSet`
-- 触发：`:TRIGger:MODE EDGE`、`:TRIGger:SOURce CHAN<n>`、`:TRIGger:LEVel`、`:TRIGger:EDGE:SLOPe POSitive|NEGative`、`:TRIGger:SWEep AUTO|NORMal|SINGle`
-- 采集：`:RUN` / `:STOP`；单次 = `:TRIGger:SWEep SINGle` + `:RUN`
-- 波形：`:WAVeform:FORMat BYTE`、`:WAVeform:SOURce CHAN<n>`、`:WAVeform:POINts`、`:WAVeform:PREamble?`、`:WAVeform:DATA?`
-- 测量：`:MEASure:VPP? CHAN<n>`、`VMAX`、`VMIN`、`VAVerage`、`VRMS`、`FREQuency`、`PERiod`
-- 截图：`:DISPlay:DATA?`
+## Measurement commands
 
-### Micsig（`micsig`）
+| Family | Automatic measurement | Note |
+|---|---|---|
+| Rigol | `:MEASure:VPP? CHANnel1` | Supports VPP, VRMS, FREQ, and PER. |
+| Keysight | `:MEASure:VPP? CHANnel1` | Same. |
+| Siglent | `:MEASure:VPP? C1` | Same. |
+| Tektronix | Not mapped | The skill calculates the value from the waveform. |
+| LeCroy and generic | Not mapped | The skill calculates the value from the waveform. |
+| OWON | `:MEAS:CH<n>:PKPK?` | The reply has a label and a unit. |
+| Hantek | `:MEASure:CHANnel<n>:ITEM? VPP` | Supports 33 item types. Do not use VRMS. |
+| Micsig | `:MEASure:PKPK? CH<n>` | Supports a small set of items. |
+| UNI-T | `:MEASure:VPP? CHAN<n>` | Supports VPP, VMAX, VMIN, VAVerage, VRMS, FREQuency, and PERiod. |
 
-- 通道：`:CHANnel<n>:SCALe`、`:POSition`、`:COUPle`、`:PROBe`、`:DISPlay`
-- 时基：`:TIMebase:EXTent`（s/div）、`:TIMebase:POSition`
-- 运行：`:MENU:RUN` / `:MENU:STOP` / `:MENU:SINGLE`；状态 `:TRIGger:STATus?`
-- 触发：`:TRIGger:EDGE:SOURce CH<n>`、`:SLOPe RISE|FALL`、`:LEVel`；扫描 `:TRIGger:MODE AUTO|NORMal`
-- 波形：`:WAVeform:SOURce CH<n>`、`:MODE NORMal`、`:FORMat BYTE`、`:STARt/:STOP`、`:PREamble?`
-- **preamble 只有 9 个字段**（无 points，用 count），方言里单独解析
-- 截图：`:SYS:SCR?`（JPEG；固件 JFIF 头可能损坏）
-- 波形块长度字段在部分固件里是采样点数而不是字节数，raw TCP 可能读断；USB 更稳
+When the instrument cannot measure an item, the skill calculates the value from the waveform. The fallback covers Vpp, Vmin, Vmax, mean, RMS, frequency, period, duty, rise, and fall.
 
-### PeakTech（`peaktech`）
+## Dialect sources and confidence
 
-与 Owon 完全同协议：`:CH<n>:SCAL`、`:HORIzontal:Scale`、`:DATA:WAVE:SCREen:HEAD?`、
-采样点 16 位小端、volts = code × V/div ÷ 6400。继承 `OwonDialect`。
+| Family | Source | Verified content | Confidence |
+|---|---|---|---|
+| `owon` | `bushjavier/hanmatek-dos1104-py` (Owon SDS1104, firmware V1.2.0) | Channel, timebase, trigger, measurement, waveform, screenshot | High |
+| `hantek` | `p96xl/hantek-dso2000-esu-tester` (DSO2C50, 94 of 101 queries answered) | Channel, timebase, trigger, measurement, state, waveform | Medium-high |
+| `micsig` | `tralamazza/micsig-rs` (MHO14-200N) | Run, stop, single, measurement, screenshot | Medium. Waveform export is not implemented. |
+| `bkprecision` | `robertozeitoun/bkprecision` (LeCroy MAUI) | Channel, timebase, trigger, measurement, waveform | Medium-high. The WAVEDESC parser is implemented. |
+| `unit` | UNI-T programming manual | Channel, timebase, trigger, waveform | High |
+| `fluke` | Fluke PM3390 manual | Channel, timebase, trigger, TRACe waveform | Medium. The TRACe formula comes from the manual. |
+| `zlg` | No public manual | IDN detection only | Low. Uses generic SCPI. |
 
-### R&S / Hameg（`rns`）
+## Vendor manuals found with a search engine
 
-- 波形：`CHANnel<n>:DATA?`，先 `FORMat UINT,8`
-- 缩放：`CHANnel<n>:DATA:XINCrement?`、`XORigin?`、`YINCrement?`、`YORigin?`
-- `volt = raw * YINCrement + YORigin`，`time = i * XINCrement + XORigin`
-- 适用于 HMO1002/1202；RTB/RTO 命令族相同
+The skill used the Brave search engine to find these documents. Bing RSS returned incorrect results for some model numbers. DuckDuckGo blocked the requests.
 
-### Hantek 私有波形
+| Brand | Document | Key result |
+|---|---|---|
+| UNI-T | [UPO 3000E/2000E Programming Manual](https://unitrend.oss-cn-hongkong.aliyuncs.com/uploads/attach/20250624/171046f30ffda67ff849c78002191.pdf) | `:CHANn:SCAL`, `:TIMebase:SCALe`, `:WAVeform:PREamble?` (10 fields), `:DISPlay:DATA?` |
+| Micsig | [Micsig SCPI Command Manual](https://www.micsig.com/uploads/Micsig-Oscilloscope-SCPI-Command-Manual-EN-2024.5.21_1716272598.pdf) | `:TIMebase:EXTent`, `:MENU:RUN/STOP/SINGLE`, `:WAVeform:PREamble?` (9 fields) |
+| PeakTech | [SCPI 13 Series Oscilloscope v1.5](https://www.peaktech.de/media/e7/ac/4c/1638517336/SCPI%2013%20Series%20Oscilloscope%20v1.5.pdf) | Same protocol as Owon: `:DATA:WAVE:SCREen:HEAD?` and a 4-byte length frame |
+| Fluke | [PM3370/3380/3390 SCPI User's Manual](https://xdevs.com/doc/Fluke/Fluke%20PM%203370,%203380,%203390%20Series%20SCPI%20User's%20Manual.pdf) | `SENSe:SWEep:TIME`, `TRACe? CHn`, `TRIGger:SOURce INTernaln` |
+| Hantek | [DSO2000 SCPI Programmer's Manual](https://www.hantek.com/uploadpic/hantek/files/20211231/DSO2000%20Series%C2%A0SCPI%C2%A0Programmers%C2%A0Manual.pdf) | `:MEASure:CHANnel<n>:ITEM?`, private waveform export |
+| Siglent | [SDS Programming Guide](https://siglentna.com/wp-content/uploads/dlm_uploads/2023/04/SDS-Series_ProgrammingGuide_EN11D.pdf) | The `siglent` dialect covers these commands. |
+| Rigol | [MSO/DS1000Z Programming Guide](https://www.batronix.com/files/Rigol/Oszilloskope/_DS&MSO1000Z/MSO_DS1000Z_ProgrammingGuide_EN.pdf) | The `rigol` dialect covers these commands. |
+| R&S and Hameg | [HMO1002 Programming Manual](https://www.batronix.com/files/Rohde-&-Schwarz/Oscilloscope/HMO1xx2/HMO1002_1202_ProgrammingManual_en.pdf) | The commands match the Keysight style. The `rns` dialect covers them. |
 
-`PRIVate:WAVeform:DATA:ALL?` 返回多包：
+### UNI-T UPO
 
-```
-[0:2]   "#9"
-[2:11]  9 位包长度
-[11:20] 9 位总字节数 total
-[20:29] 9 位当前偏移 off
-[29:128] 99 字节包头（通道使能位在 [46:50]）
-[128:]  数据（int8，按 2000 样本/通道交错）
-```
+- Channel: `:CHAN<n>:SCAL`, `:OFFS`, `:COUP`, `:PROB`, `:DISP`
+- Timebase: `:TIMebase:SCALe`, `:TIMebase:OFFSet`
+- Trigger: `:TRIGger:MODE EDGE`, `:TRIGger:SOURce CHAN<n>`, `:TRIGger:LEVel`, `:TRIGger:EDGE:SLOPe POSitive|NEGative`, `:TRIGger:SWEep AUTO|NORMal|SINGle`
+- Acquisition: `:RUN` and `:STOP`. For a single capture, use `:TRIGger:SWEep SINGle` and then `:RUN`.
+- Waveform: `:WAVeform:FORMat BYTE`, `:WAVeform:SOURce CHAN<n>`, `:WAVeform:POINts`, `:WAVeform:PREamble?`, `:WAVeform:DATA?`
+- Measurement: `:MEASure:VPP? CHAN<n>`, `VMAX`, `VMIN`, `VAVerage`, `VRMS`, `FREQuency`, `PERiod`
+- Screenshot: `:DISPlay:DATA?`
 
-按 `off` 拼接各包；`volt = code / 25 * V/div - offset`，`dt = :WAVeform:XINCrement?`。
+### Micsig
 
-### Fluke CombiScope（`fluke`）
+- Channel: `:CHANnel<n>:SCALe`, `:POSition`, `:COUPle`, `:PROBe`, `:DISPlay`
+- Timebase: `:TIMebase:EXTent` (s/div), `:TIMebase:POSition`
+- Run: `:MENU:RUN`, `:MENU:STOP`, `:MENU:SINGLE`. State: `:TRIGger:STATus?`
+- Trigger: `:TRIGger:EDGE:SOURce CH<n>`, `:SLOPe RISE|FALL`, `:LEVel`. Sweep: `:TRIGger:MODE AUTO|NORMal`
+- Waveform: `:WAVeform:SOURce CH<n>`, `:MODE NORMal`, `:FORMat BYTE`, `:STARt`, `:STOP`, `:PREamble?`
+- The preamble has 9 fields. It has a count field but no points field.
+- Screenshot: `:SYS:SCR?` (JPEG)
 
-- 通道开关：`SENSe:FUNCtion:ON "XTIMe:VOLTage<n>"`
-- 垂直：`SENSe:VOLTage:RANGe:PTPeak`、`SENSe:VOLTage:RANGe:OFFSet`
-- 时基：`SENSe:SWEep:TIME`、`SENSe:SWEep:OFFSet:TIME`
-- 触发：`TRIGger:SOURce INTernal<n>`、`TRIGger:LEVel`
-- 波形：`FORMat INTeger,8|16` + `TRACe:POINts CH<n>,<n>` + `TRACe? CH<n>`
-  响应：格式字节 + 样本 + 校验 + 换行；16 位为大端
-- 缩放：`volt = raw / 200 * PTPeak - offset`（8 位）或 `raw / 51200 * PTPeak - offset`（16 位）
-- 时间：`SENSe:SWEep:TIME` 均分，`xorig = -sweep/2`
+### PeakTech
 
-### 搜索过但没找到公开 SCPI 的
+PeakTech uses the Owon protocol:
 
-- **ZLG 致远 ZDS 系列**：官网/搜索引擎/GitHub 均未找到可用的 SCPI 编程手册，保留 `zlg` 识别 + 通用命令。
-- **ATTEN 安泰信**：同样未找到公开命令集，保留 `atten` 识别 + 通用命令。
-- **Iwatsu、Chroma、Kenwood**：没有可用的现代 SCPI 手册（Iwatsu 多为老模拟机，Chroma 以校准仪为主）。
-- **PicoScope / Digilent / Saleae / DSLogic**：走厂商 SDK 或 sigrok，不是 SCPI 方言；要支持需单独后端。
+- `:CH<n>:SCAL`
+- `:HORIzontal:Scale`
+- `:DATA:WAVE:SCREen:HEAD?`
+- 16-bit little-endian samples
+- `voltage = code * V/div / 6400`
+
+### Hantek private waveform
+
+See the Hantek section above. The skill joins the packets by `off`. The sample scaling is `code / 25 * V/div - offset`.
+
+### Fluke CombiScope
+
+See the Fluke section above. A 16-bit sample is big-endian. The skill calculates the time axis from `SENSe:SWEep:TIME`.
+
+## Brands with no public SCPI reference
+
+- **ZLG ZDS series:** The vendor site, search engines, and GitHub have no usable SCPI manual. The skill keeps `zlg` for device identification and uses generic commands.
+- **ATTEN:** The skill found no public command set. It keeps `atten` for device identification and uses generic commands.
+- **Iwatsu, Chroma, Kenwood:** The skill found no modern SCPI manual.
+- **PicoScope, Digilent, Saleae, DSLogic:** These products use a vendor SDK or sigrok. They are not SCPI instruments. They need a separate backend.
+
+## Add a new dialect
+
+1. Create a class that inherits from `Dialect` in `scripts/scopescpi/dialects/`.
+2. Override only the methods that are different.
+3. Add the class to `FAMILIES` and to `detect_family()` in `dialects/__init__.py`.
+4. Add a test with the mock server.
+
+The minimum set of methods is:
+
+- `ch()`, `timebase_scale()`, and the `trigger_*()` methods
+- `acquire()` when the waveform transfer is not a `:WAVeform` command
+- `measure_query()` and `screenshot_queries()`

@@ -1,80 +1,79 @@
-# 排错
+# Troubleshooting
 
-## 连不上（LAN）
+## No LAN connection
 
-1. `ping <ip>`；确认和电脑在同一网段。
-2. 端口：多数仪器用 **5025**（Rigol/Siglent/Keysight/R&S）。VXI-11 用 111 端口做端口映射。
-3. 仪器侧要开启“远程/SCPI/LAN”选项（不同品牌菜单名不同）。
-4. 防火墙/路由器隔离：先用同网段有线连接排除 AP 隔离。
-5. 试裸连接：
+1. Run `ping <ip>`. Make sure that the instrument and the computer are on the same subnet.
+2. Check the port. Most instruments use port **5025** (Rigol, Siglent, Keysight, and Rohde & Schwarz). VXI-11 uses port 111 for port mapping.
+3. Enable the remote, SCPI, or LAN option on the instrument. The menu name is different for each brand.
+4. Remove firewall and router isolation. Use a wired connection on the same subnet. This step excludes access-point isolation.
+5. Try a raw connection:
 
 ```bash
 scripts/scope.py scpi --host <ip> "*IDN?" --query
 scripts/scope.py doctor --host <ip>
 ```
 
-6. Keysight 部分型号 socket 端口不是 5025；查手册或用 `list` 的 VXI-11 资源。
+6. Some Keysight models do not use port 5025 for the socket. Read the manual, or use the VXI-11 resource from the `list` command.
 
-## 连不上（USB）
+## No USB connection
 
 ```bash
-lsusb | grep -iE "0699|1ab1|f4ec|0957|05ff|0aad"    # Tek/Rigol/Siglent/Keysight/LeCroy/R&S
+lsusb | grep -iE "0699|1ab1|f4ec|0957|05ff|0aad"    # Tek, Rigol, Siglent, Keysight, LeCroy, R&S
 ls /dev/usbtmc*
 ```
 
-- 没有 `/dev/usbtmc*`：`sudo modprobe usbtmc`，或确认仪器是 USBTMC 类设备。
-- 有设备但没权限：`scripts/install_udev.sh`，然后拔插。
-- WSL：启动时会自动检测；连接时若本地没有设备，会自动对 Windows 侧已共享的示波器执行 `usbipd attach`（可用 `--no-auto-attach` 关闭）。`doctor` 会自动探测 Windows 侧的 `usbipd.exe`，列出示波器 VID（Tek/Rigol/Siglent/Keysight/LeCroy/R&S/Yokogawa/GW Instek/Hantek/Owon/Micsig），并生成 attach 命令；加 `--attach-usb` 可直接执行。
-  `Not shared` 需要管理员先 `usbipd bind --busid X`，然后 `usbipd attach --wsl --busid X`。
-- Windows：需要 VISA runtime（TekVISA / NI-VISA）或 libusb 驱动；见 `tektronix.md` 的位数问题。
-- 资源字符串格式：`USB0::0x0699::0x0368::<serial>::INSTR`。序列号不对会找不到设备。
+- If `/dev/usbtmc*` is absent, run `sudo modprobe usbtmc`. Make sure that the instrument is a USBTMC device.
+- If the device is present but you have no permission, run `scripts/install_udev.sh`. Then disconnect and connect the instrument.
+- WSL: the program detects WSL at startup. If no local device is present, it runs `usbipd attach` for a shared Windows-side oscilloscope. Use `--no-auto-attach` to disable this action. The `doctor` command finds `usbipd.exe` on the Windows side, lists the oscilloscope vendor IDs (Tek, Rigol, Siglent, Keysight, LeCroy, R&S, Yokogawa, GW Instek, Hantek, Owon, and Micsig), and writes the attach commands. Add `--attach-usb` to run the attach commands.
+  A device in state `Not shared` needs `usbipd bind --busid X` as Administrator. Then run `usbipd attach --wsl --busid X`.
+- Windows: install a VISA runtime (TekVISA or NI-VISA) or a libusb driver. Read the bitness section in `tektronix.md`.
+- Resource string format: `USB0::0x0699::0x0368::<serial>::INSTR`. A wrong serial number prevents a connection.
 
-## 超时
+## Timeout
 
-- 默认 5s；深存储传输可能更久：`--timeout 30`。
-- 查询前确保仪器完成了上一次操作：必要时先发 `*OPC?`。
-- 大点数采集先降 `--points`，确认链路稳定后再加。
+- The default timeout is 5 seconds. A deep-memory transfer can need more time. Use `--timeout 30`.
+- Make sure that the instrument completed the last operation. Send `*OPC?` before the next query when necessary.
+- For a large capture, first decrease `--points`. Increase the value after the link is stable.
 
-## 二进制块被截断/解析错
+## Truncated or invalid binary block
 
-- SCPI 二进制块格式：`#<n><length><payload>`；`#0` 表示无长度、读到终止符。
-- 如果返回以 `#` 开头但长度对不上，先确认仪器实际返回的是块还是文本（`--json` 看 bytes）。
-- 某些仪器在块后追加 `\n`，本 skill 的解析器会按长度截取，不受影响。
-- ASCII 模式（Tek）没有块头，直接是逗号/空白分隔的数字。
+- The SCPI block format is `#<n><length><payload>`. The form `#0` has no length. Read until the terminator.
+- If the reply starts with `#` but the length is wrong, find out whether the instrument sent a block or text. Use `--json` to see the bytes.
+- Some instruments add `\n` after a block. The parser uses the length field, so this suffix has no effect.
+- ASCII mode (Tektronix) has no block header. The values are separated by commas or spaces.
 
-## 测量不支持
+## Measurement not supported
 
-`measure` 先尝试仪器的 `:MEASure:*?`；不支持或报错时自动回退到波形计算
-（Vpp/Vmin/Vmax/mean/RMS/freq/period/duty/rise/fall）。如果仪器不支持深存储，
-先 `capture --points` 限制长度。
+The `measure` command first tries the instrument command `:MEASure:*?`. If the instrument does not support the item or returns an error, the command calculates the value from the waveform. The fallback covers Vpp, Vmin, Vmax, mean, RMS, frequency, period, duty, rise, and fall. If the instrument has no deep memory, limit the length with `capture --points`.
 
-## 截图不支持
+## Screenshot not supported
 
-`shot` 只接受 PNG/JPEG magic。失败原因通常是：
+The `shot` command accepts only PNG, JPEG, or BMP data. A failure usually has one of these causes:
 
-- 型号没有屏幕下载命令（TBS1102B 常见）；
-- 需要先 `:HARDcopy:SETUP`；
-- 固件返回 BMP（可先用 `scpi` 取回原始块再自行转换）。
+- The model has no screen download command. This is common on a TBS 1102B.
+- The instrument needs `:HARDcopy:SETUP` first.
+- The firmware returns BMP. Use `scpi` to read the raw block, then convert the image.
 
-## 触发一直不命中
+When no screen dump is available, the skill captures CH1 and writes an SVG waveform plot. The JSON output has `fallback: waveform-plot`.
 
-- 触发电平不在信号范围内；
-- 时基太慢导致波形被压缩；
-- 触发源通道被关闭/隐藏；
-- 扫描模式是 AUTO（会自动触发）而不是 NORMAL/SINGLE；
-- 探头衰减设置与探头实际档位不一致。
+## Trigger does not fire
 
-`monitor` 不命中时先 `--dry-run` 检查写入的命令，再用 `scpi` 读回
-`:TRIGger:STATe?`、`:TRIGger:EDGE:LEVel?` 核对。
+- The trigger level is outside the signal range.
+- The timebase is too slow. The waveform is compressed.
+- The trigger source channel is off or hidden.
+- The sweep mode is AUTO. AUTO triggers without a signal. Use NORMAL or SINGLE.
+- The probe attenuation setting does not match the probe.
 
-## Windows 特有问题
+If `monitor` does not find an event, first use `--dry-run`. Check the commands. Then read back `:TRIGger:STATe?` and `:TRIGger:EDGE:LEVel?` with `scpi`.
 
-- `VI_ERROR_INV_OBJECT`：Python 与 VISA DLL 位数不匹配，见 `tektronix.md`。
-- `--backend @py` 找不到 USB 设备：pyvisa-py 需要 libusb 驱动；换厂商 VISA 或装 libusb。
-- 串口（ASRL）资源在某些 USB 转串口芯片上需要额外驱动。
+## Windows problems
 
-## 安全
+- `VI_ERROR_INV_OBJECT`: the Python bitness does not match the VISA DLL bitness. Read `tektronix.md`.
+- `--backend @py` cannot find a USB device: pyvisa-py needs a libusb driver. Use the vendor VISA runtime, or install libusb.
+- A serial (ASRL) resource can need an extra driver on some USB-to-serial chips.
 
-- 高压/浮地测量先确认差分探头与隔离；
-- 不要用普通无源探头测市电；
-- 修改触发/时基/通道前记录原值，结束后恢复。
+## Safety
+
+- For a high-voltage or floating measurement, first check the differential probe and the isolation.
+- Do not use a standard passive probe on the mains voltage.
+- Read the old value before you change the trigger, the timebase, or a channel. Restore the old value at the end.

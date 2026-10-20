@@ -1,56 +1,60 @@
-# Tektronix 专项
+# Tektronix notes
 
-Tektronix 的 SCPI 方言与 Rigol/Keysight 差异较大，这里记录已经验证过的路径和坑。
+The Tektronix SCPI dialect is different from the Rigol and Keysight dialects. This document records the verified paths and the known problems.
 
-## 连接
+## Connection
 
-TBS1102B 只有 USB Device 口，**没有 LAN**。优先用 USBTMC：
+A TBS 1102B has only a USB device port. It has no LAN port. Use USBTMC first.
 
 ```
 USB0::0x0699::0x0368::<serial>::INSTR
 ```
 
 ```bash
-scripts/scope.py list                      # 需要 pyvisa
+scripts/scope.py list                      # Needs pyvisa
 scripts/scope.py idn --resource "USB0::0x0699::0x0368::C012345::INSTR"
 ```
 
-WSL：
+WSL:
 
 ```powershell
 usbipd list
 usbipd attach --wsl --busid 2-3
 ```
 
-Linux 权限：
+Linux permissions:
 
 ```bash
-scripts/install_udev.sh        # 0699 = Tektronix
+scripts/install_udev.sh        # 0699 is the Tektronix vendor ID
 ```
 
-## Windows + TekVISA 位数（最常见的坑）
+## Windows and the TekVISA bitness problem
 
-在 Windows 上用厂商 TekVISA runtime 时，Python 和 `visa32.dll` 的位数必须一致：
+On Windows, a vendor TekVISA runtime needs the same bitness for Python and `visa32.dll`.
 
-- 用 **32 位 Python**（例如单独的 venv）。
-- **不要**传 `--backend @py`；省略 `--backend`，让 PyVISA 自动加载厂商 DLL。
-- 需要显式路径时用 32 位的：
+- Use a **32-bit Python**, for example a separate venv.
+- Do **not** use `--backend @py`. Omit `--backend` and let PyVISA load the vendor DLL automatically.
+- If you must give an explicit path, use the 32-bit path:
   `C:\Program Files (x86)\IVI Foundation\VISA\WinNT\TekVISA\Bin\Visa32.dll`
-  而不是缺少 `(x86)` 的 64 位路径。
-- 位数不匹配的典型报错：`VI_ERROR_INV_OBJECT` / “Could not find module ... Visa32.dll”。
+  Do not use the 64-bit path without `(x86)`. That path fails.
+- A typical bitness error is `VI_ERROR_INV_OBJECT` or "Could not find module ... Visa32.dll".
 
-本 skill 的默认行为：Windows 上 `backend=None`（自动），Linux/macOS 上 `@py`。可用
-`--backend auto` 或 `config set backend auto` 覆盖。
+The skill uses these defaults:
 
-确认方式：
+- Windows: `backend=None` (automatic).
+- Linux and macOS: `@py`.
+
+Use `--backend auto` or `config set backend auto` to change the default.
+
+To check the backend and the bitness:
 
 ```bash
-python -m pyvisa.info     # 看 Backends 与 bitness
+python -m pyvisa.info     # Shows the backends and the bitness
 ```
 
-## 波形采集（已验证路径）
+## Waveform capture: verified path
 
-TBS1102B 上验证的是 ASCII `CURVe?`：
+The skill uses the ASCII `CURVe?` path that was verified on a TBS 1102B.
 
 ```
 DATa:SOUrce CH1
@@ -61,34 +65,34 @@ DATa:STOP <n>
 CURVe?
 ```
 
-缩放字段按以下顺序回退（不同固件拼写不同）：
+Try the scaling fields in this order. The spelling is different on some firmware versions.
 
-| 字段 | 候选 |
+| Field | Candidates |
 |---|---|
-| XINcr | `WFMPre:XINcr?` → `WFMOutpre:XINcr?` → `WFMPRE:XINCR?` |
-| XZEro | `WFMPre:XZEro?` → `WFMOutpre:XZEro?` → `WFMPRE:XZERO?` |
-| PT_Off | `WFMPre:PT_Off?` → `WFMOutpre:PT_Off?` → `WFMPRE:PT_OFF?` |
-| YMUlt | `WFMPre:YMUlt?` → `WFMOutpre:YMUlt?` → `WFMPRE:YMULT?` |
-| YZEro | `WFMPre:YZEro?` → `WFMOutpre:YZEro?` → `WFMPRE:YZERO?` |
-| YOFf | `WFMPre:YOFf?` → `WFMOutpre:YOFf?` → `WFMPRE:YOFF?` |
-| NR_Pt | `WFMOutpre:NR_Pt?` → `WFMPre:NR_Pt?` |
+| XINcr | `WFMPre:XINcr?`, then `WFMOutpre:XINcr?`, then `WFMPRE:XINCR?` |
+| XZEro | `WFMPre:XZEro?`, then `WFMOutpre:XZEro?`, then `WFMPRE:XZERO?` |
+| PT_Off | `WFMPre:PT_Off?`, then `WFMOutpre:PT_Off?`, then `WFMPRE:PT_OFF?` |
+| YMUlt | `WFMPre:YMUlt?`, then `WFMOutpre:YMUlt?`, then `WFMPRE:YMULT?` |
+| YZEro | `WFMPre:YZEro?`, then `WFMOutpre:YZEro?`, then `WFMPRE:YZERO?` |
+| YOFf | `WFMPre:YOFf?`, then `WFMOutpre:YOFf?`, then `WFMPRE:YOFF?` |
+| NR_Pt | `WFMOutpre:NR_Pt?`, then `WFMPre:NR_Pt?` |
 
-换算：
+Use these formulas:
 
 ```
 time    = XZEro + (i - PT_Off) * XINcr
 voltage = (raw - YOFf) * YMUlt + YZEro
 ```
 
-注意：
+Notes:
 
-- `CURVe?` 返回空时，先确认源通道在屏幕上处于显示状态。
-- `DATA:STOP` 不要超过记录长度；深存储时先读 `:ACQuire:POINts?` 或 `WFMOutpre:NR_Pt?`。
-- ASCII 模式比二进制慢，但兼容性最好；大点数采集可以改用 RIBinary（本 skill 暂用 ASCII）。
+- If `CURVe?` returns no data, make sure that the source channel is visible on the screen.
+- Do not set `DATA:STOP` above the record length. For deep memory, read `:ACQuire:POINts?` or `WFMOutpre:NR_Pt?` first.
+- ASCII mode is slower than binary mode, but it has the best compatibility. For a large record, you can use RIBinary. The skill uses ASCII at this time.
 
-## 触发与间歇故障
+## Trigger and intermittent faults
 
-TBS1102B 支持单次/序列触发：
+A TBS 1102B supports single and sequence trigger:
 
 ```
 ACQuire:STOPAfter SEQuence
@@ -96,10 +100,15 @@ ACQuire:STATE RUN
 TRIGger:STATe?
 ```
 
-`monitor` 在 Tektronix 方言下就是走这条路径：配置 → `STOPAfter SEQuence` + `RUN` → 轮询
-`ACQuire:STATE?`（0 = 已停）→ 命中后采集 → 可选重新武装。
+The `monitor` command uses this path with the Tektronix dialect:
 
-脉冲宽度触发：
+1. Apply the setup.
+2. Send `STOPAfter SEQuence` and `RUN`.
+3. Poll `ACQuire:STATE?`. The value 0 means stopped.
+4. Capture the waveform after a hit.
+5. Re-arm when requested.
+
+Pulse-width trigger:
 
 ```
 TRIGger:A:TYPe PULSe
@@ -108,42 +117,38 @@ TRIGger:A:PULse:WIDth:WIDth <seconds>
 TRIGger:A:PULse:POLarity POSitive|NEGative
 ```
 
-## 截图
+## Screenshot
 
-TBS1102B 的 hardcopy 主要走前面板/USB PictBridge，没有一个稳定的通用下载命令。
-`shot` 会尝试 `:SAVE:IMAGe:FILEFormat PNG` 和 `:DISPlay:DATA?`，失败时会明确报错。
-这种型号优先用 `capture` 的 CSV 作为证据，不要依赖截图。
+A TBS 1102B sends hardcopy to the front panel or a USB PictBridge device. It has no stable general download command. The command `:SAVE:IMAGe:FILEFormat PNG` and the query `:DISPlay:DATA?` do not work on this model. An unsupported screenshot query can also desynchronise the USBTMC queue.
 
-## 已验证的控制项
+The Tektronix dialect disables the screen dump. The `shot` command captures CH1 and writes an SVG waveform plot. Use a CSV capture as the primary evidence for this model.
 
-删掉的旧 `tektronix-scope` 技能里有一份在 TBS1102B 上逐条验证过的控制目录（127 个可用
-键，含 query/set/action 模板）。已提取到 `references/tektronix-tbs1000b.md`，用
-`scope.py scpi` 发送即可。
+## Verified controls
 
-常用命令：
+The removed `tektronix-scope` skill contained a control catalog that was verified on a TBS 1102B. The catalog has 127 usable keys with query, set, and action templates. The skill keeps this catalog in `references/tektronix-tbs1000b.md`. Send a key with `scope.py scpi`.
 
-| 用途 | 命令 |
+Common commands:
+
+| Function | Command |
 |---|---|
-| 垂直档位 | `CH1:SCAle 0.5` |
-| 垂直位置 | `CH1:POSition 0` |
-| 耦合 | `CH1:COUPling DC` |
-| 探头 | `CH1:PRObe 10` |
-| 时基 | `HORizontal:SCAle 1e-3` |
-| 触发电平 | `TRIGger:A:EDGE:LEVel 0.8` |
-| 触发斜率 | `TRIGger:A:EDGE:SLOpe RISe` |
-| 采集状态 | `ACQuire:STATE RUN` / `STOP` |
-| 单次序列 | `ACQuire:STOPAfter SEQuence` |
-| 波形源 | `DATa:SOUrce CH1` |
-| 曲线 | `CURVe?` |
+| Vertical scale | `CH1:SCAle 0.5` |
+| Vertical position | `CH1:POSition 0` |
+| Coupling | `CH1:COUPling DC` |
+| Probe | `CH1:PRObe 10` |
+| Timebase | `HORizontal:SCAle 1e-3` |
+| Trigger level | `TRIGger:A:EDGE:LEVel 0.8` |
+| Trigger slope | `TRIGger:A:EDGE:SLOpe RISe` |
+| Acquisition state | `ACQuire:STATE RUN` or `ACQuire:STATE STOP` |
+| Single sequence | `ACQuire:STOPAfter SEQuence` |
+| Waveform source | `DATa:SOUrce CH1` |
+| Curve | `CURVe?` |
 
+## Hardware validation (TBS 1102B, WSL)
 
-## 实机验证（TBS 1102B，WSL）
-
-- WSL 内核没有 `usbtmc` 模块，`/dev/usbtmc*` 不会出现；走 **pyvisa-py + pyusb + libusb-package**。
-  `scope.py setup` 会安装 `libusb-package`，`scope.py` 启动时自动 re-exec 到该 venv。
-- 采集顺序必须是**先读文本 preamble、再读 `CURVe?`**；反过来会出现 `WFMOutpre:NR_Pt?` 超时。
-- `WFMOutpre:NR_Pt?` 在 TBS 上不可靠，已不再查询，点数用实际样本数。
-- 连续采集用 `:ACQuire:STOPAfter RUNSTOP` + `:ACQuire:STATE RUN`；只发 `:RUN` 会保持停止。
-- 截图查询会破坏 USBTMC 队列，TBS 方言已禁用屏幕导出；`shot` 会改为抓 CH1 并渲染 SVG。
-- 该型号记录长度上限 **2500 点**；`DATa:STOP` 超过会被截断。
-- 若链路因外部超时进入 desync，最可靠的是 `usbipd detach` + `attach` 重新枚举。
+- The WSL kernel has no `usbtmc` module. The device does not appear as `/dev/usbtmc*`. The skill uses **pyvisa-py with pyusb and libusb-package**. The `scope.py setup` command installs `libusb-package`. The `scope.py` program runs again in the skill venv at startup.
+- Read the text preamble first. Read `CURVe?` after the preamble. If you read text after the curve, a timeout can occur.
+- `WFMOutpre:NR_Pt?` is not reliable on a TBS. The skill does not use this query. It uses the sample count from the actual data.
+- For continuous acquisition, send `:ACQuire:STOPAfter RUNSTOP` and then `:ACQuire:STATE RUN`. The command `:RUN` alone leaves the instrument stopped.
+- A screenshot query can break the USBTMC queue. The Tektronix dialect disables the screen dump. The `shot` command captures CH1 and writes an SVG plot.
+- The record length limit of this model is **2500 points**. `DATa:STOP` above this value is truncated.
+- If an external timeout desynchronises the link, the most reliable recovery is `usbipd detach` and then `usbipd attach`.

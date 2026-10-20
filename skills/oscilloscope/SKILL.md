@@ -1,239 +1,273 @@
 ---
 name: oscilloscope
-description: Control bench oscilloscopes over LAN (SCPI socket) or USB (USBTMC/VISA) from any brand — Rigol, Keysight/Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa and generic SCPI instruments. Use this skill whenever the user mentions an oscilloscope, scope, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe/channel configuration, screen capture, 示波器 / 抓波形 / 看波形 / 调触发 / 测频率 / 截图, or asks to inspect a signal on real hardware — even if they do not name the brand. Also use it for intermittent-fault monitoring (arm, wait, capture evidence) and for analyzing exported waveform CSV files.
+description: Control bench oscilloscopes over a LAN (SCPI socket) or USB (USBTMC or VISA). Supports Rigol, Keysight, Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa, OWON, Hantek, Micsig, BK Precision, UNI-T, Fluke, PeakTech and generic SCPI instruments. Use this skill when the user mentions an oscilloscope, scope, DSO, MSO, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe or channel configuration, screen capture, frequency measurement, or asks to inspect a signal on real hardware. Use it also for intermittent-fault monitoring (arm, wait, capture evidence) and for offline analysis of exported waveform files, even when the user does not name the brand.
 ---
 
 # Oscilloscope
 
-统一的示波器 CLI。核心是三层：**传输层**（LAN 原生 socket / pyvisa / usbtmc 内核设备）、**方言层**（按品牌生成 SCPI）、**采集层**（波形反缩放、测量、证据落盘）。
+This skill controls bench oscilloscopes from a command line. It has three layers:
+
+1. **Transport layer.** It uses a raw TCP socket, pyvisa, or a Linux usbtmc device.
+2. **Dialect layer.** It builds SCPI commands for each instrument family.
+3. **Acquisition layer.** It converts raw samples to volts, measures the waveform, and writes evidence files.
 
 ```bash
-scripts/scope.py idn --host 192.168.1.50                 # 自动识别品牌/方言
+scripts/scope.py idn --host 192.168.1.50
 scripts/scope.py capture --host 192.168.1.50 --channels 1,2 --out run.csv
 scripts/scope.py measure --host 192.168.1.50 --channel 1 --items vpp,rms,freq
 scripts/scope.py shot --host 192.168.1.50 --out screen.png
 ```
 
-## 0. 先判断三件事
+## 1. Before you start
 
-1. **接口**：LAN（`--host`，端口 5025）还是 USB（`--resource USB0::...::INSTR`）。
-2. **品牌**：`idn` 会自动从 `*IDN?` 识别；识别错时用 `--family` 覆盖。
-3. **是否需要改动仪器状态**：只读查询（`idn`/`measure`/`capture`）优先；改通道/时基/触发前先说明。
+Make these three decisions first:
 
-## 1. 环境
+1. **Interface.** Use `--host` for a LAN instrument. Use `--resource USB0::...::INSTR` for USB.
+2. **Family.** The `idn` command reads `*IDN?` and selects the family. If the result is wrong, add `--family`.
+3. **State change.** Start with read-only commands: `idn`, `measure`, `capture`. Tell the user before you change a channel, the timebase, or the trigger.
+
+## 2. Environment
 
 ```bash
-scripts/scope.py doctor --host 192.168.1.50   # pyvisa / usbtmc / 端口连通性
-scripts/scope.py list                        # VISA 资源（USB/VXI-11）
-scripts/scope.py discover --scan 192.168.1.0/24   # 局域网扫 5025 端口 + *IDN?
-scripts/scope.py setup                       # 需要 USB/VXI-11 时安装 pyvisa/pyvisa-py/pyusb
+scripts/scope.py doctor --host 192.168.1.50
+scripts/scope.py list
+scripts/scope.py discover --scan 192.168.1.0/24
+scripts/scope.py setup
 ```
 
-- **LAN 路径零依赖**：用原生 TCP socket，不装 pyvisa 也能用。
-- **USB 路径**需要 pyvisa + pyvisa-py（或 Linux `usbtmc` 内核设备）。
-- Linux/WSL 权限：`scripts/install_udev.sh`（Tek/Rigol/Siglent/Keysight/LeCroy/R&S/Yokogawa/GW Instek）。
-- 启动即检测 WSL。`idn/capture/measure` 未给 `--host/--resource` 时，会依次自动查找：
-  本地 `/dev/usbtmc*` → VISA 资源 → WSL 下自动 `usbipd attach` Windows 侧示波器。
-  关闭自动 attach：`--no-auto-attach` 或 `SCOPE_NO_AUTO_ATTACH=1`。
-- `doctor` 会列出 Windows 侧 `usbipd` 设备、VID 品牌和 bind/attach 命令：
-  ```bash
-  scripts/scope.py doctor --attach-usb
-  ```
-  `Not shared` 的设备需要先以管理员执行 `usbipd bind --busid X`；`Shared` 可直接 attach。
-
-## 2. 品牌与方言
-
-`idn` 的 `family` 字段决定命令拼写。已内置：
-
-| family | 典型设备 | 备注 |
-|---|---|---|
-| `rigol` | DHO800/900, MSO5000, DS1000Z | `:TIMebase:MAIN:SCALe`、`:WAVeform:PREamble?` |
-| `keysight` | InfiniiVision DSO/MSO | `:TIMebase:SCALe`、PNG 截图 |
-| `tektronix` | TBS/TDS/DPO/MSO | ASCII `CURVe?` + WFMPre/WFMOutpre 回退 |
-| `siglent` | SDS 系列 | `:TDIV`、`C1` 通道写法 |
-| `lecroy` | WaveRunner/WaveSurfer | 测量走波形计算 |
-| `rns` | Rohde & Schwarz | 复用 Keysight 方言 |
-| `gwinstek` | GDS 系列 | `:MEASure:*? CHANnelN` |
-| `owon` | OWON XDS / Hanmatek DOS/SDS | 自定义 4 字节长度帧 + JSON header |
-| `peaktech` | PeakTech 13xx（Owon 协议） | 与 `owon` 相同，官方 SCPI 手册确认 |
-| `hantek` | Hantek DSO2000 (DSO2C50) | 控制/测量已验证；波形导出为厂商私有命令 |
-| `micsig` | Micsig MHO 系列 | `:MENU:RUN/STOP`、`:MEASure:*? CHn`、`:SYS:SCR?` 截图 |
-| `bkprecision` | BK 2540/2560 | LeCroy MAUI 命令集（`C1:VDIV`、`TRMD`、`C1:PAVA?`） |
-| `unit` | UNI-T UPO 2000E/3000E | 官方编程手册：`:CHANn:SCAL`、`:WAVeform:*` |
-| `fluke` | Fluke PM3370/80/90 CombiScope | SCPI-99 风格：`SENSe:SWEep:TIME`、`TRACe?` |
-| `atten` / `zlg` | 安泰信、致远 ZDS | 未找到公开 SCPI 手册，仅识别 + 通用命令 |
-| `yokogawa` / `generic` | 其它 SCPI 设备 | 通用命令 + `scpi` 逃生口 |
-
-品牌细节、来源与置信度见 `references/dialects.md`；Tektronix 专项（含 Windows TekVISA）见 `references/tektronix.md`。
-OWON/Hantek 的自定义帧和私有波形导出限制也记录在 `references/dialects.md`。
-
-## 3. 标准工作流
+- The LAN path has no dependencies. It uses a raw TCP socket.
+- The USB path needs pyvisa and pyvisa-py. On Linux, a usbtmc kernel device also works.
+- On Linux and WSL, install the udev rules with `scripts/install_udev.sh`.
+- The program detects WSL at startup. If you do not give `--host` or `--resource`, it tries these steps in order:
+  1. A local `/dev/usbtmc*` device.
+  2. A single VISA resource.
+  3. On WSL, `usbipd attach` for a Windows-side oscilloscope.
+- To disable automatic attach, use `--no-auto-attach` or set `SCOPE_NO_AUTO_ATTACH=1`.
+- `doctor` shows the Windows-side usbipd devices, the vendor IDs, and the bind and attach commands:
 
 ```bash
-# 1) 识别
+scripts/scope.py doctor --attach-usb
+```
+
+A device in state `Not shared` needs `usbipd bind --busid X` (Administrator). A device in state `Shared` can be attached directly.
+
+## 3. Families
+
+The `family` field from `idn` selects the command syntax.
+
+| Family | Typical instruments | Notes |
+|---|---|---|
+| `rigol` | DHO800/900, MSO5000, DS1000Z | Uses `:TIMebase:MAIN:SCALe` and `:WAVeform:PREamble?`. |
+| `keysight` | InfiniiVision DSO and MSO | Uses `:TIMebase:SCALe`. Supports PNG screenshots. |
+| `tektronix` | TBS, TDS, DPO, MSO | Uses ASCII `CURVe?` with WFMPre and WFMOutpre fallback. |
+| `siglent` | SDS series | Uses `:TDIV` and `C1` channel names. |
+| `lecroy` | WaveRunner, WaveSurfer | Measures the waveform in software. |
+| `rns` | Rohde & Schwarz | Reuses the Keysight dialect. |
+| `gwinstek` | GDS series | Uses `:MEASure:*? CHANnelN`. |
+| `owon` | OWON XDS, Hanmatek DOS and SDS | Uses a 4-byte length frame with a JSON header. |
+| `peaktech` | PeakTech 13xx | Uses the Owon protocol. |
+| `hantek` | Hantek DSO2000 (DSO2C50) | Control and measurement are verified. Waveform export uses a vendor command. |
+| `micsig` | Micsig MHO series | Uses `:MENU:RUN`, `:MENU:STOP`, `:MEASure:*? CHn` and `:SYS:SCR?`. |
+| `bkprecision` | BK Precision 2540 and 2560 | Uses the LeCroy MAUI command set. |
+| `unit` | UNI-T UPO 2000E and 3000E | Uses `:CHANn:SCAL` and `:WAVeform:*`. |
+| `fluke` | Fluke PM3370, PM3380 and PM3390 | Uses `SENSe:SWEep:TIME` and `TRACe?`. |
+| `atten`, `zlg` | ATTEN, ZLG ZDS | No public SCPI manual was found. The skill identifies the device and uses generic commands. |
+| `yokogawa`, `generic` | Other SCPI instruments | Uses generic commands and the `scpi` command. |
+
+Read `references/dialects.md` for command sources and confidence levels. Read `references/tektronix.md` for Tektronix details, including the Windows TekVISA bitness problem.
+
+## 4. Basic workflow
+
+```bash
+# 1. Identify the instrument.
 scripts/scope.py idn --host <ip> --json
 
-# 2) 只读检查（不改状态）
+# 2. Read the state. Do not change it.
 scripts/scope.py scpi --host <ip> ":TRIGger:STATe?" --query
 scripts/scope.py measure --host <ip> --channel 1 --items vpp,rms,freq,period
 
-# 3) 需要时再配置
+# 3. Change the settings only when necessary.
 scripts/scope.py channel  --host <ip> --ch 1 --scale 0.5 --offset 0 --coupling DC --probe 10
 scripts/scope.py timebase --host <ip> --scale 1e-3
 scripts/scope.py trigger  --host <ip> --source 1 --level 0.8 --slope rising --mode normal
 
-# 4) 采集与证据
+# 4. Capture the waveform and the evidence.
 scripts/scope.py run single --host <ip>
 scripts/scope.py capture --host <ip> --channels 1,2 --points 10000 --out captures/run.csv --json
 scripts/scope.py shot --host <ip> --out captures/run.png
 ```
 
-采集优先用**数值波形**（CSV/JSON），截图只作为人看的补充：CSV 可 diff、可做统计、可喂给 AI。
+Use numeric waveform files (CSV or JSON) as the primary evidence. A screenshot is a secondary aid for a human reader. A CSV file supports diff, statistics, and machine analysis.
 
-## 4. 间歇故障：`monitor`
+## 5. Intermittent faults: `monitor`
 
 ```bash
-# 触发一次，抓证据
+# Trigger one event and capture the evidence.
 scripts/scope.py monitor --host <ip> --channels 1 --max-events 1 \
   --trigger-type edge --trigger-source 1 --trigger-level 1.0 \
   --timebase 5e-6 --outdir captures --prefix glitch
 
-# 预设（glitch-short / power-on-spike / intermittent-noise / missing-pulse / burst-pulse）
+# Use a preset: glitch-short, power-on-spike, intermittent-noise, missing-pulse, burst-pulse.
 scripts/scope.py monitor --host <ip> --preset glitch-short --channels 1 --auto-rearm --max-events 5
 
-# 只看会写哪些命令，不碰硬件
+# Show the commands. Do not touch the instrument.
 scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 ```
 
-`monitor` 会：配置 → 单次触发/序列触发 → 轮询 `:TRIGger:STATe?` / `:ACQuire:STATE?` → 命中后导出
-`captures/<prefix>-NN.csv` + `.json`（含统计）→ 可选自动重新武装。
-不支持脉冲触发的方言会降级为边沿触发并在 stderr 警告。
+The `monitor` command does these steps:
 
-## 5. 命令速查
+1. It applies the setup.
+2. It arms a single or sequence trigger.
+3. It polls `:TRIGger:STATe?` or `:ACQuire:STATE?`.
+4. It writes `captures/<prefix>-NN.csv` and `.json` after a hit.
+5. It re-arms when you use `--auto-rearm`.
 
-| 命令 | 作用 | 关键参数 |
+If a dialect has no pulse trigger, the command uses an edge trigger and writes a warning to stderr.
+
+## 6. Commands
+
+| Command | Function | Key options |
 |---|---|---|
-| `idn` | `*IDN?` + 方言检测 | `--family` |
-| `list` / `discover` | VISA 资源 / 子网扫描 | `--scan`、`--backend` |
-| `doctor` | 环境与连通性诊断 | `--host` |
-| `channel` | 垂直档位/偏移/耦合/探头 | `--ch`、`--scale`、`--offset`、`--coupling`、`--probe` |
-| `timebase` | 时基 | `--scale`、`--offset` |
-| `trigger` | 边沿触发 | `--source`、`--level`、`--slope`、`--mode` |
-| `run` | run/stop/single/autoscale | 子命令 |
-| `capture` | 波形采集 | `--channels`、`--points`、`--out`、`--format csv/json/npz` |
-| `measure` | 自动测量（不支持时用波形计算） | `--channel`、`--items` |
-| `shot` | 截图（PNG/JPEG） | `--out` |
-| `scpi` / `query` / `write` | 原始 SCPI 逃生口 | `--query` |
-| `monitor` | 事件监视 + 证据导出 | 见第 4 节 |
-| `analyze` | 离线分析 CSV | `--csv` |
-| `config` | 持久化默认 host/resource/family/timeout/backend | `set/get/list/unset` |
+| `idn` | Read `*IDN?` and select the dialect. | `--family` |
+| `list`, `discover` | List VISA resources or scan a subnet. | `--scan`, `--backend` |
+| `doctor` | Check the environment and the connection. | `--host`, `--attach-usb` |
+| `channel` | Set the vertical scale, offset, coupling, and probe. | `--ch`, `--scale`, `--offset`, `--coupling`, `--probe` |
+| `timebase` | Set the timebase. | `--scale`, `--offset` |
+| `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
+| `run` | Run, stop, single, or autoscale. | action |
+| `capture` | Capture a waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
+| `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
+| `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
+| `scpi`, `query`, `write` | Send a raw SCPI command. | `--query` |
+| `monitor` | Watch for an event and write evidence. | See section 5. |
+| `analyze` | Analyze a CSV or NPZ file offline. | `--csv`, `--npz`, `--fft`, `--plot` |
+| `config` | Store default values. | `set`, `get`, `list`, `unset` |
 
-通用连接参数：`--host`、`--port 5025`、`--resource`、`--backend`、`--family`、`--timeout`、`--json`。
+Connection options: `--host`, `--port 5025`, `--resource`, `--backend`, `--family`, `--timeout`, `--json`.
 
-## 5.5 自愈与信号质量
+## 7. Recovery and signal quality
 
-`capture` 默认带两级保护：
+The `capture` command has two protection layers.
 
-1. **失败重试**：空波形/超时会依次尝试 `*OPC?` 等待 → `:RUN` + 强制触发 → autoset（仅在加 `--autoset-on-empty` 时）。
-   返回 JSON 的 `recovery` 字段记录每次尝试和采取的动作；`--no-recovery` 可关闭。
-2. **信号质量检查**：每通道输出 `quality` 警告：
-   - `FLAT`：几乎没有幅度
-   - `CLIPPING`：大量样本贴住极值（可能削顶）
-   - `DC_OFFSET`：直流偏置过大
-   - `LOW_RESOLUTION`：只占用了很少 ADC 码
-   - `ALIASING`：测量频率接近奈奎斯特
-   - `EMPTY`：没有采样点
+**Layer 1: retry.**
 
-每条警告都带 `suggestion`。`--no-quality` 可关闭；`analyze` 对离线 CSV 也做同样检查。
-`monitor` 同样带质量检查。
+If the waveform is empty or a timeout occurs, the command tries these steps in order:
 
-## 5.55 一次性采集 + 分析（快速波形）
+1. Send `*OPC?` and wait.
+2. Send `:RUN` and force a trigger.
+3. Run autoset. This step is optional and needs `--autoset-on-empty`.
 
-`capture` 默认在同一条命令里完成：采集 → 统计 → 质量检查 → FFT/谐波/THD →
-波形分类（sine/square/triangle/sawtooth/pulse/dc）→ 可选 SVG 图。
+The `recovery` field in the JSON output records each attempt and each action. Use `--no-recovery` to disable retries.
+
+**Layer 2: signal-quality checks.**
+
+Each channel gets a `quality` list. A warning has a `code`, a `message`, and a `suggestion`.
+
+| Code | Meaning |
+|---|---|
+| `FLAT` | The signal has almost no amplitude. |
+| `CLIPPING` | Many samples sit on the extreme values. The signal can be clipped. |
+| `DC_OFFSET` | The DC offset is too large. |
+| `LOW_RESOLUTION` | The signal uses very few ADC codes. |
+| `ALIASING` | The measured frequency is near the Nyquist limit. |
+| `EMPTY` | The waveform has no samples. |
+
+Use `--no-quality` to disable the checks. The `analyze` command applies the same checks to an offline file. The `monitor` command also applies them.
+
+## 8. One-shot capture and analysis
+
+By default, `capture` does all of these steps in one command:
+
+1. Capture the waveform.
+2. Calculate the statistics.
+3. Run the signal-quality checks.
+4. Calculate the FFT, the harmonics, and the THD.
+5. Classify the waveform: sine, square, triangle, sawtooth, pulse, or DC.
+6. Write an SVG plot when you use `--plot`.
 
 ```bash
-# 单次触发抓取：arm → 等触发 → 读取 → 分析，适合快速/瞬态波形
+# Single-shot capture: arm, wait for the trigger, read, analyze.
 scripts/scope.py capture --single 3 --points 2000 --json
 
-# 只看采集，不跑分析（更快）
+# Capture only. This is faster.
 scripts/scope.py capture --single 3 --no-analyze --json
 ```
 
-- `--single [秒]`：Tek 用 `STOPAfter SEQUENCE`，其它方言用 `:SINGle`；等待触发完成后再读取，
-  避免抓到半帧。
-- 分析结果在每通道 `analysis` 字段：`waveform`、`fundamental_hz`、`thd_pct`、`harmonics`、
-  `overshoot_pct`、`noise_rms`、`crest_factor`。
-- 实测 TBS 1102B：一条命令约 **3–5 s**（pyvisa 初始化 ~1.4 s + 波形传输/处理 ~2 s），
-  分析本身 <20 ms。资源字符串会缓存到 `~/.local/share/scope/last_resource`，省掉每次枚举。
+- `--single [seconds]`: The scope arms a single sequence and waits for the trigger. Tektronix uses `STOPAfter SEQUENCE`. Other dialects use `:SINGle`.
+- Each channel has an `analysis` object. The object contains `waveform`, `fundamental_hz`, `thd_pct`, `harmonics`, `overshoot_pct`, `noise_rms`, and `crest_factor`.
+- On a TBS 1102B, one command takes about 3 to 5 seconds. The pyvisa start takes about 1.4 seconds. The waveform transfer takes about 2 seconds. The analysis takes less than 20 milliseconds.
+- The skill caches the resource string in `~/.local/share/scope/last_resource`. This step removes the resource enumeration delay.
 
-## 5.6 高阶分析、可视化与缓存
+## 9. Advanced analysis, plots, and cache
 
-仪器自身只提供原始波形和少量测量；更深的分析由 skill 计算：
+The instrument supplies raw samples and a small number of measurements. The skill calculates the advanced values.
 
 ```bash
-# 采集时直接出图并落 NPZ 缓存
+# Capture, plot, and write an NPZ cache.
 scripts/scope.py capture --points 2000 --out run.csv --plot run.svg --cache run.npz
 
-# 离线分析：FFT/谐波/THD、过冲/下冲、噪声、波峰因数
+# Offline analysis: FFT, harmonics, THD, overshoot, noise, and crest factor.
 scripts/scope.py analyze --npz run.npz --fft --plot run-an.svg
 ```
 
-- `advanced`：过冲/下冲、top/base、噪声 RMS、波峰因数、基频、2–5 次谐波、THD
-- `--plot`：纯 SVG（无额外依赖），自动按 `--plot-points` 降采样，大数据不会卡住
-- `--cache [path]`：把 times/volts 存成 NPZ；`analyze --npz` 直接复用，避免重复传输
-- 缓存默认路径 `~/.local/share/scope/cache/`；NPZ 比 CSV 小很多，适合大数据
+- `advanced` calculates the overshoot, the undershoot, the top and base levels, the noise RMS, the crest factor, the fundamental frequency, harmonics 2 to 5, and the THD.
+- `--plot` writes an SVG file. It has no external dependency. It decimates the data to `--plot-points` samples, so a large record does not stall the plot.
+- `--cache [path]` writes the time and voltage arrays to an NPZ file. `analyze --npz` reads this file and skips a second transfer.
+- The default cache path is `~/.local/share/scope/cache/`. An NPZ file is much smaller than a CSV file.
 
-**截图**：TBS1102B 这类型号没有主机侧屏幕导出命令。`shot` 会自动降级为
-“抓 CH1 波形并渲染 SVG 图”，返回 `fallback: waveform-plot`，不会假装是屏幕截图。
+**Screenshot.** The TBS 1102B has no host-side screen dump command. When the instrument has no screen dump, `shot` captures CH1 and writes an SVG waveform plot. The JSON output has `fallback: waveform-plot`. The skill does not report a plot as a screenshot.
 
-## 6. 安全边界
+## 10. Safety
 
-- `channel/timebase/trigger/run/autoscale` 会改变仪器实时状态。用户没有明确要求时，先只读。
-- 写命令前先记录原值（`scpi ...? --query`），必要时能恢复。
-- 高阻/高压场景先确认探头衰减与耦合；不要假设 10×。
-- `monitor` 会重新武装/停止采集；确认不会影响用户正在看的波形。
-- 截图/长采集可能占用前面板；结束前把仪器恢复到用户原来的状态。
+- `channel`, `timebase`, `trigger`, `run`, and `autoscale` change the live state of the instrument. Use read-only commands first unless the user asks for a change.
+- Read the old value before you write a new value (`scpi "...?" --query`). You can then restore the old value.
+- For high-impedance or high-voltage signals, check the probe attenuation and the coupling first. Do not assume a 10x probe.
+- `monitor` re-arms the trigger and can stop the acquisition. Make sure that this action does not disturb the waveform that the user is watching.
+- A screenshot or a long capture can occupy the front panel. Restore the original settings before you finish.
 
-## 7. 排错
+## 11. Troubleshooting
 
-连接失败、USBTMC 权限、WSL、二进制块截断、截图不支持、Windows TekVISA 位数问题，见
-`references/troubleshooting.md` 和 `references/tektronix.md`。
+Read `references/troubleshooting.md` for connection failures, USBTMC permissions, WSL, binary block truncation, missing screenshots, and the Windows TekVISA bitness problem. Read `references/tektronix.md` for Tektronix-specific problems.
 
-## 8. 代码结构
+## 12. Code structure
 
 ```text
-scripts/scope.py                  # 稳定入口（参数解析 + 向后兼容导出）
-scripts/scopescpi/common.py       # 配置、输出、IEEE/Owon 帧解析
-scripts/scopescpi/transport.py    # Socket / pyvisa / usbtmc
-scripts/scopescpi/dialects/       # 每个品牌一个模块 + 注册表/自动识别
-scripts/scopescpi/acquisition.py  # 反缩放、统计、测量回退
-scripts/scopescpi/cli.py          # 子命令实现
+scripts/scope.py                  stable entry point (arguments and compatibility exports)
+scripts/scopescpi/common.py       configuration, output, block and frame parsers
+scripts/scopescpi/transport.py    socket, pyvisa, usbtmc
+scripts/scopescpi/dialects/       one module per family, registry, auto-detection
+scripts/scopescpi/acquisition.py  scaling, statistics, measurement fallback
+scripts/scopescpi/cli.py          subcommands
 ```
 
-旧脚本仍可按原方式调用 `scripts/scope.py`；需要复用内部 API 时也可以
-`from scopescpi.dialects import RigolDialect`。
+Old scripts can call `scripts/scope.py` as before. To reuse the internal API, import it directly:
 
-## 9. 自测
+```python
+from scopescpi.dialects import RigolDialect
+```
+
+## 13. Tests
 
 ```bash
 ~/.local/share/scope/venv/bin/python -m pytest tests -q
 scripts/scope.py setup --dev
 ```
 
-测试使用本地 mock SCPI server（Rigol 与 Tek 两种方言），不接触真实硬件。
+The tests use a local mock SCPI server with the Rigol and Tektronix dialects. The tests do not touch hardware.
 
+## 14. Hardware validation
 
-## 10. 实机验证
+The skill was tested on a **Tektronix TBS 1102B** (USB `0699:0368`, WSL with usbipd).
 
-已在 **Tektronix TBS 1102B**（USB `0699:0368`，WSL + usbipd）上验证：
+- `doctor` found the resource `USB0::1689::872::C039642::0::INSTR`.
+- `idn` returned `TEKTRONIX,TBS 1102B,...` and selected the `tektronix` dialect.
+- `capture --points 1000` returned 5.4 Vpp at about 995 Hz. The quality check did not report a false warning.
+- `measure`, `analyze`, and `monitor --max-events 1` passed.
+- `shot` wrote an SVG waveform plot. The TBS 1102B has no screen dump command.
+- The TBS 1102B record length limit is 2500 points. A larger request is truncated by the instrument.
 
-- `doctor` 识别资源 `USB0::1689::872::C039642::0::INSTR`
-- `idn` → `TEKTRONIX,TBS 1102B,...`，方言自动选 `tektronix`
-- `capture --points 1000` → 5.4 Vpp、约 995 Hz，质量检查无误报
-- `measure`（波形计算回退）、`analyze`（离线 CSV）、`monitor --max-events 1` 均通过
-- `shot` 自动降级为波形 SVG 图（该型号没有屏幕导出命令）
-- TBS 1102B 记录长度上限 2500 点，请求更大值会被仪器截断
+WSL note: the kernel has no `usbtmc` module. The skill uses pyvisa-py with libusb. The `setup` command installs `libusb-package`. At startup, `scope.py` runs again in the skill venv. Set `SCOPE_NO_REEXEC=1` to disable this behavior.
 
-WSL 注意：该内核没有 `usbtmc` 模块，实际走的是 **pyvisa-py + libusb**；`setup` 现在会安装
-`libusb-package`，并且 `scope.py` 启动时会自动切到技能 venv（`SCOPE_NO_REEXEC=1` 可关闭）。
+## 15. Writing style
+
+The documentation uses ASD-STE100 Simplified Technical English as a guide. Use short sentences, the active voice, and the simple present tense. Use "must" for a requirement and "can" for a capability.
