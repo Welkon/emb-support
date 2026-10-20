@@ -21,11 +21,12 @@ register summary in this directory before you rely on it.
 
 | Peripheral | Formula | Checked example |
 | --- | --- | --- |
-| Timer16 | `counts = t_us * 1e-6 * f_clk / prescaler`; `reload = 2**interrupt_bit - counts` for a rising edge, `2**(bit+1)` for falling | 8 MHz, /16, 1 ms -> 500 counts. **Open question:** the model reloads from `2**bit` (1024-500 = 524) while a 16-bit counter would reload from 65536 (65036). Confirm against the datasheet before use. |
-| TM2 PWM | `actual_hz = f_clk / (2**bits * prescaler * divider)`; duty register `= round(duty% / 100 * 2**bits) - 1` | 8 MHz, 1 kHz, 8-bit, 50%: divider 31 -> 1008 Hz (closest), duty register 127 |
+| Timer16 | prescalers 1/4/16/64, interrupt bits 8..15. `counts = t_us * 1e-6 * f_clk / prescaler`; `reload = 2**interrupt_bit - counts` for a rising edge, `2**(bit+1)` for falling | 8 MHz, /16, 1 ms -> 500 counts. **Open question:** the model reloads from `2**bit` (1024-500 = 524) while a 16-bit counter would reload from 65536 (65036). Confirm against the datasheet before use. |
+| TM2 PWM | `actual_hz = f_clk / (2**bits * prescaler * divider)`; duty register `= round(duty% / 100 * 2**bits) - 1`; pick the divider that minimises the frequency error | 8 MHz, 1 kHz, 8-bit, prescaler 1, 50%: divider 31 -> 1008 Hz (closest), duty register 127 |
 | LPWMG | `counts = f_clk / (prescaler * f_pwm)`; upper limit `= counts - 1` | 8 MHz, /8, 1 kHz -> upper 999 |
-| LVDC | `level = (V_target - 1.85 V) / 0.05 V`; register `= level << 2` (field [7:2], max level 63) | 2.00 V -> level 3 -> 0x0C |
-| Comparator (GPC) | `vref = VDD * (base + n) / denominator`, cases: 00 -> (8+n)/32, 01 -> n/24, 10 -> (8+n)/40, 11 -> n/32 | VDD 5 V, 1.25 V -> case 00, n=0, ratio 8/32 |
+| LVDC | `level = round((V_target - 1.85 V) / 0.05 V)`; register `= level << 2` (field [7:2]); 64 levels, so 1.85 V .. 5.00 V in 50 mV steps | 2.00 V -> level 3 -> 0x0C |
+| Comparator (GPC), PMB180B | `vref = VDD * (base + n) / denominator`; `base`/`denominator` by case: 00 -> 8/32, 01 -> 0/24, 10 -> 8/40, 11 -> 0/32 | VDD 5 V, 1.25 V -> case 00, n=0, ratio 8/32 |
+| Comparator (GPC), PMS150G | Same shape, different table: 00 -> 9/32, 01 -> 1/24, 10 -> 9/40, 11 -> 1/32. Do not carry the PMB180B numbers across | VDD 5 V, 1.25 V -> case 00, n=0 gives 1.406 V; the 1.25 V point does not exist on this part |
 | Charger | discrete current steps only: 50, 100, 200, 250, 300, 350, 400, 500 mA | 200 mA is an exact step |
 
 ## SCMCU SC8F072
