@@ -206,6 +206,7 @@ def cmd_channel(a) -> None:
     try:
         d, idn = _dialect_for(a, inst)
         cmds = []
+        warnings = []
         if a.scale is not None:
             cmds.append(d.channel_scale(a.ch, a.scale))
         if a.offset is not None:
@@ -216,17 +217,31 @@ def cmd_channel(a) -> None:
             cmds.append(d.channel_probe(a.ch, a.probe))
         if a.on is not None:
             cmds.append(d.channel_display(a.ch, a.on))
-        for c in cmds:
-            inst.write(c)
+        if a.invert is not None:
+            command = d.channel_invert(a.ch, a.invert == "on")
+            if command:
+                cmds.append(command)
+            else:
+                warnings.append("channel invert is not mapped for this family")
+        if a.bw_limit is not None:
+            command = d.channel_bw_limit(a.ch, a.bw_limit)
+            if command:
+                cmds.append(command)
+            else:
+                warnings.append("bandwidth limit is not mapped for this family")
+        for command in cmds:
+            inst.write(command)
         applied = {"scale": a.scale, "offset": a.offset, "coupling": a.coupling,
-                   "probe": a.probe, "on": a.on}
+                   "probe": a.probe, "on": a.on, "invert": a.invert,
+                   "bw_limit": a.bw_limit}
         result = Result(idn=idn, family=d.name)
         result.set("channel", a.ch)
         result.set("applied", {k: v for k, v in applied.items() if v is not None})
+        for warning in warnings:
+            result.warn(warning)
         emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
-
 
 def cmd_timebase(a) -> None:
     inst = Session(a)
@@ -295,12 +310,23 @@ def cmd_capture(a) -> None:
         if a.single is not None:
             executor.arm_wait(Plan(mode="single", wait=a.single, poll=0.02))
         plan = Plan(read=channels, points=a.points,
-                    no_recovery=a.no_recovery, autoset=a.autoset_on_empty)
+                    no_recovery=a.no_recovery, autoset=a.autoset_on_empty,
+                    acquire_mode=a.acquire, averages=a.averages, depth=a.depth)
+        if a.invert is not None or a.bw_limit is not None:
+            plan.channels.append(ChannelSetup(
+                channels[0],
+                invert=(a.invert == "on") if a.invert is not None else None,
+                bw_limit=a.bw_limit))
+        setup_warnings = []
+        if plan.channels or plan.acquire_mode or plan.averages is not None or plan.depth:
+            setup_warnings = executor.configure(plan)
         try:
             data, recovery = executor.acquire(plan)
         except Exception as e:  # noqa: BLE001
             die(f"capture failed after retries: {e}")
         result = Result(idn=idn, family=d.name)
+        for warning in setup_warnings:
+            result.warn(warning)
         result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
         result.set("recovery", recovery)
         _apply_timing(a, result, data)
@@ -368,34 +394,31 @@ def _query_or_none(inst, cmd):
     return (value or None), None
 
 
-def cmd_status(a) -> None:
-    """Describe the whole instrument in one connection (read-only).
+def _read_state(inst, d, channels):
+    problems = []
+    per_channel = {}
+    for n in channels:
+        item = {}
+        for key, cmd in d.channel_status_queries(n).items():
+            item[key], err = _query_or_none(inst, cmd)
+            if err:
+                problems.append(f"CH{n} {key}: {err}")
+        per_channel[str(n)] = item
+    settings = {}
+    for key, cmd in d.status_queries().items():
+        settings[key], err = _query_or_none(inst, cmd)
+        if err:
+            problems.append(f"{key}: {err}")
+    return settings, per_channel, problems
 
-    Channels first: every dialect supports those queries, so a vendor quirk in
-    an acquisition query cannot hide the wiring. The caller sees values, `null`,
-    and an `unsupported` list, never a SCPI error to work around.
-    """
+
+def cmd_status(a) -> None:
+    """Describe the whole instrument in one connection (read-only)."""
     inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         channels = [int(x) for x in (a.channels or "1").split(",") if x.strip()]
-        problems = []
-
-        per_channel = {}
-        for n in channels:
-            item = {}
-            for key, cmd in d.channel_status_queries(n).items():
-                item[key], err = _query_or_none(inst, cmd)
-                if err:
-                    problems.append(f"CH{n} {key}: {err}")
-            per_channel[str(n)] = item
-
-        settings = {}
-        for key, cmd in d.status_queries().items():
-            settings[key], err = _query_or_none(inst, cmd)
-            if err:
-                problems.append(f"{key}: {err}")
-
+        settings, per_channel, problems = _read_state(inst, d, channels)
         result = Result(idn=idn, family=d.name)
         result.set("settings", settings).set("channels", per_channel)
         result.set("capabilities", advertised(d))
@@ -411,6 +434,148 @@ def cmd_status(a) -> None:
     finally:
         inst.close()
 
+
+def _to_int(text):
+    try:
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_bool(text):
+    if text is None:
+        return None
+    return str(text).strip().upper() in ("1", "ON", "TRUE", "YES")
+
+
+def _slope_name(text):
+    if not text:
+        return None
+    value = str(text).lower()
+    if value.startswith(("pos", "ris")):
+        return "rising"
+    if value.startswith(("neg", "fal")):
+        return "falling"
+    return "either"
+
+
+def _sweep_name(text):
+    if not text:
+        return None
+    value = str(text).lower()
+    if value.startswith("sing"):
+        return "single"
+    if value.startswith("norm"):
+        return "normal"
+    if value.startswith("auto"):
+        return "auto"
+    return None
+
+
+def _acquire_mode_name(text):
+    if not text:
+        return None
+    value = str(text).upper()
+    if "AVER" in value:
+        return "average"
+    if "PEAK" in value:
+        return "peak"
+    if "HRES" in value:
+        return "hires"
+    return "normal"
+
+
+def _channel_number(text):
+    if not text:
+        return None
+    digits = "".join(ch for ch in str(text) if ch.isdigit())
+    return int(digits) if digits else None
+
+
+def _bw_name(text):
+    if text is None:
+        return None
+    return "20m" if "20" in str(text) else "off"
+
+
+def _snapshot_plan(data) -> Plan:
+    settings = data.get("settings") or {}
+    trigger = TriggerSetup(
+        source=_channel_number(settings.get("trigger_source")),
+        level=_to_float(settings.get("trigger_level")),
+        slope=_slope_name(settings.get("trigger_slope")),
+        sweep=_sweep_name(settings.get("trigger_sweep")),
+        holdoff=_to_float(settings.get("trigger_holdoff")),
+    )
+    plan = Plan(
+        timebase=_to_float(settings.get("timebase_scale")),
+        timebase_offset=_to_float(settings.get("timebase_offset")),
+        trigger=trigger,
+        acquire_mode=_acquire_mode_name(settings.get("acquire_type")),
+        averages=_to_int(settings.get("acquire_averages")),
+        depth=settings.get("acquire_points") or None,
+    )
+    for key, item in (data.get("channels") or {}).items():
+        plan.channels.append(ChannelSetup(
+            n=int(key),
+            scale=_to_float(item.get("scale")),
+            offset=_to_float(item.get("offset")),
+            coupling=(item.get("coupling") or None),
+            probe=_to_float(item.get("probe")),
+            invert=_as_bool(item.get("invert")),
+            bw_limit=_bw_name(item.get("bw_limit")),
+            display=_as_bool(item.get("display")),
+        ))
+    return plan
+
+
+def cmd_snapshot(a) -> None:
+    if a.action == "apply":
+        path = Path(a.file).expanduser()
+        if not path.exists():
+            die(f"file not found: {path}")
+        saved = json.loads(path.read_text())
+        plan = _snapshot_plan(saved)
+        inst = Session(a)
+        try:
+            d, idn = _dialect_for(a, inst)
+            warnings = Executor(inst, d).configure(plan)
+            saved_mode = ((saved.get("settings") or {}).get("trigger_mode") or "").upper()
+            if saved_mode and not saved_mode.startswith("EDGE"):
+                warnings.append(f"snapshot trigger mode {saved_mode} was not restored; "
+                                "edge mode applied")
+            result = Result(idn=idn, family=d.name)
+            result.set("applied", {
+                "channels": [channel.n for channel in plan.channels],
+                "timebase_scale": plan.timebase,
+                "trigger_source": plan.trigger.source if plan.trigger else None,
+                "acquire_mode": plan.acquire_mode,
+            })
+            for warning in warnings:
+                result.warn(warning)
+            emit(result.to_dict(), as_json=True)
+        finally:
+            inst.close()
+        return
+
+    inst = Session(a)
+    try:
+        d, idn = _dialect_for(a, inst)
+        channels = [int(x) for x in (a.channels or "1,2").split(",") if x.strip()]
+        settings, per_channel, problems = _read_state(inst, d, channels)
+        evidence = Evidence()
+        evidence.json("snapshot", a.file, {
+            "idn": idn, "family": d.name, "settings": settings,
+            "channels": per_channel})
+        result = Result(idn=idn, family=d.name)
+        result.set("settings", settings).set("channels", per_channel)
+        if problems:
+            result.set("errors", problems)
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        emit(result.to_dict(), as_json=True)
+    finally:
+        inst.close()
 
 def _check_items(text: str) -> list[str]:
     items = [x.strip().lower() for x in (text or "").split(",") if x.strip()]
@@ -525,14 +690,30 @@ def _arm_plan(a):
     channels = [int(x) for x in (a.channels or "").split(",") if x.strip()]
     if not channels:
         channels = [s["n"] for s in specs] or [1]
-    return Plan(
-        channels=[ChannelSetup(s["n"], s.get("scale"), s.get("offset"),
-                               s.get("probe"), s.get("coupling")) for s in specs],
-        timebase=a.timebase, timebase_offset=a.timebase_offset,
-        trigger=TriggerSetup(source=a.source, level=a.level, slope=a.slope),
-        mode=a.mode, wait=a.wait, no_wait=a.no_wait,
-        read=channels, points=a.points)
-
+    setups = [ChannelSetup(s["n"], s.get("scale"), s.get("offset"),
+                           s.get("probe"), s.get("coupling")) for s in specs]
+    target = a.source if a.source is not None else channels[0]
+    for setup in setups:
+        if a.invert is not None:
+            setup.invert = a.invert == "on"
+        if a.bw_limit is not None:
+            setup.bw_limit = a.bw_limit
+    if (a.invert is not None or a.bw_limit is not None) and not any(
+            setup.n == target for setup in setups):
+        setups.append(ChannelSetup(
+            target,
+            invert=(a.invert == "on") if a.invert is not None else None,
+            bw_limit=a.bw_limit))
+    trigger = TriggerSetup(
+        type=a.trigger_type or "edge", source=a.source, level=a.level,
+        slope=a.slope, holdoff=a.holdoff, slope_level_b=a.slope_level_b,
+        video_standard=a.video_standard, video_polarity=a.video_polarity,
+        video_line=a.video_line)
+    return Plan(channels=setups, timebase=a.timebase,
+                timebase_offset=a.timebase_offset, trigger=trigger,
+                mode=a.mode, wait=a.wait, no_wait=a.no_wait,
+                read=channels, points=a.points, acquire_mode=a.acquire,
+                averages=a.averages, depth=a.depth)
 
 def _monitor_plan(a, channels):
     ch = channels[0] if channels else 1
@@ -1100,6 +1281,8 @@ def main() -> None:
     p.add_argument("--coupling", choices=["DC", "AC", "GND", "dc", "ac", "gnd"])
     p.add_argument("--probe", type=float)
     p.add_argument("--on", type=lambda x: x.lower() in ("1", "on", "true"), default=None)
+    p.add_argument("--invert", choices=["on", "off"])
+    p.add_argument("--bw-limit", choices=["20m", "off"])
     p.set_defaults(fn=cmd_channel)
 
     p = sub.add_parser("timebase", help="advanced: set the timebase (arm --timebase ...)")
@@ -1138,6 +1321,11 @@ def main() -> None:
                    help="arm a single sequence and wait up to N seconds before reading")
     p.add_argument("--no-analyze", action="store_true",
                    help="skip FFT/harmonics/waveform classification")
+    p.add_argument("--acquire", choices=["normal", "average", "peak", "hires"])
+    p.add_argument("--averages", type=int)
+    p.add_argument("--depth", metavar="AUTO|12k|120k|1M")
+    p.add_argument("--invert", choices=["on", "off"])
+    p.add_argument("--bw-limit", choices=["20m", "off"])
     _add_timing_options(p)
     p.set_defaults(fn=cmd_capture)
 
@@ -1174,6 +1362,18 @@ def main() -> None:
     p.add_argument("--shot")
     p.add_argument("--no-quality", action="store_true")
     p.add_argument("--no-analyze", action="store_true")
+    p.add_argument("--acquire", choices=["normal", "average", "peak", "hires"])
+    p.add_argument("--averages", type=int)
+    p.add_argument("--depth", metavar="AUTO|12k|120k|1M")
+    p.add_argument("--holdoff", type=float)
+    p.add_argument("--trigger-type", choices=["edge", "pulse", "slope", "video"],
+                   default="edge")
+    p.add_argument("--slope-level-b", type=float)
+    p.add_argument("--video-standard", choices=["ntsc", "pal"])
+    p.add_argument("--video-polarity", choices=["positive", "negative"])
+    p.add_argument("--video-line", type=int)
+    p.add_argument("--invert", choices=["on", "off"])
+    p.add_argument("--bw-limit", choices=["20m", "off"])
     _add_timing_options(p)
     p.set_defaults(fn=cmd_arm)
 
@@ -1231,6 +1431,13 @@ def main() -> None:
     p.add_argument("--plot-points", type=int, default=4000)
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_analyze)
+
+    p = sub.add_parser("snapshot", help="save or restore the instrument setup")
+    add_conn(p)
+    p.add_argument("action", choices=["save", "apply"])
+    p.add_argument("file")
+    p.add_argument("--channels", default="1,2")
+    p.set_defaults(fn=cmd_snapshot)
 
     p = sub.add_parser("list", help="list VISA resources")
     p.add_argument("--backend")

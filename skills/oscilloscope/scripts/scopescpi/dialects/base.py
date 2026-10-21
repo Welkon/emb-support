@@ -23,6 +23,8 @@ class Dialect:
     def channel_coupling(self, n, v): return f":{self.ch(n)}:COUPling {v}"
     def channel_probe(self, n, v): return f":{self.ch(n)}:PROBe {fnum(v)}"
     def channel_display(self, n, on): return f":{self.ch(n)}:DISPlay {'ON' if on else 'OFF'}"
+    def channel_invert(self, n, on): return None
+    def channel_bw_limit(self, n, value): return None
 
     # --- timebase
     def timebase_scale(self, v): return f":TIMebase:SCALe {fnum(v)}"
@@ -35,6 +37,11 @@ class Dialect:
     def single(self): return ":SINGle"
     def autoscale(self): return ":AUToscale"
 
+    # --- acquisition mode (families that support it override these)
+    def acquire_mode(self, mode): return []
+    def acquire_averages(self, n): return []
+    def acquire_depth(self, depth): return []
+
     # --- trigger
     def trigger_source(self, n): return f":TRIGger:EDGE:SOURce CHANnel{n}"
     def trigger_level(self, v): return f":TRIGger:EDGE:LEVel {fnum(v)}"
@@ -45,6 +52,9 @@ class Dialect:
     def autoset(self): return ":AUToscale"
     def trigger_pulse(self, width, polarity="POSitive", when="LESSthan"):
         return []
+    def trigger_holdoff(self, seconds): return []
+    def trigger_slope_setup(self, n, slope, level_a, level_b): return []
+    def trigger_video_setup(self, n, polarity, standard, line): return []
     def arm_single(self): return [self.single()]
     def state_queries(self): return [":TRIGger:STATe?", ":ACQuire:STATE?"]
 
@@ -61,8 +71,10 @@ class Dialect:
             "trigger_level": ":TRIGger:EDGE:LEVel?",
             "trigger_slope": ":TRIGger:EDGE:SLOPe?",
             "trigger_sweep": ":TRIGger:SWEep?",
+            "trigger_holdoff": ":TRIGger:HOLDoff?",
             "acquire_points": ":ACQuire:POINts?",
             "acquire_type": ":ACQuire:TYPE?",
+            "acquire_averages": ":ACQuire:AVERages?",
             "sample_rate": ":ACQuire:SRATe?",
             "system_error": ":SYSTem:ERRor?",
         }
@@ -74,6 +86,8 @@ class Dialect:
             "offset": f":{self.ch(n)}:OFFSet?",
             "coupling": f":{self.ch(n)}:COUPling?",
             "probe": f":{self.ch(n)}:PROBe?",
+            "invert": f":{self.ch(n)}:INVert?",
+            "bw_limit": f":{self.ch(n)}:BWLimit?",
         }
 
     # --- waveform transfer

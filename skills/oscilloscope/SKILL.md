@@ -145,6 +145,20 @@ resolution or aliased, `arm` adjusts scale, offset, timebase or trigger level
 and captures again (at most three adjustments). Every change is listed under
 `adjustments`, so the result stays auditable.
 
+Acquisition and trigger shape the record as well:
+
+- `--acquire normal|average|peak|hires`, `--averages N`, `--depth 12k|120k|1M`
+  select the acquisition mode, averaging count and memory depth.
+- `--trigger-type edge|pulse|slope|video` adds slope (`--level`,
+  `--slope-level-b`) and video (`--video-standard`, `--video-polarity`,
+  `--video-line`) triggers.
+- `--holdoff S` sets the trigger holdoff.
+- `--invert on` and `--bw-limit 20m` apply channel conditioning to the trigger
+  source (or the first captured channel). The `channel` verb does the same per
+  channel.
+
+A feature the driver does not map returns a warning instead of a wrong command.
+
 `--timing 1,2` adds an edge-to-edge result between two captured channels:
 `delay` (signed mean), `skew` (standard deviation over pairs), `pair` counts and
 the matching `window_s`. `--timing-edge-a` and `--timing-edge-b` select rising or
@@ -184,7 +198,19 @@ scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
 One connection, 20 samples. The JSON has every row plus min, median, max and
 mean per channel and item. This replaces a hand-written poll loop.
 
-### 4.5 Evidence
+### 4.5 Restore a setup
+
+```bash
+scripts/scope.py snapshot save evidence/setup.json
+scripts/scope.py snapshot apply evidence/setup.json
+```
+
+Use this after a USB reattach, or before a risky test. `snapshot save` records
+timebase, trigger, acquisition and channel settings; `snapshot apply` restores
+them through the same Executor as `arm`. Values the instrument did not answer
+are `null` and are skipped on apply.
+
+### 4.6 Evidence
 
 Use numeric waveform files (CSV or JSON) as the primary evidence. A screenshot
 is a secondary aid for a human reader. A CSV file supports diff, statistics and
@@ -224,17 +250,18 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `list`, `discover` | List VISA resources or scan a subnet. | `--scan`, `--backend` |
 | `doctor` | Check the environment and the connection. | `--host`, `--attach-usb` |
 | `test` | Run the skill test suite. | `--install`, `-k` |
-| `channel` | Set the vertical scale, offset, coupling, and probe. | `--ch`, `--scale`, `--offset`, `--coupling`, `--probe` |
+| `channel` | Set vertical scale, offset, coupling, probe, invert and bandwidth limit. | `--ch`, `--scale`, `--offset`, `--coupling`, `--probe`, `--invert`, `--bw-limit` |
 | `timebase` | Set the timebase. | `--scale`, `--offset` |
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
 | `run` | Run, stop, single, or autoscale. | action |
 | `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache`, `--timing` |
-| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait`, `--auto-fit`, `--preset`, `--timing` |
+| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait`, `--auto-fit`, `--preset`, `--timing`, `--acquire`, `--holdoff`, `--trigger-type` |
 | `watch` | Measure the same signals repeatedly and summarize the trend. | `--channel`, `--items`, `--samples`, `--interval`, `--state` |
 | `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
 | `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
 | `monitor` | Watch for an event and write evidence. | See section 5. |
 | `analyze` | Analyze a CSV or NPZ file offline. | `--csv`, `--npz`, `--fft`, `--plot`, `--timing` |
+| `snapshot` | Save or restore the instrument setup. | `save`/`apply FILE`, `--channels` |
 | `config` | Store default values. | `set`, `get`, `list`, `unset` |
 
 Advanced knobs for a one-off change: `channel`, `timebase`, `trigger`, `run`.
@@ -251,6 +278,11 @@ samples, so no CSV post-processing is needed.
 `instrument` or `waveform`, `unit` is explicit, and waveform values also carry
 `resolution` (one ADC code or one sample interval) and a resolution-based
 `uncertainty`. Instrument values have no invented accuracy figure.
+
+Not exposed: channel units (V/A/W) because the family syntax is not verified,
+reference traces, persistence and XY display, cursor menus, pass/fail masks and
+self-calibration. These are display, production or service operations; use the
+front panel for them.
 
 Connection options: `--host`, `--port 5025`, `--resource`, `--backend`. Give them
 once: the working endpoint is stored in the skill config and reused. `--family`,
@@ -397,6 +429,8 @@ Six invariants hold this shape together. `tests/test_architecture.py` and
    `adjustments`; no adjustment happens silently.
 8. **Measurements carry provenance.** `measurement_details` gives unit, source
    and uncertainty; cross-channel numbers come from one record.
+9. **Setup is round-trippable.** `snapshot save` and `snapshot apply` use the
+   same semantic plan as `arm`; no vendor strings are stored.
 
 **Adding a capability.** Keep the interface at the intent level:
 

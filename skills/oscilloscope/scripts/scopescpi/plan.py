@@ -20,6 +20,9 @@ class ChannelSetup:
     offset: float | None = None
     probe: float | None = None
     coupling: str | None = None
+    invert: bool | None = None
+    bw_limit: str | None = None
+    display: bool | None = None
 
 
 @dataclass
@@ -32,6 +35,11 @@ class TriggerSetup:
     pulse_width: float | None = None
     pulse_polarity: str | None = None
     pulse_when: str | None = None
+    holdoff: float | None = None
+    slope_level_b: float | None = None
+    video_standard: str | None = None
+    video_polarity: str | None = None
+    video_line: int | None = None
 
 
 @dataclass
@@ -51,6 +59,9 @@ class Plan:
     unknown_is_done: bool = False      # monitor: an unknown state after settle counts
     settle: float = 1.0
     poll: float = 0.05
+    acquire_mode: str | None = None    # normal | average | peak | hires
+    averages: int | None = None
+    depth: str | None = None
 
 
 @dataclass
@@ -84,12 +95,22 @@ class Executor:
         self.dialect = dialect
 
     # -- setup ---------------------------------------------------------
+    @staticmethod
+    def _mapped(commands, feature: str, warnings: list[str]) -> list[str]:
+        if commands:
+            return list(commands)
+        warnings.append(f"{feature} is not mapped for this family")
+        return []
+
     def configure(self, plan: Plan) -> list[str]:
         d, s = self.dialect, self.session
         commands: list[str] = []
+        warnings: list[str] = []
+
         for channel in plan.channels:
             n = channel.n
-            commands.append(d.channel_display(n, True))
+            commands.append(d.channel_display(
+                n, True if channel.display is None else channel.display))
             if channel.scale is not None:
                 commands.append(d.channel_scale(n, channel.scale))
             if channel.offset is not None:
@@ -98,33 +119,66 @@ class Executor:
                 commands.append(d.channel_coupling(n, channel.coupling.upper()))
             if channel.probe is not None:
                 commands.append(d.channel_probe(n, channel.probe))
+            if channel.invert is not None:
+                command = d.channel_invert(n, channel.invert)
+                commands += self._mapped([command] if command else [],
+                                         "channel invert", warnings)
+            if channel.bw_limit is not None:
+                command = d.channel_bw_limit(n, channel.bw_limit)
+                commands += self._mapped([command] if command else [],
+                                         "bandwidth limit", warnings)
+
         if plan.timebase is not None:
             commands.append(d.timebase_scale(plan.timebase))
         if plan.timebase_offset is not None:
             commands.append(d.timebase_offset(plan.timebase_offset))
 
-        warnings: list[str] = []
+        if plan.acquire_mode:
+            commands += self._mapped(d.acquire_mode(plan.acquire_mode),
+                                     "acquisition mode", warnings)
+        if plan.averages is not None:
+            commands += self._mapped(d.acquire_averages(plan.averages),
+                                     "acquisition averaging", warnings)
+        if plan.depth is not None:
+            commands += self._mapped(d.acquire_depth(plan.depth),
+                                     "memory depth", warnings)
+
         trigger = plan.trigger
         if trigger:
-            if trigger.source is not None:
-                commands += [d.trigger_type(), d.trigger_source(trigger.source)]
-            if trigger.level is not None:
-                commands += [d.trigger_type(), d.trigger_level(trigger.level)]
-            if trigger.slope:
-                commands += [d.trigger_type(), d.trigger_slope(trigger.slope.upper())]
-            if trigger.sweep:
-                commands.append(d.trigger_sweep(trigger.sweep.upper()))
-            if trigger.type == "pulse":
-                when = ("GREATERthan" if "greater" in (trigger.pulse_when or "less").lower()
-                        else "LESSthan")
-                pulse = d.trigger_pulse(
-                    trigger.pulse_width or 1e-6,
-                    (trigger.pulse_polarity or "positive").upper(), when)
-                if pulse:
-                    commands += pulse
-                else:
-                    warnings.append(
-                        "pulse trigger is not mapped for this family; using edge")
+            if trigger.holdoff is not None:
+                commands += self._mapped(d.trigger_holdoff(trigger.holdoff),
+                                         "trigger holdoff", warnings)
+            source = trigger.source if trigger.source is not None else (
+                plan.read[0] if plan.read else 1)
+            if trigger.type == "slope":
+                commands += self._mapped(
+                    d.trigger_slope_setup(source, trigger.slope, trigger.level,
+                                          trigger.slope_level_b),
+                    "slope trigger", warnings)
+            elif trigger.type == "video":
+                commands += self._mapped(
+                    d.trigger_video_setup(source, trigger.video_polarity,
+                                          trigger.video_standard, trigger.video_line),
+                    "video trigger", warnings)
+            else:
+                commands += [d.trigger_type()]
+                if trigger.source is not None:
+                    commands.append(d.trigger_source(trigger.source))
+                if trigger.level is not None:
+                    commands.append(d.trigger_level(trigger.level))
+                if trigger.slope:
+                    commands.append(d.trigger_slope(trigger.slope.upper()))
+                if trigger.sweep:
+                    commands.append(d.trigger_sweep(trigger.sweep.upper()))
+                if trigger.type == "pulse":
+                    when = ("GREATERthan"
+                            if "greater" in (trigger.pulse_when or "less").lower()
+                            else "LESSthan")
+                    commands += self._mapped(
+                        d.trigger_pulse(trigger.pulse_width or 1e-6,
+                                        (trigger.pulse_polarity or "positive").upper(),
+                                        when),
+                        "pulse trigger", warnings)
 
         # One EDGE mode write, not one per trigger field.
         for command in dict.fromkeys(commands):
