@@ -6,7 +6,9 @@ must sample repeatedly in one connection; `status` must survive a query the
 instrument rejects.
 """
 
+import csv
 import json
+import math
 import re
 import types
 
@@ -241,3 +243,22 @@ def test_every_measurement_item_has_a_host_side_path(scope):
 
     got = scope.measure_channel(None, HostOnly("X"), 1, scope.MEASURE_ITEMS)
     assert set(scope.MEASURE_ITEMS) <= set(got)
+
+
+def test_analyze_covers_every_channel(tmp_path):
+    path = tmp_path / "two.csv"
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["time", "ch1", "ch2"])
+        for i in range(3000):
+            t = i * 1e-6
+            w.writerow([f"{t:.12g}", f"{math.sin(2 * math.pi * 1000 * t):.9g}",
+                        "3.3" if (t % 1e-3) < 300e-6 else "0"])
+    p = run(["analyze", "--csv", str(path), "--channel", "2", "--json"], tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert set(data["channels"]) == {"1", "2"}
+    assert data["channel"] == "2"
+    assert data["max_high_s"] == pytest.approx(300e-6, abs=2e-6)
+    assert data["channels"]["2"]["max_low_s"] == pytest.approx(700e-6, abs=2e-6)
+    assert data["channels"]["1"]["freq"] == pytest.approx(1000, rel=0.02)

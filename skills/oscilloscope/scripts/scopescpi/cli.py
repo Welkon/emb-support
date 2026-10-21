@@ -865,24 +865,38 @@ def cmd_monitor(a) -> None:
         inst.close()
 
 
+def _channel_key(name: str) -> str:
+    key = str(name).strip().lower()
+    return key[2:] if key.startswith("ch") else key
+
+
 def read_csv_capture(path: Path):
+    """Return (header, {channel: (times, volts)}) for every data column."""
     with path.open(newline="") as f:
         rows = list(csv.reader(f))
     if not rows:
         raise ValueError("empty CSV")
     header = rows[0]
-    tcol = 0
-    vcol = 1 if len(header) > 1 else 0
-    times, volts = [], []
+    if len(header) > 1:
+        columns = {name: i for i, name in enumerate(header) if i > 0}
+        time_col = 0
+    else:
+        columns = {header[0]: 0}
+        time_col = 0
+    series = {_channel_key(name): ([], []) for name in columns}
     for row in rows[1:]:
-        if len(row) <= max(tcol, vcol):
+        if len(row) <= time_col or any(len(row) <= i for i in columns.values()):
             continue
-        times.append(float(row[tcol]))
-        volts.append(float(row[vcol]))
-    return header, times, volts
+        stamp = float(row[time_col])
+        for name, index in columns.items():
+            times, volts = series[_channel_key(name)]
+            times.append(stamp)
+            volts.append(float(row[index]))
+    return header, series
 
 
 def cmd_analyze(a) -> None:
+    """Analyze every channel of a saved record; fixed verbs, free-form data math."""
     if not a.csv and not a.npz:
         die("analyze requires --csv or --npz")
     if a.npz:
@@ -892,26 +906,42 @@ def cmd_analyze(a) -> None:
         data = load_npz(path)
         if not data:
             die("no channels found in npz")
-        ch = next(iter(data))
-        times, volts = data[ch]["times"], data[ch]["volts"]
-        header = ["time", f"ch{ch}"]
+        series = {str(ch): (item["times"], item["volts"]) for ch, item in data.items()}
+        header = ["time"] + [f"ch{ch}" for ch in series]
     else:
         path = Path(a.csv).expanduser()
         if not path.exists():
             die(f"file not found: {path}")
-        header, times, volts = read_csv_capture(path)
-    out = stats(volts, times)
-    out["warnings"] = check_quality(volts, times)
-    out["file"] = str(path)
-    out["columns"] = header
-    out["logic_levels"] = _logic_levels(volts)
+        header, series = read_csv_capture(path)
+    if not series:
+        die(f"no data columns in {path}")
+
+    channels = {}
+    for ch, (times, volts) in series.items():
+        st = stats(volts, times)
+        st["warnings"] = check_quality(volts, times)
+        st["logic_levels"] = _logic_levels(volts)
+        channels[ch] = st
+
+    target = str(a.channel) if a.channel is not None else next(iter(series))
+    if target not in channels:
+        die(f"channel {target} is not in {path}; columns: {', '.join(series)}")
     if a.fft:
-        out.update(spectrum(volts, (times[1] - times[0]) if len(times) > 1 else 0))
+        for ch, (times, volts) in series.items():
+            try:
+                channels[ch].update(spectrum(volts, (times[1] - times[0]) if len(times) > 1 else 0))
+            except RuntimeError as exc:
+                channels[ch]["fft_error"] = str(exc)
+
+    out = dict(channels[target])
+    out.update({"file": str(path), "columns": header, "channel": target,
+                "channels": channels})
     if a.plot:
         plot_path = Path(a.plot).expanduser()
         if plot_path.suffix.lower() != ".svg":
             die("--plot currently supports .svg output")
-        write_svg(plot_path, times, volts, title=path.name,
+        times, volts = series[target]
+        write_svg(plot_path, times, volts, title=f"{path.name} ch{target}",
                   extra=out, max_points=a.plot_points)
         out["plot"] = str(plot_path)
     emit(out, as_json=True)
@@ -1132,6 +1162,7 @@ def main() -> None:
     p.add_argument("--csv")
     p.add_argument("--npz")
     p.add_argument("--fft", action="store_true", help="include FFT, harmonics and THD")
+    p.add_argument("--channel", type=int, help="channel for --plot (default: first)")
     p.add_argument("--plot", help="write an SVG waveform plot")
     p.add_argument("--plot-points", type=int, default=4000)
     p.add_argument("--json", action="store_true")

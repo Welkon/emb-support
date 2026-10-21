@@ -265,6 +265,10 @@ Each channel gets a `quality` list. A warning has a `code`, a `message`, and a `
 
 Use `--no-quality` to disable the checks. The `analyze` command applies the same checks to an offline file. The `monitor` command also applies them.
 
+`analyze` reports every channel in the record. `--channel` selects the channel
+used by `--fft` and `--plot`; the per-channel results are always under
+`channels`.
+
 ## 8. One-shot capture and analysis
 
 By default, `capture` does all of these steps in one command:
