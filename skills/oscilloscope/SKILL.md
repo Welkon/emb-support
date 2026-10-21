@@ -40,6 +40,7 @@ scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
 |---|---|
 | What is the instrument set to? | `status --json` |
 | Show me this event once | `arm --ch ... --timebase ... --measure ...` |
+| Prepare the trigger, then act outside the scope | `arm ... --no-wait` |
 | What is on the screen right now? | `capture --out ... --json` |
 | Measure the same signal over time | `watch --samples ... --items ...` |
 | Catch an intermittent event and keep evidence | `monitor --preset ...` |
@@ -138,7 +139,20 @@ signal quality and writes the files. When it times out it says so and does not
 save a meaningless record. Use `--mode normal` for a free-running read instead
 of a single sequence.
 
-### 4.3 Watch a signal over time
+### 4.3 Arm first, act outside the scope
+
+Some tests need the scope waiting before you power the board:
+
+```bash
+scripts/scope.py arm --ch 2:1:0:10:DC --timebase 1e-3 \
+  --source 2 --level 1.5 --no-wait --json
+```
+
+It returns `armed: true` and the trigger state (`WAIT` or `RUN`) without
+capturing. Enable the supply, then use `capture` or `watch` to collect the
+result. Do not guess whether the arm took effect.
+
+### 4.4 Watch a signal over time
 
 ```bash
 scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
@@ -148,7 +162,7 @@ scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
 One connection, 20 samples. The JSON has every row plus min, median, max and
 mean per channel and item. This replaces a hand-written poll loop.
 
-### 4.4 Evidence
+### 4.5 Evidence
 
 Use numeric waveform files (CSV or JSON) as the primary evidence. A screenshot
 is a secondary aid for a human reader. A CSV file supports diff, statistics and
@@ -165,7 +179,7 @@ scripts/scope.py monitor --host <ip> --channels 1 --max-events 1 \
 # Use a preset: glitch-short, power-on-spike, intermittent-noise, missing-pulse, burst-pulse.
 scripts/scope.py monitor --host <ip> --preset glitch-short --channels 1 --auto-rearm --max-events 5
 
-# Show the commands. Do not touch the instrument.
+# Show the plan. Do not touch the instrument.
 scripts/scope.py monitor --host <ip> --preset glitch-short --dry-run
 ```
 
@@ -193,7 +207,7 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
 | `run` | Run, stop, single, or autoscale. | action |
 | `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
-| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot` |
+| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait` |
 | `watch` | Measure the same signals repeatedly and summarize the trend. | `--channel`, `--items`, `--samples`, `--interval`, `--state` |
 | `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
 | `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
@@ -217,7 +231,8 @@ once: the working endpoint is stored in the skill config and reused. `--family`,
 
 Start with `status`: it is read-only and replaces a chain of individual reads.
 Queries the instrument does not implement come back as `null` and are listed
-under `unsupported`.
+under `unsupported`. Its `capabilities` object lists the measurement items the
+driver can answer and the ones the skill computes from the waveform.
 
 WSL with an instrument only Windows can see: `scripts/scope.py --bridge windows status --json`. The command runs on the Windows interpreter with the same dialect code; add `--win-python C:\path\to\python.exe` (or set `SCOPE_WIN_PYTHON`) to pick a Windows venv that has pyvisa.
 
@@ -311,25 +326,39 @@ Read `references/troubleshooting.md` for connection failures, USBTMC permissions
 ## 12. Code structure
 
 ```text
-scripts/scope.py                  stable entry point (arguments and compatibility exports)
-scripts/scopescpi/cli.py          intent verbs (status, arm, watch, capture, monitor)
-scripts/scopescpi/dialects/       driver layer: one module per family, the only place with SCPI
-scripts/scopescpi/acquisition.py  scaling, statistics, measurement fallback
-scripts/scopescpi/transport.py    socket, pyvisa, usbtmc
-scripts/scopescpi/common.py       configuration, output, block and frame parsers
-scripts/scopescpi/quality.py      signal-quality checks
-scripts/scopescpi/analysis.py     FFT, harmonics, classification, plots
+scripts/scope.py                    stable entry point (arguments and compatibility exports)
+scripts/scopescpi/cli.py            argparse plus the intent verbs (status, arm, watch, ...)
+scripts/scopescpi/session.py        one session per intent; reconnect and retry once
+scripts/scopescpi/capabilities.py   closed vocabulary: driver query or waveform fallback
+scripts/scopescpi/dialects/         adapters: one module per family, the only place with SCPI
+scripts/scopescpi/acquisition.py    scaling, statistics, measurement fallback
+scripts/scopescpi/transport.py      socket, pyvisa, usbtmc
+scripts/scopescpi/common.py         configuration, output, block and frame parsers
+scripts/scopescpi/quality.py        signal-quality checks
+scripts/scopescpi/analysis.py       FFT, harmonics, classification, plots
 ```
+
+Four invariants hold this shape together. `tests/test_architecture.py` and
+`tests/test_workflow.py` enforce them:
+
+1. **Closed vocabulary.** The agent can ask only the questions in this file.
+   `status.capabilities` says which of them are measured and which are computed.
+2. **Total capabilities.** A capability has a driver query or a host fallback.
+   An adapter returns `None`, never an exception, when it cannot answer.
+3. **One session per intent.** Verbs use `Session`; `connect()` appears only in
+   `session.py`. A dead handle is reopened and the operation retried once.
+4. **No commands in results.** Outputs carry values, evidence, warnings and
+   `unsupported`; a raw command string fails the invariant test.
 
 **Adding a capability.** Keep the interface at the intent level:
 
-1. Add the verb to `cli.py`. It must complete on one connection and return
-   values, `null` and evidence paths, not commands.
-2. Add the mapping to the dialects. If a family cannot do it, return `None` or
-   an empty list so the verb degrades instead of failing.
-3. Add a test with the mock instrument. Assert the number of connections and
-   the shape of the answer, not the vendor string.
-4. Document the verb in the table above. Do not document its commands.
+1. Add the item to `capabilities.MEASUREMENTS` with a fallback key produced by
+   `stats()`. The capability test fails if it has neither a query nor a fallback.
+2. Add the driver query where the instrument has one. Return `None` elsewhere so
+   the fallback is used; never raise for an unsupported feature.
+3. Add a test with the mock instrument. Assert the shape of the answer, not the
+   vendor string.
+4. Document the item in the table above. Do not document its command.
 
 A raw-command escape hatch exists for maintainers, but it is not part of the
 documented interface and no workflow may depend on it.

@@ -275,8 +275,7 @@ def _remember_instance(inst) -> None:
 
 def connect(a):
     inst = _connect(a)
-    if getattr(a, "resource", None) or getattr(a, "host", None):
-        _remember_instance(inst)
+    _remember_instance(inst)     # last good endpoint wins; stale entries get replaced
     return inst
 
 
@@ -295,7 +294,13 @@ def _connect(a):
     if host:
         return SocketInstrument(host, port, timeout)
     if resource:
-        return VisaInstrument(resource, timeout, backend)
+        try:
+            return VisaInstrument(resource, timeout, backend, strict=False)
+        except Exception:
+            # The remembered device is gone. Fall through to discovery and
+            # WSL attach instead of failing every command until the user
+            # remembers to clear the config.
+            pass
 
     devices = sorted(glob.glob("/dev/usbtmc*"))
     if devices:

@@ -83,7 +83,7 @@ def test_monitor_dry_run(rigol, tmp_path):
     assert p.returncode == 0, p.stderr
     data = json.loads(p.stdout)
     assert data["dry_run"] is True
-    assert data["arm"]
+    assert any("arm" in step for step in data["plan"])
 
 
 def test_analyze_offline(tmp_path):

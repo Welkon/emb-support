@@ -18,10 +18,12 @@ from .common import (
     CONFIG, HOME, IS_WIN, VENV, die, emit, load_config, save_config,
     venv_reexec_argv,
 )
-from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument, connect
+from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument
+from .session import Session
+from .capabilities import advertised
 from .dialects import FAMILIES, detect_family, make_dialect
 from .acquisition import (
-    ITEM_MAP, MEASURE_ITEMS, acquire_channels, acquire_with_recovery,
+    MEASURE_ITEMS, acquire_channels, acquire_with_recovery,
     measure_channel, stats,
 )
 from .quality import check as check_quality
@@ -157,7 +159,7 @@ def cmd_discover(a) -> None:
 
 
 def cmd_idn(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         idn = inst.query("*IDN?")
         family = a.family or detect_family(idn)
@@ -196,7 +198,7 @@ def _dialect_for(a, inst):
 
 
 def cmd_channel(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         cmds = []
@@ -212,14 +214,17 @@ def cmd_channel(a) -> None:
             cmds.append(d.channel_display(a.ch, a.on))
         for c in cmds:
             inst.write(c)
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch, "commands": cmds},
+        applied = {"scale": a.scale, "offset": a.offset, "coupling": a.coupling,
+                   "probe": a.probe, "on": a.on}
+        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
+              "applied": {k: v for k, v in applied.items() if v is not None}},
              as_json=True)
     finally:
         inst.close()
 
 
 def cmd_timebase(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         cmds = []
@@ -229,13 +234,16 @@ def cmd_timebase(a) -> None:
             cmds.append(d.timebase_offset(a.offset))
         for c in cmds:
             inst.write(c)
-        emit({"ok": True, "idn": idn, "family": d.name, "commands": cmds}, as_json=True)
+        applied = {"scale": a.scale, "offset": a.offset}
+        emit({"ok": True, "idn": idn, "family": d.name,
+              "applied": {k: v for k, v in applied.items() if v is not None}},
+             as_json=True)
     finally:
         inst.close()
 
 
 def cmd_trigger(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         cmds = [d.trigger_type()]
@@ -249,13 +257,17 @@ def cmd_trigger(a) -> None:
             cmds.append(d.trigger_sweep(a.mode.upper()))
         for c in cmds:
             inst.write(c)
-        emit({"ok": True, "idn": idn, "family": d.name, "commands": cmds}, as_json=True)
+        applied = {"source": a.source, "level": a.level, "slope": a.slope,
+                   "mode": a.mode}
+        emit({"ok": True, "idn": idn, "family": d.name,
+              "applied": {k: v for k, v in applied.items() if v is not None}},
+             as_json=True)
     finally:
         inst.close()
 
 
 def cmd_run(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, _ = _dialect_for(a, inst)
         if a.action == "run":
@@ -264,13 +276,13 @@ def cmd_run(a) -> None:
             commands = [{"stop": d.stop, "single": d.single, "autoscale": d.autoscale}[a.action]()]
         for cmd in commands:
             inst.write(cmd)
-        emit({"ok": True, "action": a.action, "commands": commands}, as_json=True)
+        emit({"ok": True, "action": a.action}, as_json=True)
     finally:
         inst.close()
 
 
 def cmd_capture(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         channels = [int(x) for x in a.channels.split(",") if x.strip()]
@@ -284,9 +296,12 @@ def cmd_capture(a) -> None:
                     if query_run_state(inst, d) is True:
                         break
                     time.sleep(0.02)
-            inst, data, recovery = _acquire_resilient(
-                a, inst, d, channels, a.points,
-                no_recovery=a.no_recovery, autoset=a.autoset_on_empty)
+            if a.no_recovery:
+                data = acquire_channels(inst, d, channels, a.points)
+            else:
+                data, recovery = acquire_with_recovery(
+                    inst, d, channels, a.points,
+                    attempts=3, allow_autoset=a.autoset_on_empty)
         except Exception as e:  # noqa: BLE001
             die(f"capture failed after retries: {e}")
         summary = {"ok": True, "idn": idn, "family": d.name, "channels": {},
@@ -378,84 +393,6 @@ def _query_or_none(inst, cmd):
     return (value or None), None
 
 
-_DEAD_SESSION = ("invalid session", "invalid handle", "session handle", "vi_error",
-                 "timed out", "timeout", "closed", "broken pipe", "connection reset")
-
-
-def _is_dead_text(text: str) -> bool:
-    text = (text or "").lower()
-    return any(marker in text for marker in _DEAD_SESSION)
-
-
-def _acquire_resilient(a, inst, d, channels, points, no_recovery=False, autoset=False):
-    """Acquire, reconnecting once if the waveform transfer lost the session.
-
-    A malformed block read leaves a USB handle out of sync: every later command
-    times out even though the instrument is still there. A fresh handle fixes
-    it, and is cheaper than asking the user to detach and reattach USB.
-    """
-    def once(open_inst):
-        if no_recovery:
-            return acquire_channels(open_inst, d, channels, points), []
-        return acquire_with_recovery(
-            open_inst, d, channels, points, attempts=3, allow_autoset=autoset)
-
-    try:
-        data, log = once(inst)
-    except Exception as exc:  # noqa: BLE001
-        if not _is_dead_text(f"{type(exc).__name__}: {exc}"):
-            raise
-        inst = connect(a)
-        data, log = once(inst)
-    return inst, data, log
-
-
-def _measure_session(a, inst, d, channels, items):
-    """Measure several channels, reconnecting once if the session died.
-
-    An item the instrument cannot answer (or a query timeout) closes the USB
-    session; without this, one bad measurement would fail the whole intent.
-    """
-    def take(open_inst):
-        return {str(ch): measure_channel(open_inst, d, ch, items) for ch in channels}
-
-    try:
-        return inst, take(inst)
-    except Exception as exc:  # noqa: BLE001
-        if not _is_dead_text(f"{type(exc).__name__}: {exc}"):
-            raise
-        inst = connect(a)
-        return inst, take(inst)
-
-
-def _status_query(a, inst, cmd, reconnects):
-    """Read one field without letting a rejected query poison the rest.
-
-    Some instruments (Rigol DS1000Z over USB) drop the session when they get a
-    query they do not implement, and every later field then fails with
-    `Invalid session handle`. Reconnect and retry once, so `status` stays a
-    single intent that degrades to `null` instead of handing raw errors back.
-    """
-    value, err = _query_or_none(inst, cmd)
-    if not err or reconnects[0] >= 3:
-        return inst, value, err
-    if not _is_dead_text(err):
-        return inst, value, err
-    try:
-        inst.close()
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        inst = connect(a)
-    except Exception as exc:  # noqa: BLE001
-        return inst, None, f"{err}; reconnect failed: {exc}"
-    reconnects[0] += 1
-    value, retry_err = _query_or_none(inst, cmd)
-    if retry_err:
-        return inst, None, f"{err}; retry: {retry_err}"
-    return inst, value, None
-
-
 def cmd_status(a) -> None:
     """Describe the whole instrument in one connection (read-only).
 
@@ -463,8 +400,7 @@ def cmd_status(a) -> None:
     an acquisition query cannot hide the wiring. The caller sees values, `null`,
     and an `unsupported` list, never a SCPI error to work around.
     """
-    inst = connect(a)
-    reconnects = [0]
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         channels = [int(x) for x in (a.channels or "1").split(",") if x.strip()]
@@ -474,24 +410,24 @@ def cmd_status(a) -> None:
         for n in channels:
             item = {}
             for key, cmd in d.channel_status_queries(n).items():
-                inst, item[key], err = _status_query(a, inst, cmd, reconnects)
+                item[key], err = _query_or_none(inst, cmd)
                 if err:
                     problems.append(f"CH{n} {key}: {err}")
             per_channel[str(n)] = item
 
         settings = {}
         for key, cmd in d.status_queries().items():
-            inst, settings[key], err = _status_query(a, inst, cmd, reconnects)
+            settings[key], err = _query_or_none(inst, cmd)
             if err:
                 problems.append(f"{key}: {err}")
 
         out = {"ok": True, "idn": idn, "family": d.name, "settings": settings,
-               "channels": per_channel}
+               "channels": per_channel, "capabilities": advertised(d)}
         unsupported = [k for k, v in settings.items() if v is None]
         if unsupported:
             out["unsupported"] = unsupported
-        if reconnects[0]:
-            out["reconnects"] = reconnects[0]
+        if inst.reconnects:
+            out["reconnects"] = inst.reconnects
         if problems:
             out["errors"] = problems
         emit(out, as_json=True)
@@ -512,13 +448,13 @@ def _fmt_value(value) -> str:
 
 
 def cmd_measure(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         items = _check_items(a.items or "vpp,rms,freq,period")
-        inst, values = _measure_session(a, inst, d, [a.channel], items)
+        values = measure_channel(inst, d, a.channel, items)
         emit({"ok": True, "idn": idn, "family": d.name, "channel": a.channel,
-              "measurements": values[str(a.channel)]}, as_json=True)
+              "measurements": values}, as_json=True)
     finally:
         inst.close()
 
@@ -535,7 +471,9 @@ def _parse_channel_spec(text: str) -> dict:
 
 def _arm_human(out: dict) -> str:
     lines = [f"{out['idn']}  [{out['family']}]  {out['mode']}"]
-    if out.get("timed_out"):
+    if out.get("armed"):
+        lines.append(f"armed; trigger state {out.get('trigger_state')} (no capture)")
+    elif out.get("timed_out"):
         lines.append(f"no trigger within {out['waited_s']} s; nothing captured")
     else:
         lines.append(f"captured after {out['waited_s']} s")
@@ -570,7 +508,7 @@ def cmd_arm(a) -> None:
         channels = [s["n"] for s in specs] or [1]
     items = _check_items(a.measure) if a.measure else []
     single = a.mode == "single"
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         setup = []
@@ -605,20 +543,23 @@ def cmd_arm(a) -> None:
 
         started = time.time()
         state = None
-        while single and time.time() - started < a.wait:
+        if single and a.no_wait:
+            state = query_run_state(inst, d)
+        while single and not a.no_wait and time.time() - started < a.wait:
             state = query_run_state(inst, d)
             if state is True:
                 break
             time.sleep(0.05)
+        armed = single and a.no_wait
         out = {"ok": True, "idn": idn, "family": d.name, "mode": a.mode,
-               "waited_s": round(time.time() - started, 3),
+               "armed": armed, "waited_s": round(time.time() - started, 3),
                "trigger_state": None if state is None else ("STOP" if state else "RUN"),
-               "captured": not single or state is True}
-        if single and not out["captured"]:
+               "captured": (not single or state is True) and not armed}
+        if single and not armed and not out["captured"]:
             out["timed_out"] = True
 
         if out["captured"]:
-            inst, data, recovery = _acquire_resilient(a, inst, d, channels, a.points)
+            data, recovery = acquire_with_recovery(inst, d, channels, a.points, attempts=3)
             if recovery:
                 out["recovery"] = recovery
             out["channels"] = {}
@@ -632,7 +573,8 @@ def cmd_arm(a) -> None:
                     st["analysis"] = adv
                 out["channels"][str(ch)] = st
             if a.measure:
-                inst, out["measurements"] = _measure_session(a, inst, d, channels, items)
+                out["measurements"] = {str(ch): measure_channel(inst, d, ch, items)
+                                       for ch in channels}
             if a.out:
                 path = Path(a.out).expanduser()
                 fmt = a.format or path.suffix.lstrip(".").lower() or "csv"
@@ -670,13 +612,14 @@ def cmd_watch(a) -> None:
     """
     channels = [int(x) for x in a.channel.split(",") if x.strip()]
     items = _check_items(a.items)
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         rows = []
         for i in range(a.samples):
             row = {"sample": i + 1, "channels": {}}
-            inst, row["channels"] = _measure_session(a, inst, d, channels, items)
+            for ch in channels:
+                row["channels"][str(ch)] = measure_channel(inst, d, ch, items)
             if a.state:
                 row["trigger_state"] = query_run_state(inst, d)
             rows.append(row)
@@ -722,7 +665,7 @@ def cmd_watch(a) -> None:
 
 
 def cmd_shot(a) -> None:
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         if not d.screenshot_queries():
@@ -743,7 +686,7 @@ def cmd_shot(a) -> None:
         out = Path(a.out).expanduser()
         out.write_bytes(data)
         emit({"ok": True, "idn": idn, "family": d.name, "out": str(out),
-              "bytes": len(data), "query": used}, as_json=True)
+              "bytes": len(data)}, as_json=True)
     finally:
         inst.close()
 
@@ -756,7 +699,7 @@ def cmd_scpi(a) -> None:
     the caller SCPI.
     """
     commands = a.command if isinstance(a.command, list) else [a.command]
-    inst = connect(a)
+    inst = Session(a)
     try:
         results = []
         for cmd in commands:
@@ -854,13 +797,25 @@ def query_run_state(inst, d) -> bool | None:
 
 def cmd_monitor(a) -> None:
     apply_preset(a)
-    inst = connect(a)
+    inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         cmds = monitor_setup(inst, d, a)
         if a.dry_run:
-            emit({"ok": True, "idn": idn, "family": d.name, "setup": cmds,
-                  "arm": d.arm_single(), "dry_run": True}, as_json=True)
+            plan = ["apply the setup", "arm one trigger sequence",
+                    f"wait up to {a.duration:g} s", f"capture channels {a.channels}",
+                    f"write {a.outdir}/<prefix>-NN.csv and .json"]
+            setup = {"channels": a.channels, "timebase": a.timebase,
+                     "channel_scale": a.channel_scale, "channel_offset": a.channel_offset,
+                     "trigger_source": a.trigger_source, "trigger_level": a.trigger_level,
+                     "trigger_slope": a.trigger_slope, "trigger_mode": a.trigger_mode,
+                     "trigger_type": a.trigger_type or "edge",
+                     "pulse_width": a.pulse_width, "pulse_when": a.pulse_when,
+                     "pulse_polarity": a.pulse_polarity}
+            emit({"ok": True, "idn": idn, "family": d.name, "dry_run": True,
+                  "plan": plan,
+                  "settings": {k: v for k, v in setup.items() if v is not None}},
+                 as_json=True)
             return
         outdir = Path(a.outdir).expanduser()
         outdir.mkdir(parents=True, exist_ok=True)
@@ -1050,7 +1005,7 @@ def main() -> None:
     p.add_argument("value", nargs="?")
     p.set_defaults(fn=cmd_config)
 
-    p = sub.add_parser("channel", help="configure a channel")
+    p = sub.add_parser("channel", help="advanced: set a channel (arm --ch is the usual path)")
     add_conn(p)
     p.add_argument("--ch", type=int, default=1)
     p.add_argument("--scale", type=float, help="volts/div")
@@ -1060,13 +1015,13 @@ def main() -> None:
     p.add_argument("--on", type=lambda x: x.lower() in ("1", "on", "true"), default=None)
     p.set_defaults(fn=cmd_channel)
 
-    p = sub.add_parser("timebase", help="configure the timebase")
+    p = sub.add_parser("timebase", help="advanced: set the timebase (arm --timebase ...)")
     add_conn(p)
     p.add_argument("--scale", type=float, help="seconds/div")
     p.add_argument("--offset", type=float, help="seconds")
     p.set_defaults(fn=cmd_timebase)
 
-    p = sub.add_parser("trigger", help="configure an edge trigger")
+    p = sub.add_parser("trigger", help="advanced: set an edge trigger (arm --source/--level ...)")
     add_conn(p)
     p.add_argument("--source", type=int)
     p.add_argument("--level", type=float)
@@ -1074,7 +1029,7 @@ def main() -> None:
     p.add_argument("--mode", choices=["auto", "normal", "single", "AUTO", "NORMAL", "SINGLE"])
     p.set_defaults(fn=cmd_trigger)
 
-    p = sub.add_parser("run", help="run / stop / single / autoscale")
+    p = sub.add_parser("run", help="advanced: run / stop / single / autoscale")
     add_conn(p)
     p.add_argument("action", choices=["run", "stop", "single", "autoscale"])
     p.set_defaults(fn=cmd_run)
@@ -1116,6 +1071,8 @@ def main() -> None:
     p.add_argument("--slope", choices=["rising", "falling", "either"])
     p.add_argument("--mode", choices=["single", "normal"], default="single")
     p.add_argument("--wait", type=float, default=10.0, help="seconds to wait for the trigger")
+    p.add_argument("--no-wait", action="store_true",
+                   help="arm and report the state; do not wait for a trigger")
     p.add_argument("--points", type=int)
     p.add_argument("--measure", help="measurements to take on each captured channel")
     p.add_argument("--out")

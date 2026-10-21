@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import time
 
+from .capabilities import MEASUREMENTS, MEASURE_ITEMS
+
 def to_volts(raw, meta: dict) -> list[float]:
     yincr, yorig, yref = meta["yincr"], meta["yorig"], meta["yref"]
     return [(float(b) - yref) * yincr + yorig for b in raw]
@@ -167,14 +169,6 @@ def acquire_channels(inst, dialect, channels, points):
     return result
 
 
-MEASURE_ITEMS = ["vpp", "vmin", "vmax", "mean", "vavg", "rms", "freq", "period",
-                 "duty", "rise", "fall", "pulse_width", "negative_width"]
-ITEM_MAP = {"vpp": "vpp", "vmin": "vmin", "vmax": "vmax", "mean": "mean",
-            "vavg": "mean", "rms": "rms",
-            "freq": "freq", "period": "period", "duty": "duty_pct", "rise": "rise_time",
-            "fall": "fall_time"}
-
-
 def measure_channel(inst, dialect, ch, items):
     out = {}
     compute = []
@@ -192,21 +186,13 @@ def measure_channel(inst, dialect, ch, items):
         compute.append(item)
     if compute:
         meta, raw = dialect.acquire(inst, ch, None)
-        volts = to_volts(raw, meta)
+        volts = getattr(dialect, "to_volts", to_volts)(raw, meta)
         times = to_times(meta, len(volts))
         st = stats(volts, times)
         for item in compute:
-            if item == "pulse_width":
-                if st.get("max_high_s") is not None:
-                    out[item] = st["max_high_s"]
-                continue
-            if item == "negative_width":
-                if st.get("max_low_s") is not None:
-                    out[item] = st["max_low_s"]
-                continue
-            key = ITEM_MAP.get(item)
-            if key and key in st:
-                out[item] = st[key]
+            cap = MEASUREMENTS.get(item)
+            if cap and cap.fallback and cap.fallback in st:
+                out[item] = st[cap.fallback]
     return out
 
 

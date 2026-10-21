@@ -59,9 +59,12 @@ class Dialect:
             "trigger_mode": ":TRIGger:MODE?",
             "trigger_source": ":TRIGger:EDGE:SOURce?",
             "trigger_level": ":TRIGger:EDGE:LEVel?",
+            "trigger_slope": ":TRIGger:EDGE:SLOPe?",
+            "trigger_sweep": ":TRIGger:SWEep?",
             "acquire_points": ":ACQuire:POINts?",
             "acquire_type": ":ACQuire:TYPE?",
             "sample_rate": ":ACQuire:SRATe?",
+            "system_error": ":SYSTem:ERRor?",
         }
 
     def channel_status_queries(self, n: int) -> "dict[str, str]":

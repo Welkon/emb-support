@@ -22,9 +22,12 @@ class RigolDialect(Dialect):
             "trigger_mode": ":TRIGger:MODE?",
             "trigger_source": ":TRIGger:EDGE:SOURce?",
             "trigger_level": ":TRIGger:EDGE:LEVel?",
+            "trigger_slope": ":TRIGger:EDGE:SLOPe?",
+            "trigger_sweep": ":TRIGger:SWEep?",
             "acquire_points": ":ACQuire:MDEPth?",
             "acquire_type": ":ACQuire:TYPE?",
             "sample_rate": ":ACQuire:SRATe?",
+            "system_error": ":SYSTem:ERRor?",
         }
 
     def acquire(self, inst, ch, points):

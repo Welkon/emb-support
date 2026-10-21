@@ -4,9 +4,11 @@ This is driver documentation. Workflows use intent verbs (`status`, `arm`,
 `watch`, `capture`, `monitor`) and never compose commands from this file.
 
 If an intent needs something a driver does not implement, add a method to the
-dialect (and a verb if it is a new question). Do not add a raw command to a
-workflow: that is how the skill became expensive to use, with one connection
-and one approval per SCPI line.
+dialect (and a verb if it is a new question). For a measurement item, add it to
+`capabilities.MEASUREMENTS` with a waveform fallback; the architecture test
+requires a query, a fallback, or both. Do not add a raw command to a workflow:
+that is how the skill became expensive to use, with one connection and one
+approval per SCPI line.
 
 A maintainer escape hatch exists for probing an unknown instrument. It is not
 part of the documented interface:

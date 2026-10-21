@@ -68,9 +68,10 @@ def test_tek_monitor_preset_dry_run(tek, tmp_path):
     p = run(base(tek, "monitor", "--preset", "glitch-short", "--dry-run"), tmp_path / "home")
     assert p.returncode == 0, p.stderr
     data = json.loads(p.stdout)
-    joined = " | ".join(data["setup"])
-    assert "PULSe" in joined or "PULSE" in joined.upper()
-    assert "STOPAfter" in " ".join(data["arm"])
+    assert data["dry_run"] is True
+    assert data["settings"]["trigger_type"] == "pulse"
+    assert data["settings"]["pulse_width"] == 2e-6
+    assert any("arm" in step for step in data["plan"])
 
 
 def test_tek_shot_falls_back_to_plot(tek, tmp_path):

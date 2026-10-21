@@ -7,6 +7,7 @@ instrument rejects.
 """
 
 import json
+import re
 import types
 
 import pytest
@@ -46,89 +47,6 @@ def test_pulse_width_is_computed_when_the_driver_has_no_query(scope):
     assert st["max_low_s"] == pytest.approx(700e-6, abs=2e-6)
 
 
-def test_acquire_reconnects_after_a_lost_transfer(scope, monkeypatch):
-    """A bad block read leaves the handle out of sync; a fresh handle recovers."""
-    from scopescpi import cli as cli_mod
-
-    class Fake:
-        def __init__(self, dead):
-            self.dead = dead
-
-        def write(self, cmd):
-            pass
-
-        def query(self, cmd):
-            if "PREamble" in cmd:
-                return "0,0,4,1,1e-06,0,0,0.1,0,0"
-            if "OFFSet" in cmd:
-                return "0"
-            return "0"
-
-        def query_block(self, cmd):
-            if self.dead:
-                raise RuntimeError("VI_ERROR_TMO (-1073807339): timeout")
-            return bytes([0, 1, 2, 3])
-
-        def close(self):
-            pass
-
-    dead, alive = Fake(True), Fake(False)
-    monkeypatch.setattr(cli_mod, "connect", lambda a: alive)
-    a = types.SimpleNamespace(resource=None, host=None, port=None, timeout=1,
-                              backend=None, family=None)
-    d = scope.RigolDialect("RIGOL")
-    inst, data, log = cli_mod._acquire_resilient(a, dead, d, [1], None, no_recovery=True)
-    assert inst is alive
-    assert log == []
-    assert data[1]["volts"] == pytest.approx([0.0, 0.1, 0.2, 0.3])
-
-
-def test_status_reconnects_after_a_dead_query(scope, monkeypatch):
-    from scopescpi import cli as cli_mod
-
-    class Flaky:
-        def __init__(self, fail=None):
-            self.fail, self.closed, self.queries = fail, False, []
-
-        def query(self, cmd):
-            self.queries.append(cmd)
-            if self.fail and self.fail in cmd:
-                raise RuntimeError("Invalid session handle")
-            return "1"
-
-        def close(self):
-            self.closed = True
-
-    first, second = Flaky(fail="POIN"), Flaky()
-    monkeypatch.setattr(cli_mod, "connect", lambda a: second)
-    reconnects = [0]
-    inst, value, err = cli_mod._status_query(
-        types.SimpleNamespace(), first, ":ACQuire:POINts?", reconnects)
-    assert (inst, value, err) == (second, "1", None)
-    assert first.closed is True
-    assert reconnects == [1]
-    assert second.queries == [":ACQuire:POINts?"]
-
-
-def test_status_does_not_reconnect_on_a_normal_error(scope, monkeypatch):
-    from scopescpi import cli as cli_mod
-
-    class Broken:
-        def query(self, cmd):
-            raise ValueError("syntax error")
-
-        def close(self):
-            pass
-
-    calls = []
-    monkeypatch.setattr(cli_mod, "connect", lambda a: calls.append(a) or Broken())
-    reconnects = [0]
-    _, value, err = cli_mod._status_query(
-        types.SimpleNamespace(), Broken(), ":BOGus?", reconnects)
-    assert value is None and "syntax error" in err
-    assert calls == [] and reconnects == [0]
-
-
 def test_cli_arm_one_shot(rigol, tmp_path):
     home = tmp_path / "home"
     out = tmp_path / "wave.csv"
@@ -152,6 +70,17 @@ def test_cli_arm_one_shot(rigol, tmp_path):
     assert ":TIMebase:MAIN:SCALe 5e-05" in cmds
     assert ":TRIGger:EDGE:LEVel 1.5" in cmds
     assert cmds.count(":TRIGger:MODE EDGE") == 1
+
+
+def test_cli_arm_no_wait_reports_armed_without_capturing(rigol, tmp_path):
+    p = run(base(rigol, "arm", "--no-wait", "--json"), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["armed"] is True
+    assert data["captured"] is False
+    assert data["trigger_state"] == "STOP"
+    assert "timed_out" not in data
+    assert not any("DATA?" in c for c in rigol.commands)
 
 
 def test_cli_arm_reports_a_timeout_without_capturing(rigol, tmp_path):
@@ -196,3 +125,119 @@ def test_explicit_connection_is_remembered(rigol, tmp_path):
     p = run(["idn"], home)
     assert p.returncode == 0, p.stderr
     assert json.loads(p.stdout)["idn"] == rigol.idn
+
+
+# ---------------------------------------------------------------- invariants
+
+SCPI_LIKE = re.compile(r"^[:*][A-Za-z]")
+
+
+def _strings(obj):
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            yield from _strings(key)
+            yield from _strings(value)
+    elif isinstance(obj, (list, tuple)):
+        for value in obj:
+            yield from _strings(value)
+
+
+def test_intent_outputs_do_not_leak_instrument_commands(rigol, tmp_path):
+    """The caller reads values and paths, never a command it must reason about."""
+    home = tmp_path / "home"
+    cases = [
+        ("status", "--channels", "1,2", "--json"),
+        ("arm", "--wait", "1", "--measure", "vpp,pulse_width",
+         "--out", str(tmp_path / "run.csv"), "--json"),
+        ("watch", "--channel", "1,2", "--samples", "1", "--json"),
+        ("capture", "--out", str(tmp_path / "cap.csv"), "--json"),
+        ("measure", "--items", "vpp,pulse_width", "--json"),
+        ("run", "run", "--json"),
+        ("channel", "--ch", "1", "--scale", "1", "--json"),
+        ("timebase", "--scale", "1e-3", "--json"),
+        ("trigger", "--source", "1", "--level", "1", "--json"),
+        ("shot", "--out", str(tmp_path / "shot.png"), "--json"),
+        ("monitor", "--dry-run", "--json"),
+    ]
+    for args in cases:
+        p = run(base(rigol, *args), home)
+        assert p.returncode == 0, (args, p.stderr)
+        leaked = [s for s in _strings(json.loads(p.stdout)) if SCPI_LIKE.match(s)]
+        assert not leaked, (args, leaked)
+
+
+def test_remembered_connection_covers_every_verb(rigol, tmp_path):
+    home = tmp_path / "home"
+    assert run(base(rigol, "idn"), home).returncode == 0
+    cases = [
+        ["status", "--json"],
+        ["measure", "--items", "vpp", "--json"],
+        ["capture", "--out", str(tmp_path / "cap.csv"), "--json"],
+        ["watch", "--samples", "1", "--json"],
+        ["arm", "--wait", "1", "--json"],
+        ["shot", "--out", str(tmp_path / "shot.png"), "--json"],
+    ]
+    for args in cases:
+        p = run(args, home)          # no --host/--port on purpose
+        assert p.returncode == 0, (args, p.stderr)
+
+
+def test_session_reconnects_and_retries_once(scope, monkeypatch):
+    from scopescpi import session as sm
+
+    class Fake:
+        def __init__(self, fail):
+            self.fail, self.closed, self.calls = fail, False, 0
+
+        def query(self, cmd):
+            self.calls += 1
+            if self.fail:
+                raise RuntimeError("VI_ERROR_TMO (-1): timeout")
+            return "ok"
+
+        def close(self):
+            self.closed = True
+
+    first, second = Fake(True), Fake(False)
+    seq = iter([first, second])
+    monkeypatch.setattr(sm, "connect", lambda a: next(seq))
+    s = sm.Session(types.SimpleNamespace())
+    assert s.query("X") == "ok"
+    assert first.closed is True
+    assert s.reconnects == 1
+
+
+def test_session_does_not_reconnect_on_a_usage_error(scope, monkeypatch):
+    from scopescpi import session as sm
+
+    class Fake:
+        def query(self, cmd):
+            raise ValueError("wrong argument")
+
+        def close(self):
+            pass
+
+    calls = []
+    monkeypatch.setattr(sm, "connect", lambda a: calls.append(a) or Fake())
+    s = sm.Session(types.SimpleNamespace())
+    with pytest.raises(ValueError):
+        s.query("X")
+    assert s.reconnects == 0
+    assert len(calls) == 1
+
+
+def test_every_measurement_item_has_a_host_side_path(scope):
+    class HostOnly(scope.Dialect):
+        def measure_query(self, item, n):
+            return None
+
+        def acquire(self, inst, ch, points):
+            volts = [3.3 if (i % 100) < 30 else 0.0 for i in range(1000)]
+            meta = {"points": 1000, "xincr": 1e-6, "xorig": 0.0, "xref": 0.0,
+                    "yincr": 1.0, "yorig": 0.0, "yref": 0.0}
+            return meta, volts
+
+    got = scope.measure_channel(None, HostOnly("X"), 1, scope.MEASURE_ITEMS)
+    assert set(scope.MEASURE_ITEMS) <= set(got)
