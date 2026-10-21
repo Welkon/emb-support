@@ -284,12 +284,9 @@ def cmd_capture(a) -> None:
                     if query_run_state(inst, d) is True:
                         break
                     time.sleep(0.02)
-            if a.no_recovery:
-                data = acquire_channels(inst, d, channels, a.points)
-            else:
-                data, recovery = acquire_with_recovery(
-                    inst, d, channels, a.points,
-                    attempts=3, allow_autoset=a.autoset_on_empty)
+            inst, data, recovery = _acquire_resilient(
+                a, inst, d, channels, a.points,
+                no_recovery=a.no_recovery, autoset=a.autoset_on_empty)
         except Exception as e:  # noqa: BLE001
             die(f"capture failed after retries: {e}")
         summary = {"ok": True, "idn": idn, "family": d.name, "channels": {},
@@ -388,6 +385,29 @@ _DEAD_SESSION = ("invalid session", "invalid handle", "session handle", "vi_erro
 def _is_dead_text(text: str) -> bool:
     text = (text or "").lower()
     return any(marker in text for marker in _DEAD_SESSION)
+
+
+def _acquire_resilient(a, inst, d, channels, points, no_recovery=False, autoset=False):
+    """Acquire, reconnecting once if the waveform transfer lost the session.
+
+    A malformed block read leaves a USB handle out of sync: every later command
+    times out even though the instrument is still there. A fresh handle fixes
+    it, and is cheaper than asking the user to detach and reattach USB.
+    """
+    def once(open_inst):
+        if no_recovery:
+            return acquire_channels(open_inst, d, channels, points), []
+        return acquire_with_recovery(
+            open_inst, d, channels, points, attempts=3, allow_autoset=autoset)
+
+    try:
+        data, log = once(inst)
+    except Exception as exc:  # noqa: BLE001
+        if not _is_dead_text(f"{type(exc).__name__}: {exc}"):
+            raise
+        inst = connect(a)
+        data, log = once(inst)
+    return inst, data, log
 
 
 def _measure_session(a, inst, d, channels, items):
@@ -591,17 +611,15 @@ def cmd_arm(a) -> None:
                 break
             time.sleep(0.05)
         out = {"ok": True, "idn": idn, "family": d.name, "mode": a.mode,
-               "setup": setup, "waited_s": round(time.time() - started, 3),
+               "waited_s": round(time.time() - started, 3),
                "trigger_state": None if state is None else ("STOP" if state else "RUN"),
                "captured": not single or state is True}
         if single and not out["captured"]:
             out["timed_out"] = True
 
         if out["captured"]:
-            try:
-                data = acquire_channels(inst, d, channels, a.points)
-            except Exception:  # noqa: BLE001
-                data, recovery = acquire_with_recovery(inst, d, channels, a.points, attempts=3)
+            inst, data, recovery = _acquire_resilient(a, inst, d, channels, a.points)
+            if recovery:
                 out["recovery"] = recovery
             out["channels"] = {}
             for ch, item in data.items():

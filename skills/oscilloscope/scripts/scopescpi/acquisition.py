@@ -46,6 +46,11 @@ def stats(volts: list[float], times: list[float]) -> dict:
                     out["freq"] = 1.0 / period
             high = sum(1 for v in volts if v > mid) / n * 100.0
             out["duty_pct"] = high
+            for key, above in (("max_high_s", True), ("max_low_s", False)):
+                runs = [b - a for a, b in _level_runs(volts, times, mid, above)
+                        if a > times[0] and b < times[-1]]
+                if runs:
+                    out[key] = max(runs)
             out.update(_edges(volts, times, vmin, vmax))
         if n >= 128:
             try:
@@ -59,6 +64,34 @@ def stats(volts: list[float], times: list[float]) -> dict:
             except RuntimeError:
                 pass
     return out
+
+
+def _level_runs(volts, times, level, above):
+    """Time spans between mid-level crossings, on one side of the level.
+
+    Runs that touch a window edge are excluded: a DC trace would otherwise
+    report the whole record as one pulse.
+    """
+    runs, start = [], None
+    inside = volts[0] >= level if above else volts[0] <= level
+    if inside:
+        start = times[0]
+    for i in range(1, len(volts)):
+        a, b = volts[i - 1], volts[i]
+        now = b >= level if above else b <= level
+        if now == inside:
+            continue
+        frac = (level - a) / (b - a) if b != a else 0.0
+        t = times[i - 1] + frac * (times[i] - times[i - 1])
+        if now:
+            start = t
+        elif start is not None:
+            runs.append((start, t))
+            start = None
+        inside = now
+    if start is not None:
+        runs.append((start, times[-1]))
+    return runs
 
 
 def _edges(volts, times, vmin, vmax):
@@ -135,7 +168,7 @@ def acquire_channels(inst, dialect, channels, points):
 
 
 MEASURE_ITEMS = ["vpp", "vmin", "vmax", "mean", "vavg", "rms", "freq", "period",
-                 "duty", "rise", "fall"]
+                 "duty", "rise", "fall", "pulse_width", "negative_width"]
 ITEM_MAP = {"vpp": "vpp", "vmin": "vmin", "vmax": "vmax", "mean": "mean",
             "vavg": "mean", "rms": "rms",
             "freq": "freq", "period": "period", "duty": "duty_pct", "rise": "rise_time",
@@ -163,6 +196,14 @@ def measure_channel(inst, dialect, ch, items):
         times = to_times(meta, len(volts))
         st = stats(volts, times)
         for item in compute:
+            if item == "pulse_width":
+                if st.get("max_high_s") is not None:
+                    out[item] = st["max_high_s"]
+                continue
+            if item == "negative_width":
+                if st.get("max_low_s") is not None:
+                    out[item] = st["max_low_s"]
+                continue
             key = ITEM_MAP.get(item)
             if key and key in st:
                 out[item] = st[key]

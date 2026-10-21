@@ -101,6 +101,8 @@ class Dialect:
                 "yincr": nums[7], "yorig": nums[8], "yref": nums[9]}
 
     def measure_query(self, item: str, n: int) -> str | None:
+        if item in ("pulse_width", "negative_width"):
+            return None          # no portable query; use the captured waveform
         return f":MEASure:{item.upper()}? {self.measure_source(n)}"
 
     def clean(self, text: str) -> str:

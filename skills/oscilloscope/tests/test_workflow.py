@@ -33,6 +33,54 @@ def test_rigol_ds1000z_queries_stay_in_the_driver(scope):
     assert d.status_queries()["acquire_points"] == ":ACQuire:MDEPth?"
     assert d.measure_query("vavg", 1) == ":MEASure:ITEM? VAVG,CHANnel1"
     assert d.measure_query("vpp", 2) == ":MEASure:ITEM? VPP,CHANnel2"
+    assert d.measure_query("pulse_width", 2) == ":MEASure:ITEM? PWIDth,CHANnel2"
+
+
+def test_pulse_width_is_computed_when_the_driver_has_no_query(scope):
+    d = scope.make_dialect("ANY", "generic")
+    assert d.measure_query("pulse_width", 1) is None
+    times = [i * 1e-6 for i in range(2000)]
+    volts = [3.3 if (t % 1e-3) < 300e-6 else 0.0 for t in times]
+    st = scope.stats(volts, times)
+    assert st["max_high_s"] == pytest.approx(300e-6, abs=2e-6)
+    assert st["max_low_s"] == pytest.approx(700e-6, abs=2e-6)
+
+
+def test_acquire_reconnects_after_a_lost_transfer(scope, monkeypatch):
+    """A bad block read leaves the handle out of sync; a fresh handle recovers."""
+    from scopescpi import cli as cli_mod
+
+    class Fake:
+        def __init__(self, dead):
+            self.dead = dead
+
+        def write(self, cmd):
+            pass
+
+        def query(self, cmd):
+            if "PREamble" in cmd:
+                return "0,0,4,1,1e-06,0,0,0.1,0,0"
+            if "OFFSet" in cmd:
+                return "0"
+            return "0"
+
+        def query_block(self, cmd):
+            if self.dead:
+                raise RuntimeError("VI_ERROR_TMO (-1073807339): timeout")
+            return bytes([0, 1, 2, 3])
+
+        def close(self):
+            pass
+
+    dead, alive = Fake(True), Fake(False)
+    monkeypatch.setattr(cli_mod, "connect", lambda a: alive)
+    a = types.SimpleNamespace(resource=None, host=None, port=None, timeout=1,
+                              backend=None, family=None)
+    d = scope.RigolDialect("RIGOL")
+    inst, data, log = cli_mod._acquire_resilient(a, dead, d, [1], None, no_recovery=True)
+    assert inst is alive
+    assert log == []
+    assert data[1]["volts"] == pytest.approx([0.0, 0.1, 0.2, 0.3])
 
 
 def test_status_reconnects_after_a_dead_query(scope, monkeypatch):
@@ -93,6 +141,7 @@ def test_cli_arm_one_shot(rigol, tmp_path):
     assert data["captured"] is True
     assert data["trigger_state"] == "STOP"
     assert data["channels"]["1"]["points"] == 100
+    assert "setup" not in data          # the caller gets values, not commands
     assert data["measurements"]["1"]["vpp"] == 2.0
     assert data["measurements"]["1"]["vavg"] == 2.0
     assert out.exists()

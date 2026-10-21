@@ -205,6 +205,12 @@ Advanced knobs for a one-off change: `channel`, `timebase`, `trigger`, `run`.
 They are not part of the normal flow; `arm` applies the same settings and also
 captures the result.
 
+Measurement items: `vpp`, `vmin`, `vmax`, `mean`, `vavg`, `rms`, `freq`,
+`period`, `duty`, `rise`, `fall`, `pulse_width`, `negative_width`. The last two
+are the widest high and low pulse inside the record. The instrument answers when
+the driver has a query; otherwise the skill computes them from the captured
+samples, so no CSV post-processing is needed.
+
 Connection options: `--host`, `--port 5025`, `--resource`, `--backend`. Give them
 once: the working endpoint is stored in the skill config and reused. `--family`,
 `--timeout` and `--json` apply to the current command only.

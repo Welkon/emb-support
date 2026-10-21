@@ -48,7 +48,8 @@ class RigolDialect(Dialect):
         # recognised and the instrument then never answers (USB timeout).
         names = {"mean": "VAVG", "vavg": "VAVG", "freq": "FREQuency",
                  "period": "PERiod", "duty": "PDUTy", "rise": "RTIMe",
-                 "fall": "FTIMe"}
+                 "fall": "FTIMe", "pulse_width": "PWIDth",
+                 "negative_width": "NWIDth"}
         return f":MEASure:ITEM? {names.get(item, item.upper())},{self.measure_source(n)}"
 
     def screenshot_queries(self):
