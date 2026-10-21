@@ -7,7 +7,7 @@ per operation, so every verb gets the same guarantee without repeating it.
 
 from __future__ import annotations
 
-from .transport import connect
+from .connection import connect
 
 _DEAD_SESSION = (
     "invalid session", "invalid handle", "session handle", "vi_error",

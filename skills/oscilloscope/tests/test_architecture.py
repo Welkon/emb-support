@@ -7,6 +7,8 @@ breaks the contract fails here instead of on the bench.
 import json
 from pathlib import Path
 
+import pytest
+
 from test_capture import base, run
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,3 +43,44 @@ def test_status_advertises_what_can_be_asked(rigol, tmp_path):
     assert "pulse_width" in caps["measurements"]
     assert caps["screenshot"] is True
     assert caps["pulse_trigger"] is False
+
+
+def test_result_refuses_to_emit_instrument_commands(scope):
+    from scopescpi.result import Result
+
+    result = Result()
+    result.set("command", ":TIMebase:MAIN:SCALe 1")
+    with pytest.raises(ValueError):
+        result.to_dict()
+
+
+def test_evidence_writes_are_atomic(scope, tmp_path):
+    from scopescpi.evidence import Evidence
+
+    evidence = Evidence()
+    path = tmp_path / "artifact.json"
+    evidence.json("json", path, {"ok": True})
+    assert json.loads(path.read_text()) == {"ok": True}
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_verbs_write_through_evidence(scope):
+    source = (ROOT / "scripts" / "scopescpi" / "cli.py").read_text()
+    assert "write_svg(" not in source
+    assert ".write_text(" not in source
+
+
+def test_verbs_share_the_plan_executor(scope):
+    """arm, capture --single and monitor all arm through Executor."""
+    source = (ROOT / "scripts" / "scopescpi" / "cli.py").read_text()
+    assert source.count("Executor(inst, d)") >= 3
+    assert "for cmd in d.arm_single()" not in source
+
+
+def test_connection_resolution_has_one_home(scope):
+    cli = (ROOT / "scripts" / "scopescpi" / "cli.py").read_text()
+    transport = (ROOT / "scripts" / "scopescpi" / "transport.py").read_text()
+    connection = (ROOT / "scripts" / "scopescpi" / "connection.py").read_text()
+    assert "connect(" not in cli
+    assert "def connect(" not in transport
+    assert "def resolve(" in connection

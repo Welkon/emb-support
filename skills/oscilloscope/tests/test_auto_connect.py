@@ -2,7 +2,7 @@ import types
 
 import pytest
 
-from scopescpi import transport as transport_mod
+from scopescpi import connection as connection_mod
 from scopescpi import wsl as wsl_mod
 
 
@@ -56,16 +56,16 @@ def test_ensure_attached_shared(scope, monkeypatch):
 
 def test_connect_auto_attaches_on_wsl(scope, monkeypatch):
     state = {"attached": False}
-    monkeypatch.setattr(transport_mod, "load_config", lambda: {})
-    monkeypatch.setattr(transport_mod, "_cached_resource", lambda: None)
+    monkeypatch.setattr(connection_mod, "load_config", lambda: {})
+    monkeypatch.setattr(connection_mod, "_cached_resource", lambda: None)
     # A real instrument on the bench must not change the outcome of this test.
-    monkeypatch.setattr(transport_mod, "_list_resources", lambda backend: [])
-    monkeypatch.setattr(transport_mod, "is_wsl", lambda: True)
-    monkeypatch.setattr(transport_mod, "ensure_scope_attached",
+    monkeypatch.setattr(connection_mod, "_list_resources", lambda backend: [])
+    monkeypatch.setattr(connection_mod, "is_wsl", lambda: True)
+    monkeypatch.setattr(connection_mod, "ensure_scope_attached",
                         lambda: (state.update(attached=True) or {"status": "attached"}))
-    monkeypatch.setattr(transport_mod.glob, "glob",
+    monkeypatch.setattr(connection_mod.glob, "glob",
                         lambda pattern: ["/dev/usbtmc0"] if state["attached"] else [])
-    monkeypatch.setattr(transport_mod, "UsbtmcInstrument", DummyUsbtmc)
+    monkeypatch.setattr(connection_mod, "UsbtmcInstrument", DummyUsbtmc)
     ns = types.SimpleNamespace(resource=None, host=None, port=None, timeout=2,
                                backend=None, no_auto_attach=False)
     inst = scope.connect(ns)
@@ -74,11 +74,11 @@ def test_connect_auto_attaches_on_wsl(scope, monkeypatch):
 
 
 def test_connect_no_auto_attach(scope, monkeypatch):
-    monkeypatch.setattr(transport_mod, "load_config", lambda: {})
-    monkeypatch.setattr(transport_mod, "_cached_resource", lambda: None)
-    monkeypatch.setattr(transport_mod, "is_wsl", lambda: True)
-    monkeypatch.setattr(transport_mod.glob, "glob", lambda pattern: [])
-    monkeypatch.setattr(transport_mod, "_list_resources", lambda backend: [])
+    monkeypatch.setattr(connection_mod, "load_config", lambda: {})
+    monkeypatch.setattr(connection_mod, "_cached_resource", lambda: None)
+    monkeypatch.setattr(connection_mod, "is_wsl", lambda: True)
+    monkeypatch.setattr(connection_mod.glob, "glob", lambda pattern: [])
+    monkeypatch.setattr(connection_mod, "_list_resources", lambda backend: [])
     ns = types.SimpleNamespace(resource=None, host=None, port=None, timeout=2,
                                backend=None, no_auto_attach=True)
     with pytest.raises(SystemExit):

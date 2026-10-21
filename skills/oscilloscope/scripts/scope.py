@@ -36,6 +36,7 @@ from scopescpi.analysis import (  # noqa: F401
     advanced, classify, decimate, load_npz, save_npz, spectrum, write_svg,
 )
 from scopescpi.transport import pick_single_resource  # noqa: F401
+from scopescpi.connection import connect  # noqa: F401
 from scopescpi.wsl import (  # noqa: F401
     attach_hint, attach_scope_devices, ensure_scope_attached, is_wsl,
     list_devices, parse_usbipd, usbipd_path, windows_host_ip,

@@ -146,6 +146,15 @@ def _strings(obj):
             yield from _strings(value)
 
 
+def test_status_reports_where_the_connection_came_from(rigol, tmp_path):
+    home = tmp_path / "home"
+    first = json.loads(run(base(rigol, "status", "--json"), home).stdout)
+    assert first["connection"]["source"] == "explicit-host"
+    assert first["connection"]["endpoint"].startswith("TCPIP::")
+    second = json.loads(run(["status", "--json"], home).stdout)
+    assert second["connection"]["source"] == "config-host"
+
+
 def test_intent_outputs_do_not_leak_instrument_commands(rigol, tmp_path):
     """The caller reads values and paths, never a command it must reason about."""
     home = tmp_path / "home"
@@ -162,6 +171,8 @@ def test_intent_outputs_do_not_leak_instrument_commands(rigol, tmp_path):
         ("trigger", "--source", "1", "--level", "1", "--json"),
         ("shot", "--out", str(tmp_path / "shot.png"), "--json"),
         ("monitor", "--dry-run", "--json"),
+        ("monitor", "--channels", "1", "--max-events", "1", "--duration", "2",
+         "--outdir", str(tmp_path / "events"), "--json"),
     ]
     for args in cases:
         p = run(base(rigol, *args), home)

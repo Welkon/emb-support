@@ -233,6 +233,8 @@ Start with `status`: it is read-only and replaces a chain of individual reads.
 Queries the instrument does not implement come back as `null` and are listed
 under `unsupported`. Its `capabilities` object lists the measurement items the
 driver can answer and the ones the skill computes from the waveform.
+`connection.source` reports how the instrument was found (`explicit-resource`,
+`config-resource`, `discovered`, `wsl-attach`, ...).
 
 WSL with an instrument only Windows can see: `scripts/scope.py --bridge windows status --json`. The command runs on the Windows interpreter with the same dialect code; add `--win-python C:\path\to\python.exe` (or set `SCOPE_WIN_PYTHON`) to pick a Windows venv that has pyvisa.
 
@@ -332,17 +334,21 @@ Read `references/troubleshooting.md` for connection failures, USBTMC permissions
 ```text
 scripts/scope.py                    stable entry point (arguments and compatibility exports)
 scripts/scopescpi/cli.py            argparse plus the intent verbs (status, arm, watch, ...)
+scripts/scopescpi/plan.py           Plan + Executor shared by arm, capture --single, monitor
 scripts/scopescpi/session.py        one session per intent; reconnect and retry once
+scripts/scopescpi/connection.py     ordered chain: flags, config, usbtmc, cache, discovery, WSL
 scripts/scopescpi/capabilities.py   closed vocabulary: driver query or waveform fallback
+scripts/scopescpi/result.py         Result envelope; refuses command strings
+scripts/scopescpi/evidence.py       atomic artifact writes, one manifest per intent
 scripts/scopescpi/dialects/         adapters: one module per family, the only place with SCPI
 scripts/scopescpi/acquisition.py    scaling, statistics, measurement fallback
-scripts/scopescpi/transport.py      socket, pyvisa, usbtmc
+scripts/scopescpi/transport.py      socket, pyvisa, usbtmc (no resolution)
 scripts/scopescpi/common.py         configuration, output, block and frame parsers
 scripts/scopescpi/quality.py        signal-quality checks
 scripts/scopescpi/analysis.py       FFT, harmonics, classification, plots
 ```
 
-Four invariants hold this shape together. `tests/test_architecture.py` and
+Six invariants hold this shape together. `tests/test_architecture.py` and
 `tests/test_workflow.py` enforce them:
 
 1. **Closed vocabulary.** The agent can ask only the questions in this file.
@@ -350,9 +356,13 @@ Four invariants hold this shape together. `tests/test_architecture.py` and
 2. **Total capabilities.** A capability has a driver query or a host fallback.
    An adapter returns `None`, never an exception, when it cannot answer.
 3. **One session per intent.** Verbs use `Session`; `connect()` appears only in
-   `session.py`. A dead handle is reopened and the operation retried once.
-4. **No commands in results.** Outputs carry values, evidence, warnings and
-   `unsupported`; a raw command string fails the invariant test.
+   `connection.py`. A dead handle is reopened and the operation retried once.
+4. **One executor.** `arm`, `capture --single` and `monitor` apply setup, arm
+   and wait through the same `Plan`/`Executor`.
+5. **Atomic evidence.** Files go through `Evidence`; a failed intent leaves no
+   partial artifact.
+6. **No commands in results.** `Result` refuses command strings, and
+   `status.connection.source` reports how the instrument was found.
 
 **Adding a capability.** Keep the interface at the intent level:
 

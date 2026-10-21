@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import glob
 import os
 import socket
 import sys
 import time
 
-from .common import HOME, block_bounds, die, is_block, load_config, parse_block, save_config
-from .wsl import ensure_scope_attached, is_wsl
+from .common import block_bounds, die, is_block, parse_block
 
 class SocketInstrument:
     """Raw SCPI over TCP (port 5025 on most instruments)."""
@@ -206,140 +204,11 @@ class UsbtmcInstrument:
         return parse_block(data) if is_block(data) else data
 
 
-_CACHE = HOME / "last_resource"
-
-
-def _cached_resource() -> str | None:
-    try:
-        value = _CACHE.read_text().strip()
-        return value or None
-    except OSError:
-        return None
-
-
-def _remember_resource(resource: str) -> None:
-    try:
-        HOME.mkdir(parents=True, exist_ok=True)
-        _CACHE.write_text(resource + "\n")
-    except OSError:
-        pass
-
-
 def pick_single_resource(resources: list[str]) -> str | None:
     """Auto-pick only when exactly one VISA instrument is present."""
     instruments = [r for r in resources
                    if "::INSTR" in r and ("USB" in r.upper() or "TCPIP" in r.upper())]
     return instruments[0] if len(instruments) == 1 else None
-
-
-def _list_resources(backend):
-    if backend is None and os.name != "nt":
-        backend = "@py"
-    try:
-        import pyvisa
-        rm = pyvisa.ResourceManager(backend) if backend else pyvisa.ResourceManager()
-        return list(rm.list_resources())
-    except Exception:
-        return []
-
-
-def _remember_instance(inst) -> None:
-    """Persist the connection that worked, so later commands need no flags.
-
-    Repeating `--resource USB0::...` on every command was the single most
-    common source of noise on the bench: the agent had to copy a long string
-    into every invocation, and one typo cost a whole round trip.
-    """
-    resource = getattr(inst, "resource", None) or ""
-    if "::SOCKET" in resource:
-        parts = resource.split("::")
-        try:
-            port = int(parts[2])
-        except (IndexError, ValueError):
-            return
-        cfg = load_config()
-        cfg.pop("resource", None)
-        cfg["host"], cfg["port"] = parts[1], port
-    elif "::INSTR" in resource:
-        cfg = load_config()
-        cfg.pop("host", None)
-        cfg.pop("port", None)
-        cfg["resource"] = resource
-    else:
-        return
-    try:
-        save_config(cfg)
-    except OSError:
-        pass
-
-
-def connect(a):
-    inst = _connect(a)
-    _remember_instance(inst)     # last good endpoint wins; stale entries get replaced
-    return inst
-
-
-def _connect(a):
-    cfg = load_config()
-    resource = getattr(a, "resource", None) or cfg.get("resource")
-    host = getattr(a, "host", None) or cfg.get("host")
-    port = int(getattr(a, "port", None) or cfg.get("port") or 5025)
-    timeout = float(getattr(a, "timeout", None) or cfg.get("timeout") or 5.0)
-    backend = getattr(a, "backend", None) or cfg.get("backend")
-    no_auto_attach = (getattr(a, "no_auto_attach", False)
-                      or os.environ.get("SCOPE_NO_AUTO_ATTACH") == "1")
-
-    if getattr(a, "resource", None):
-        return VisaInstrument(a.resource, timeout, backend)
-    if host:
-        return SocketInstrument(host, port, timeout)
-    if resource:
-        try:
-            return VisaInstrument(resource, timeout, backend, strict=False)
-        except Exception:
-            # The remembered device is gone. Fall through to discovery and
-            # WSL attach instead of failing every command until the user
-            # remembers to clear the config.
-            pass
-
-    devices = sorted(glob.glob("/dev/usbtmc*"))
-    if devices:
-        return UsbtmcInstrument(devices[0], timeout)
-
-    cached = _cached_resource()
-    if cached:
-        try:
-            return VisaInstrument(cached, timeout, backend, strict=False)
-        except Exception:
-            pass
-
-    resources = _list_resources(backend)
-    picked = pick_single_resource(resources)
-    if picked:
-        _remember_resource(picked)
-        return VisaInstrument(picked, timeout, backend)
-
-    if is_wsl() and not no_auto_attach:
-        outcome = ensure_scope_attached()
-        devices = sorted(glob.glob("/dev/usbtmc*"))
-        if devices:
-            return UsbtmcInstrument(devices[0], timeout)
-        resources = _list_resources(backend)
-        picked = pick_single_resource(resources)
-        if picked:
-            _remember_resource(picked)
-            return VisaInstrument(picked, timeout, backend)
-        if outcome.get("status") == "needs-bind":
-            hints = "; ".join(
-                f'usbipd bind --busid {d["busid"]} (Administrator)' for d in outcome["needs_bind"])
-            die(f"WSL: oscilloscope is connected to Windows but not shared. Run: {hints}")
-        if outcome.get("status") == "no-device":
-            die("WSL: no oscilloscope found on the Windows side. Plug it in, then run doctor --attach-usb")
-        die("WSL: usbipd attach ran but no /dev/usbtmc node appeared; run doctor for details")
-
-    if len(resources) > 1:
-        die("multiple VISA instruments found; pass --resource: " + ", ".join(resources))
-    die("no instrument selected: pass --host, --resource, or set a default with config")
 
 
 # -------------------------------------------------------------------- dialects

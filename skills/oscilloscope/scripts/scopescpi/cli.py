@@ -22,12 +22,12 @@ from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument
 from .session import Session
 from .capabilities import advertised
 from .dialects import FAMILIES, detect_family, make_dialect
-from .acquisition import (
-    MEASURE_ITEMS, acquire_channels, acquire_with_recovery,
-    measure_channel, stats,
-)
+from .acquisition import MEASURE_ITEMS, measure_channel, stats
 from .quality import check as check_quality
-from .analysis import advanced, classify, load_npz, save_npz, spectrum, write_svg
+from .analysis import advanced, classify, load_npz, spectrum
+from .evidence import Evidence
+from .plan import ChannelSetup, Executor, Plan, TriggerSetup, query_run_state
+from .result import Result
 from .wsl import (
     attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
 )
@@ -216,9 +216,10 @@ def cmd_channel(a) -> None:
             inst.write(c)
         applied = {"scale": a.scale, "offset": a.offset, "coupling": a.coupling,
                    "probe": a.probe, "on": a.on}
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.ch,
-              "applied": {k: v for k, v in applied.items() if v is not None}},
-             as_json=True)
+        result = Result(idn=idn, family=d.name)
+        result.set("channel", a.ch)
+        result.set("applied", {k: v for k, v in applied.items() if v is not None})
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
 
@@ -235,9 +236,9 @@ def cmd_timebase(a) -> None:
         for c in cmds:
             inst.write(c)
         applied = {"scale": a.scale, "offset": a.offset}
-        emit({"ok": True, "idn": idn, "family": d.name,
-              "applied": {k: v for k, v in applied.items() if v is not None}},
-             as_json=True)
+        result = Result(idn=idn, family=d.name)
+        result.set("applied", {k: v for k, v in applied.items() if v is not None})
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
 
@@ -259,9 +260,9 @@ def cmd_trigger(a) -> None:
             inst.write(c)
         applied = {"source": a.source, "level": a.level, "slope": a.slope,
                    "mode": a.mode}
-        emit({"ok": True, "idn": idn, "family": d.name,
-              "applied": {k: v for k, v in applied.items() if v is not None}},
-             as_json=True)
+        result = Result(idn=idn, family=d.name)
+        result.set("applied", {k: v for k, v in applied.items() if v is not None})
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
 
@@ -276,112 +277,81 @@ def cmd_run(a) -> None:
             commands = [{"stop": d.stop, "single": d.single, "autoscale": d.autoscale}[a.action]()]
         for cmd in commands:
             inst.write(cmd)
-        emit({"ok": True, "action": a.action}, as_json=True)
+        emit(Result(values={"action": a.action}).to_dict(), as_json=True)
     finally:
         inst.close()
 
 
 def cmd_capture(a) -> None:
+    channels = [int(x) for x in a.channels.split(",") if x.strip()]
     inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
-        channels = [int(x) for x in a.channels.split(",") if x.strip()]
-        recovery = []
+        executor = Executor(inst, d)
+        if a.single is not None:
+            executor.arm_wait(Plan(mode="single", wait=a.single, poll=0.02))
+        plan = Plan(read=channels, points=a.points,
+                    no_recovery=a.no_recovery, autoset=a.autoset_on_empty)
         try:
-            if a.single is not None:
-                for cmd in d.arm_single():
-                    inst.write(cmd)
-                deadline = time.time() + a.single
-                while time.time() < deadline:
-                    if query_run_state(inst, d) is True:
-                        break
-                    time.sleep(0.02)
-            if a.no_recovery:
-                data = acquire_channels(inst, d, channels, a.points)
-            else:
-                data, recovery = acquire_with_recovery(
-                    inst, d, channels, a.points,
-                    attempts=3, allow_autoset=a.autoset_on_empty)
+            data, recovery = executor.acquire(plan)
         except Exception as e:  # noqa: BLE001
             die(f"capture failed after retries: {e}")
-        summary = {"ok": True, "idn": idn, "family": d.name, "channels": {},
-                   "recovery": recovery}
-        for ch, item in data.items():
-            st = stats(item["volts"], item["times"])
-            if not a.no_quality:
-                st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
-            if not a.no_analyze:
-                adv = advanced(item["volts"], item["times"], item["meta"])
-                adv["waveform"] = classify(item["volts"], item["times"], st, adv)
-                st["analysis"] = adv
-            summary["channels"][str(ch)] = st
+        result = Result(idn=idn, family=d.name)
+        result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
+        result.set("recovery", recovery)
+        evidence = Evidence()
         if a.out:
             path = Path(a.out).expanduser()
             fmt = a.format or path.suffix.lstrip(".").lower() or "csv"
             if fmt == "csv":
-                _write_csv(path, data)
+                evidence.csv("csv", path, data)
             elif fmt == "json":
-                path.write_text(json.dumps({str(k): {"times": v["times"], "volts": v["volts"]}
-                                            for k, v in data.items()}, indent=2))
+                evidence.json("json", path, {
+                    str(k): {"times": v["times"], "volts": v["volts"]}
+                    for k, v in data.items()})
             elif fmt == "npz":
-                try:
-                    import numpy as np
-                except ImportError:
-                    die("npz output requires numpy; run scope.py setup")
-                np.savez(path, **{f"ch{k}_t": v["times"] for k, v in data.items()},
-                         **{f"ch{k}_v": v["volts"] for k, v in data.items()})
+                evidence.npz("npz", path, data)
             else:
                 die(f"unsupported output format: {fmt}")
-            summary["out"] = str(path)
         if a.cache:
             if a.cache is True:
                 cache_path = (Path(a.out).with_suffix(".npz") if a.out
                               else HOME / "cache" / f"capture-{int(time.time())}.npz")
             else:
                 cache_path = Path(a.cache).expanduser()
-            save_npz(cache_path, data)
-            summary["cache"] = str(cache_path)
+            evidence.npz("cache", cache_path, data)
         if a.plot:
-            plot_path = Path(a.plot).expanduser()
-            if plot_path.suffix.lower() != ".svg":
-                die("--plot currently supports .svg output")
             first = next(iter(data.values()))
             extra = advanced(first["volts"], first["times"], first["meta"])
-            write_svg(plot_path, first["times"], first["volts"],
-                      title=f"{idn} CH{list(data)[0]}", extra=extra,
-                      max_points=a.plot_points)
-            summary["plot"] = str(plot_path)
+            evidence.svg("plot", a.plot, first["times"], first["volts"],
+                         title=f"{idn} CH{list(data)[0]}", extra=extra,
+                         max_points=a.plot_points)
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        payload = result.to_dict()
         if a.json:
-            emit(summary, as_json=True)
+            emit(payload, as_json=True)
         else:
             lines = [f"{idn}  [{d.name}]"]
-            for ch, st in summary["channels"].items():
+            for ch, st in payload["channels"].items():
                 lines.append(f"CH{ch}: {st.get('points')} pts  Vpp={st.get('vpp'):.4g}V "
                              f"mean={st.get('mean'):.4g}V" +
                              (f"  f={st['freq']:.4g}Hz" if "freq" in st else "") +
                              (f"  [{st['analysis']['waveform']['type']}]"
                               if st.get("analysis", {}).get("waveform") else ""))
-                for w in st.get("quality", []):
-                    lines.append(f"  [{w['severity']}] {w['code']}: {w['message']} -> {w['suggestion']}")
+                for warning in st.get("quality", []):
+                    lines.append(f"  [{warning['severity']}] {warning['code']}: "
+                                 f"{warning['message']} -> {warning['suggestion']}")
             for step in recovery:
                 lines.append(f"  recovery: attempt {step['attempt']} -> {step['recovery']}")
-            if a.out:
-                lines.append(f"saved: {a.out}")
-            emit(summary, "\n".join(lines))
+            for kind, path in evidence.manifest().items():
+                lines.append(f"saved {kind}: {path}")
+            emit(payload, "\n".join(lines))
     finally:
         inst.close()
 
-
 def _write_csv(path: Path, data: dict) -> None:
-    chans = sorted(data)
-    n = min(len(data[c]["volts"]) for c in chans)
-    with path.open("w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["time"] + [f"ch{c}" for c in chans])
-        for i in range(n):
-            w.writerow([f"{data[chans[0]]['times'][i]:.12g}"] +
-                       [f"{data[c]['volts'][i]:.9g}" for c in chans])
-
+    Evidence().csv("csv", path, data)
 
 def _query_or_none(inst, cmd):
     """Ask once; an instrument that does not implement a query must not sink the rest."""
@@ -421,16 +391,18 @@ def cmd_status(a) -> None:
             if err:
                 problems.append(f"{key}: {err}")
 
-        out = {"ok": True, "idn": idn, "family": d.name, "settings": settings,
-               "channels": per_channel, "capabilities": advertised(d)}
-        unsupported = [k for k, v in settings.items() if v is None]
-        if unsupported:
-            out["unsupported"] = unsupported
+        result = Result(idn=idn, family=d.name)
+        result.set("settings", settings).set("channels", per_channel)
+        result.set("capabilities", advertised(d))
+        connection = {"source": getattr(inst, "connection_source", None),
+                      "endpoint": getattr(inst, "resource", None)}
+        result.set("connection", {k: v for k, v in connection.items() if v})
+        result.unsupported = [k for k, v in settings.items() if v is None]
         if inst.reconnects:
-            out["reconnects"] = inst.reconnects
+            result.set("reconnects", inst.reconnects)
         if problems:
-            out["errors"] = problems
-        emit(out, as_json=True)
+            result.set("errors", problems)
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
 
@@ -453,8 +425,9 @@ def cmd_measure(a) -> None:
         d, idn = _dialect_for(a, inst)
         items = _check_items(a.items or "vpp,rms,freq,period")
         values = measure_channel(inst, d, a.channel, items)
-        emit({"ok": True, "idn": idn, "family": d.name, "channel": a.channel,
-              "measurements": values}, as_json=True)
+        result = Result(idn=idn, family=d.name)
+        result.set("channel", a.channel).set("measurements", values)
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
 
@@ -496,114 +469,176 @@ def _arm_human(out: dict) -> str:
     return "\n".join(lines)
 
 
-def cmd_arm(a) -> None:
-    """Apply a setup, arm, wait for the trigger, then capture in one connection.
+def _channel_summaries(data, no_quality=False, no_analyze=False):
+    out = {}
+    for ch, item in data.items():
+        st = stats(item["volts"], item["times"])
+        if not no_quality:
+            st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
+        if not no_analyze:
+            adv = advanced(item["volts"], item["times"], item["meta"])
+            adv["waveform"] = classify(item["volts"], item["times"], st, adv)
+            st["analysis"] = adv
+        out[str(ch)] = st
+    return out
 
-    This is the intent "show me this event". The caller gives volts and seconds;
-    vendor commands, sweep modes and transfer details stay in the driver layer.
-    """
+
+def _arm_plan(a):
     specs = [_parse_channel_spec(x) for x in (a.ch or [])]
     channels = [int(x) for x in (a.channels or "").split(",") if x.strip()]
     if not channels:
         channels = [s["n"] for s in specs] or [1]
+    return Plan(
+        channels=[ChannelSetup(s["n"], s.get("scale"), s.get("offset"),
+                               s.get("probe"), s.get("coupling")) for s in specs],
+        timebase=a.timebase, timebase_offset=a.timebase_offset,
+        trigger=TriggerSetup(source=a.source, level=a.level, slope=a.slope),
+        mode=a.mode, wait=a.wait, no_wait=a.no_wait,
+        read=channels, points=a.points)
+
+
+def _monitor_plan(a, channels):
+    ch = channels[0] if channels else 1
+    return Plan(
+        channels=[ChannelSetup(ch, scale=a.channel_scale, offset=a.channel_offset)],
+        timebase=a.timebase,
+        trigger=TriggerSetup(
+            type=a.trigger_type or "edge", source=a.trigger_source,
+            level=a.trigger_level, slope=a.trigger_slope, sweep=a.trigger_mode,
+            pulse_width=a.pulse_width, pulse_polarity=a.pulse_polarity,
+            pulse_when=a.pulse_when),
+        mode="single", wait=max(0.1, a.duration), read=channels,
+        points=a.points, attempts=2, unknown_is_done=True,
+        settle=a.settle, poll=max(0.02, a.interval))
+
+
+def _plan_settings(plan):
+    trigger = plan.trigger
+    settings = {
+        "channels": ",".join(str(c.n) for c in plan.channels),
+        "timebase": plan.timebase,
+        "trigger_type": trigger.type if trigger else None,
+        "trigger_source": trigger.source if trigger else None,
+        "trigger_level": trigger.level if trigger else None,
+        "trigger_slope": trigger.slope if trigger else None,
+        "trigger_mode": trigger.sweep if trigger else None,
+        "pulse_width": trigger.pulse_width if trigger else None,
+        "pulse_when": trigger.pulse_when if trigger else None,
+        "pulse_polarity": trigger.pulse_polarity if trigger else None,
+        "channel_scale": plan.channels[0].scale if plan.channels else None,
+        "channel_offset": plan.channels[0].offset if plan.channels else None,
+    }
+    return {k: v for k, v in settings.items() if v is not None}
+
+
+def cmd_arm(a) -> None:
+    """Apply a setup, arm, wait for the trigger, then capture in one connection."""
     items = _check_items(a.measure) if a.measure else []
-    single = a.mode == "single"
     inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
-        setup = []
-        for s in specs:
-            n = s["n"]
-            setup.append(d.channel_display(n, True))
-            if "scale" in s:
-                setup.append(d.channel_scale(n, s["scale"]))
-            if "offset" in s:
-                setup.append(d.channel_offset(n, s["offset"]))
-            if "coupling" in s:
-                setup.append(d.channel_coupling(n, s["coupling"]))
-            if "probe" in s:
-                setup.append(d.channel_probe(n, s["probe"]))
-        if a.timebase is not None:
-            setup.append(d.timebase_scale(a.timebase))
-        if a.timebase_offset is not None:
-            setup.append(d.timebase_offset(a.timebase_offset))
-        if a.source is not None:
-            setup += [d.trigger_type(), d.trigger_source(a.source)]
-        if a.level is not None:
-            setup += [d.trigger_type(), d.trigger_level(a.level)]
-        if a.slope:
-            setup += [d.trigger_type(), d.trigger_slope(a.slope.upper())]
-        if single:
-            setup.extend(d.arm_single())
-        else:
-            setup += [d.trigger_sweep("NORMal"), d.run()]
-        setup = list(dict.fromkeys(setup))       # one EDGE write, not three
-        for cmd in setup:
-            inst.write(cmd)
-
-        started = time.time()
-        state = None
-        if single and a.no_wait:
-            state = query_run_state(inst, d)
-        while single and not a.no_wait and time.time() - started < a.wait:
-            state = query_run_state(inst, d)
-            if state is True:
-                break
-            time.sleep(0.05)
-        armed = single and a.no_wait
-        out = {"ok": True, "idn": idn, "family": d.name, "mode": a.mode,
-               "armed": armed, "waited_s": round(time.time() - started, 3),
-               "trigger_state": None if state is None else ("STOP" if state else "RUN"),
-               "captured": (not single or state is True) and not armed}
-        if single and not armed and not out["captured"]:
-            out["timed_out"] = True
-
-        if out["captured"]:
-            data, recovery = acquire_with_recovery(inst, d, channels, a.points, attempts=3)
+        plan = _arm_plan(a)
+        executor = Executor(inst, d)
+        arm = executor.arm_wait(plan)
+        result = Result(idn=idn, family=d.name)
+        result.set("mode", a.mode).set("armed", arm.armed)
+        result.set("waited_s", arm.waited_s).set("trigger_state", arm.trigger_state)
+        result.set("captured", arm.captured)
+        if arm.timed_out:
+            result.set("timed_out", True)
+        if arm.warnings:
+            result.set("warnings", arm.warnings)
+        evidence = Evidence()
+        if arm.captured:
+            data, recovery = executor.acquire(plan)
             if recovery:
-                out["recovery"] = recovery
-            out["channels"] = {}
-            for ch, item in data.items():
-                st = stats(item["volts"], item["times"])
-                if not a.no_quality:
-                    st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
-                if not a.no_analyze:
-                    adv = advanced(item["volts"], item["times"], item["meta"])
-                    adv["waveform"] = classify(item["volts"], item["times"], st, adv)
-                    st["analysis"] = adv
-                out["channels"][str(ch)] = st
+                result.set("recovery", recovery)
+            result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
             if a.measure:
-                out["measurements"] = {str(ch): measure_channel(inst, d, ch, items)
-                                       for ch in channels}
+                result.set("measurements", {
+                    str(ch): measure_channel(inst, d, ch, items) for ch in plan.read})
             if a.out:
                 path = Path(a.out).expanduser()
                 fmt = a.format or path.suffix.lstrip(".").lower() or "csv"
                 if fmt == "csv":
-                    _write_csv(path, data)
+                    evidence.csv("csv", path, data)
                 elif fmt == "json":
-                    path.write_text(json.dumps({str(k): {"times": v["times"], "volts": v["volts"]}
-                                                for k, v in data.items()}, indent=2))
+                    evidence.json("json", path, {
+                        str(k): {"times": v["times"], "volts": v["volts"]}
+                        for k, v in data.items()})
                 else:
                     die(f"unsupported output format: {fmt}")
-                out["out"] = str(path)
             if a.plot:
                 first = next(iter(data.values()))
                 extra = advanced(first["volts"], first["times"], first["meta"])
-                write_svg(Path(a.plot).expanduser(), first["times"], first["volts"],
-                          title=f"{idn} CH{list(data)[0]}", extra=extra,
-                          max_points=a.plot_points)
-                out["plot"] = a.plot
+                evidence.svg("plot", a.plot, first["times"], first["volts"],
+                             title=f"{idn} CH{list(data)[0]}", extra=extra,
+                             max_points=a.plot_points)
         if a.shot:
-            out["shot"] = str(Path(a.shot).expanduser())
             _, blob = d.screenshot(inst)
             if blob:
-                Path(a.shot).expanduser().write_bytes(blob)
+                evidence.bytes("shot", a.shot, blob)
             else:
-                out["shot_error"] = "this model has no screen dump"
-        emit(out, _arm_human(out) if not a.json else None, as_json=a.json)
+                result.warn("this model has no screen dump")
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        payload = result.to_dict()
+        emit(payload, None if a.json else _arm_human(payload), as_json=a.json)
     finally:
         inst.close()
 
+
+def cmd_monitor(a) -> None:
+    apply_preset(a)
+    if a.dry_run:
+        channels = [int(x) for x in a.channels.split(",") if x.strip()]
+        plan = _monitor_plan(a, channels)
+        result = Result()
+        result.set("dry_run", True)
+        result.set("plan", ["apply the setup", "arm one trigger sequence",
+                            f"wait up to {a.duration:g} s",
+                            f"capture channels {a.channels}",
+                            f"write {a.outdir}/<prefix>-NN.csv and .json"])
+        result.set("settings", _plan_settings(plan))
+        emit(result.to_dict(), as_json=True)
+        return
+    inst = Session(a)
+    try:
+        d, idn = _dialect_for(a, inst)
+        channels = [int(x) for x in a.channels.split(",") if x.strip()]
+        plan = _monitor_plan(a, channels)
+        executor = Executor(inst, d)
+        evidence = Evidence()
+        deadline = time.time() + a.duration
+        events = []
+        for i in range(max(1, a.max_events)):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            plan.wait = remaining
+            arm = executor.arm_wait(plan)
+            if not arm.captured:
+                break
+            data, recovery = executor.acquire(plan)
+            stem = Path(a.outdir).expanduser() / f"{a.prefix}-{i + 1:02d}"
+            evidence.csv(f"event-{i + 1:02d}-csv", stem.with_suffix(".csv"), data)
+            summary = {"idn": idn, "family": d.name, "event": i + 1,
+                       "recovery": recovery,
+                       "channels": _channel_summaries(data, a.no_quality, True)}
+            evidence.json(f"event-{i + 1:02d}-json", stem.with_suffix(".json"), summary)
+            events.append({"event": i + 1,
+                           "csv": str(stem.with_suffix(".csv")),
+                           "json": str(stem.with_suffix(".json")),
+                           "stats": summary["channels"]})
+            if not a.auto_rearm:
+                break
+        result = Result(idn=idn, family=d.name)
+        result.set("events", events)
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        emit(result.to_dict(), as_json=True)
+    finally:
+        inst.close()
 
 def cmd_watch(a) -> None:
     """Measure the same signals repeatedly and report the trend.
@@ -643,22 +678,25 @@ def cmd_watch(a) -> None:
                     summary[str(ch)][item] = {
                         "min": min(values), "median": statistics.median(values),
                         "max": max(values), "mean": sum(values) / len(values)}
-        out = {"ok": True, "idn": idn, "family": d.name, "samples": len(rows),
-               "items": items, "rows": rows, "summary": summary}
+        result = Result(idn=idn, family=d.name)
+        result.set("samples", len(rows)).set("items", items)
+        result.set("rows", rows).set("summary", summary)
+        evidence = Evidence()
         if a.out:
-            path = Path(a.out).expanduser()
-            path.write_text(json.dumps(out, indent=2))
-            out["out"] = str(path)
+            evidence.json("out", a.out, result.to_dict())
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        payload = result.to_dict()
         if a.json:
-            emit(out, as_json=True)
+            emit(payload, as_json=True)
         else:
             lines = []
             for ch, per_item in summary.items():
                 for item, s in per_item.items():
                     lines.append(f"CH{ch} {item}: min={s['min']:.6g} "
                                  f"median={s['median']:.6g} max={s['max']:.6g}")
-            if out.get("out"):
-                lines.append(f"saved: {out['out']}")
+            if payload.get("out"):
+                lines.append(f"saved: {payload['out']}")
             print("\n".join(lines))
     finally:
         inst.close()
@@ -668,28 +706,30 @@ def cmd_shot(a) -> None:
     inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
+        evidence = Evidence()
+        result = Result(idn=idn, family=d.name)
         if not d.screenshot_queries():
-            data, _ = acquire_with_recovery(inst, d, [1], None, attempts=2)
+            data, _ = Executor(inst, d).acquire(Plan(read=[1], attempts=2))
             item = data[1]
             extra = advanced(item["volts"], item["times"], item["meta"])
-            out = Path(a.out).expanduser().with_suffix(".svg")
-            write_svg(out, item["times"], item["volts"],
-                      title=f"{idn} CH1 (scope has no screen dump)", extra=extra)
-            emit({"ok": True, "fallback": "waveform-plot", "out": str(out),
-                  "idn": idn, "family": d.name,
-                  "note": "the instrument cannot export a screenshot; rendered a waveform plot instead"})
-            return
-        used, data = d.screenshot(inst)
-        if not data:
-            die("screenshot failed: the instrument did not return PNG/JPEG data. "
-                "Try the raw command in references/dialects.md")
-        out = Path(a.out).expanduser()
-        out.write_bytes(data)
-        emit({"ok": True, "idn": idn, "family": d.name, "out": str(out),
-              "bytes": len(data)}, as_json=True)
+            path = Path(a.out).expanduser().with_suffix(".svg")
+            evidence.svg("plot", path, item["times"], item["volts"],
+                         title=f"{idn} CH1 (scope has no screen dump)", extra=extra)
+            result.set("fallback", "waveform-plot")
+            result.warn("the instrument cannot export a screenshot; "
+                        "rendered a waveform plot instead")
+        else:
+            _, blob = d.screenshot(inst)
+            if not blob:
+                die("screenshot failed: the instrument did not return PNG/JPEG data. "
+                    "Try the raw command in references/dialects.md")
+            evidence.bytes("shot", a.out, blob)
+            result.set("bytes", len(blob))
+        for kind, path in evidence.manifest().items():
+            result.add_evidence(kind, path)
+        emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
-
 
 def cmd_scpi(a) -> None:
     """Batch raw SCPI on one connection (maintainer escape hatch).
@@ -743,126 +783,6 @@ def apply_preset(a) -> None:
     for key, value in MONITOR_PRESETS[a.preset].items():
         if getattr(a, key, None) in (None, False) or (key == "max_events" and a.max_events == 1):
             setattr(a, key, value)
-
-
-def monitor_setup(inst, d, a) -> list[str]:
-    cmds = []
-    ch = a.channels.split(",")[0].strip()
-    try:
-        chn = int(ch)
-    except ValueError:
-        chn = 1
-    if a.channel_scale is not None:
-        cmds.append(d.channel_scale(chn, a.channel_scale))
-    if a.channel_offset is not None:
-        cmds.append(d.channel_offset(chn, a.channel_offset))
-    if a.timebase is not None:
-        cmds.append(d.timebase_scale(a.timebase))
-    if a.trigger_source is not None:
-        cmds.append(d.trigger_source(a.trigger_source))
-    if a.trigger_level is not None:
-        cmds.append(d.trigger_level(a.trigger_level))
-    if a.trigger_slope:
-        cmds.append(d.trigger_slope(a.trigger_slope.upper()))
-    if a.trigger_mode:
-        cmds.append(d.trigger_sweep(a.trigger_mode.upper()))
-    if (a.trigger_type or "edge") == "pulse":
-        when_raw = (a.pulse_when or "less").lower()
-        when = "GREATERthan" if "greater" in when_raw else "LESSthan"
-        pulse = d.trigger_pulse(a.pulse_width or 1e-6,
-                                (a.pulse_polarity or "positive").upper(),
-                                when)
-        if not pulse:
-            print("[warn] pulse trigger is not mapped for this dialect; using edge",
-                  file=sys.stderr)
-        else:
-            cmds.extend(pulse)
-    for cmd in cmds:
-        inst.write(cmd)
-    return cmds
-
-
-def query_run_state(inst, d) -> bool | None:
-    """True = stopped (event captured), False = running, None = unknown."""
-    for q in d.state_queries():
-        try:
-            val = inst.query(q).strip().upper()
-        except Exception:
-            continue
-        if q.upper().startswith(":TRIG"):
-            return val.startswith("STOP")
-        return val in ("0", "STOP", "STOPPED", "OFF")
-    return None
-
-
-def cmd_monitor(a) -> None:
-    apply_preset(a)
-    inst = Session(a)
-    try:
-        d, idn = _dialect_for(a, inst)
-        cmds = monitor_setup(inst, d, a)
-        if a.dry_run:
-            plan = ["apply the setup", "arm one trigger sequence",
-                    f"wait up to {a.duration:g} s", f"capture channels {a.channels}",
-                    f"write {a.outdir}/<prefix>-NN.csv and .json"]
-            setup = {"channels": a.channels, "timebase": a.timebase,
-                     "channel_scale": a.channel_scale, "channel_offset": a.channel_offset,
-                     "trigger_source": a.trigger_source, "trigger_level": a.trigger_level,
-                     "trigger_slope": a.trigger_slope, "trigger_mode": a.trigger_mode,
-                     "trigger_type": a.trigger_type or "edge",
-                     "pulse_width": a.pulse_width, "pulse_when": a.pulse_when,
-                     "pulse_polarity": a.pulse_polarity}
-            emit({"ok": True, "idn": idn, "family": d.name, "dry_run": True,
-                  "plan": plan,
-                  "settings": {k: v for k, v in setup.items() if v is not None}},
-                 as_json=True)
-            return
-        outdir = Path(a.outdir).expanduser()
-        outdir.mkdir(parents=True, exist_ok=True)
-        channels = [int(x) for x in a.channels.split(",") if x.strip()]
-        deadline = time.time() + a.duration
-        events = []
-        for i in range(max(1, a.max_events)):
-            if time.time() >= deadline:
-                break
-            for cmd in d.arm_single():
-                inst.write(cmd)
-            captured = False
-            while time.time() < deadline:
-                state = query_run_state(inst, d)
-                if state is True:
-                    captured = True
-                    break
-                if state is None:
-                    time.sleep(a.settle)
-                    captured = True
-                    break
-                time.sleep(a.interval)
-            if not captured:
-                break
-            try:
-                data, rec = acquire_with_recovery(inst, d, channels, a.points, attempts=2)
-            except Exception as e:  # noqa: BLE001
-                die(f"monitor capture failed: {e}")
-            stem = outdir / f"{a.prefix}-{i + 1:02d}"
-            _write_csv(stem.with_suffix(".csv"), data)
-            summary = {"idn": idn, "family": d.name, "event": i + 1,
-                       "recovery": rec, "channels": {}}
-            for ch, item in data.items():
-                st = stats(item["volts"], item["times"])
-                if not a.no_quality:
-                    st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
-                summary["channels"][str(ch)] = st
-            stem.with_suffix(".json").write_text(json.dumps(summary, indent=2))
-            events.append({"event": i + 1, "csv": str(stem.with_suffix(".csv")),
-                           "json": str(stem.with_suffix(".json")),
-                           "stats": summary["channels"]})
-            if not a.auto_rearm:
-                break
-        emit({"ok": True, "idn": idn, "family": d.name, "events": events,
-              "setup": cmds}, as_json=True)
-    finally:
-        inst.close()
 
 
 def _channel_key(name: str) -> str:
@@ -936,15 +856,16 @@ def cmd_analyze(a) -> None:
     out = dict(channels[target])
     out.update({"file": str(path), "columns": header, "channel": target,
                 "channels": channels})
+    evidence = Evidence()
     if a.plot:
-        plot_path = Path(a.plot).expanduser()
-        if plot_path.suffix.lower() != ".svg":
+        if Path(a.plot).suffix.lower() != ".svg":
             die("--plot currently supports .svg output")
         times, volts = series[target]
-        write_svg(plot_path, times, volts, title=f"{path.name} ch{target}",
-                  extra=out, max_points=a.plot_points)
-        out["plot"] = str(plot_path)
-    emit(out, as_json=True)
+        evidence.svg("plot", a.plot, times, volts,
+                     title=f"{path.name} ch{target}", extra=out,
+                     max_points=a.plot_points)
+        out.update(evidence.manifest())
+    emit(Result(values=out).to_dict(), as_json=True)
 
 
 def _logic_levels(volts):
