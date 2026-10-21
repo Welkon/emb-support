@@ -145,6 +145,11 @@ resolution or aliased, `arm` adjusts scale, offset, timebase or trigger level
 and captures again (at most three adjustments). Every change is listed under
 `adjustments`, so the result stays auditable.
 
+`--timing 1,2` adds an edge-to-edge result between two captured channels:
+`delay` (signed mean), `skew` (standard deviation over pairs), `pair` counts and
+the matching `window_s`. `--timing-edge-a` and `--timing-edge-b` select rising or
+falling. Both channels must be in the same capture.
+
 `--preset` fills the setup for a recurring scenario: `vdd-droop`, `power-on`,
 `pulse-train`, `button-bounce`. A preset only supplies values you did not give,
 and it sets the measurements that scenario usually needs (`pulse_width`,
@@ -223,13 +228,13 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `timebase` | Set the timebase. | `--scale`, `--offset` |
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
 | `run` | Run, stop, single, or autoscale. | action |
-| `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
-| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait`, `--auto-fit`, `--preset` |
+| `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache`, `--timing` |
+| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait`, `--auto-fit`, `--preset`, `--timing` |
 | `watch` | Measure the same signals repeatedly and summarize the trend. | `--channel`, `--items`, `--samples`, `--interval`, `--state` |
 | `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
 | `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
 | `monitor` | Watch for an event and write evidence. | See section 5. |
-| `analyze` | Analyze a CSV or NPZ file offline. | `--csv`, `--npz`, `--fft`, `--plot` |
+| `analyze` | Analyze a CSV or NPZ file offline. | `--csv`, `--npz`, `--fft`, `--plot`, `--timing` |
 | `config` | Store default values. | `set`, `get`, `list`, `unset` |
 
 Advanced knobs for a one-off change: `channel`, `timebase`, `trigger`, `run`.
@@ -241,6 +246,11 @@ Measurement items: `vpp`, `vmin`, `vmax`, `mean`, `vavg`, `rms`, `freq`,
 are the widest high and low pulse inside the record. The instrument answers when
 the driver has a query; otherwise the skill computes them from the captured
 samples, so no CSV post-processing is needed.
+
+`measurement_details` says where each number came from: `source` is
+`instrument` or `waveform`, `unit` is explicit, and waveform values also carry
+`resolution` (one ADC code or one sample interval) and a resolution-based
+`uncertainty`. Instrument values have no invented accuracy figure.
 
 Connection options: `--host`, `--port 5025`, `--resource`, `--backend`. Give them
 once: the working endpoint is stored in the skill config and reused. `--family`,
@@ -356,6 +366,8 @@ scripts/scopescpi/session.py        one session per intent; reconnect and retry 
 scripts/scopescpi/connection.py     ordered chain: flags, config, usbtmc, cache, discovery, WSL
 scripts/scopescpi/capabilities.py   closed vocabulary: driver query or waveform fallback
 scripts/scopescpi/autofit.py        deterministic scale/offset/timebase/level fitting
+scripts/scopescpi/uncertainty.py    unit, source, resolution and uncertainty per measurement
+scripts/scopescpi/timing.py         cross-channel edge-to-edge delay and skew
 scripts/scopescpi/result.py         Result envelope; refuses command strings
 scripts/scopescpi/evidence.py       atomic artifact writes, one manifest per intent
 scripts/scopescpi/dialects/         adapters: one module per family, the only place with SCPI
@@ -383,6 +395,8 @@ Six invariants hold this shape together. `tests/test_architecture.py` and
    `status.connection.source` reports how the instrument was found.
 7. **Corrections are auditable.** `--auto-fit` reports every change under
    `adjustments`; no adjustment happens silently.
+8. **Measurements carry provenance.** `measurement_details` gives unit, source
+   and uncertainty; cross-channel numbers come from one record.
 
 **Adding a capability.** Keep the interface at the intent level:
 

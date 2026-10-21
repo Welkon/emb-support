@@ -74,6 +74,44 @@ def test_cli_arm_one_shot(rigol, tmp_path):
     assert cmds.count(":TRIGger:MODE EDGE") == 1
 
 
+def test_cli_measure_reports_source_and_uncertainty(rigol, tmp_path):
+    p = run(base(rigol, "measure", "--items", "vpp", "--json"), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["measurements"]["vpp"] == 2.0
+    assert data["measurement_details"]["vpp"] == {
+        "value": 2.0, "unit": "V", "source": "instrument"}
+
+
+def test_cli_capture_reports_cross_channel_delay(rigol, tmp_path):
+    p = run(base(rigol, "capture", "--channels", "1,2", "--timing", "1,2", "--json"),
+            tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    timing = json.loads(p.stdout)["timing"]
+    assert timing["a"] == 1 and timing["b"] == 2
+    assert timing["pairs"] == 1
+    assert timing["delay"] == pytest.approx(0)
+    assert timing["skew"] is None
+
+
+def test_cli_analyze_reports_delay_from_a_csv(tmp_path):
+    path = tmp_path / "delay.csv"
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["time", "ch1", "ch2"])
+        for i in range(3000):
+            t = i * 1e-6
+            a = 3.3 if (t % 1e-3) < 500e-6 else 0.0
+            b = 3.3 if ((t - 250e-6) % 1e-3) < 500e-6 else 0.0
+            w.writerow([f"{t:.12g}", a, b])
+    p = run(["analyze", "--csv", str(path), "--timing", "1,2", "--json"],
+            tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    timing = json.loads(p.stdout)["timing"]
+    assert timing["delay"] == pytest.approx(250e-6, abs=2e-6)
+    assert timing["pairs"] >= 2
+
+
 def test_cli_arm_preset_fills_measurements(rigol, tmp_path):
     p = run(base(rigol, "arm", "--preset", "vdd-droop", "--wait", "1", "--json"),
             tmp_path / "home")

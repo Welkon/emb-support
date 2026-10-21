@@ -6,6 +6,7 @@ import math
 import time
 
 from .capabilities import MEASUREMENTS, MEASURE_ITEMS
+from .uncertainty import from_instrument, from_waveform
 
 def to_volts(raw, meta: dict) -> list[float]:
     yincr, yorig, yref = meta["yincr"], meta["yorig"], meta["yref"]
@@ -169,7 +170,7 @@ def acquire_channels(inst, dialect, channels, points):
     return result
 
 
-def measure_channel(inst, dialect, ch, items):
+def measure_channel_detailed(inst, dialect, ch, items):
     out = {}
     compute = []
     for item in items:
@@ -179,7 +180,7 @@ def measure_channel(inst, dialect, ch, items):
                 value = dialect.parse_measure(inst.query(q))
                 if abs(value) > 1e30:      # Rigol and others use 9.9E+37 for "invalid"
                     raise ValueError("invalid measurement sentinel")
-                out[item] = value
+                out[item] = from_instrument(item, value)
                 continue
             except Exception:
                 pass
@@ -192,8 +193,13 @@ def measure_channel(inst, dialect, ch, items):
         for item in compute:
             cap = MEASUREMENTS.get(item)
             if cap and cap.fallback and cap.fallback in st:
-                out[item] = st[cap.fallback]
+                out[item] = from_waveform(item, st[cap.fallback], meta)
     return out
+
+
+def measure_channel(inst, dialect, ch, items):
+    return {item: result.value for item, result in
+            measure_channel_detailed(inst, dialect, ch, items).items()}
 
 
 # -------------------------------------------------------------------- commands

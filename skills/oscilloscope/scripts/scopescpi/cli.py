@@ -22,12 +22,15 @@ from .transport import SocketInstrument, UsbtmcInstrument, VisaInstrument
 from .session import Session
 from .capabilities import advertised
 from .dialects import FAMILIES, detect_family, make_dialect
-from .acquisition import MEASURE_ITEMS, measure_channel, stats
+from .acquisition import (
+    MEASURE_ITEMS, measure_channel, measure_channel_detailed, stats,
+)
 from .quality import check as check_quality
 from .analysis import advanced, classify, load_npz, spectrum
 from .evidence import Evidence
 from .plan import ChannelSetup, Executor, Plan, TriggerSetup, query_run_state
 from .autofit import Adjustment, apply_to_plan, level_for, suggest
+from .timing import channel_timing
 from .result import Result
 from .wsl import (
     attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
@@ -300,6 +303,7 @@ def cmd_capture(a) -> None:
         result = Result(idn=idn, family=d.name)
         result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
         result.set("recovery", recovery)
+        _apply_timing(a, result, data)
         evidence = Evidence()
         if a.out:
             path = Path(a.out).expanduser()
@@ -425,9 +429,12 @@ def cmd_measure(a) -> None:
     try:
         d, idn = _dialect_for(a, inst)
         items = _check_items(a.items or "vpp,rms,freq,period")
-        values = measure_channel(inst, d, a.channel, items)
+        details = measure_channel_detailed(inst, d, a.channel, items)
         result = Result(idn=idn, family=d.name)
-        result.set("channel", a.channel).set("measurements", values)
+        result.set("channel", a.channel)
+        result.set("measurements", {item: found.value for item, found in details.items()})
+        result.set("measurement_details",
+                   {item: found.as_dict() for item, found in details.items()})
         emit(result.to_dict(), as_json=True)
     finally:
         inst.close()
@@ -471,6 +478,32 @@ def _arm_human(out: dict) -> str:
     if out.get("shot_error"):
         lines.append(f"shot: {out['shot_error']}")
     return "\n".join(lines)
+
+
+def _apply_timing(a, result, data) -> None:
+    """Attach an edge-to-edge delay/skew result when --timing was requested."""
+    if not a.timing:
+        return
+    parts = [item.strip() for item in a.timing.split(",") if item.strip()]
+    if len(parts) != 2:
+        die("--timing needs two channels, for example 1,2")
+    series = {str(key): value for key, value in data.items()}
+    missing = [ch for ch in parts if ch not in series]
+    if missing:
+        die(f"--timing needs channel(s) {', '.join(missing)} in the capture")
+    timing = channel_timing(series[parts[0]], series[parts[1]],
+                            a.timing_edge_a, a.timing_edge_b)
+    timing["a"], timing["b"] = int(parts[0]), int(parts[1])
+    result.set("timing", timing)
+
+
+def _add_timing_options(parser) -> None:
+    parser.add_argument("--timing", metavar="A,B",
+                        help="edge-to-edge delay and skew between two channels")
+    parser.add_argument("--timing-edge-a", choices=["rising", "falling"],
+                        default="rising")
+    parser.add_argument("--timing-edge-b", choices=["rising", "falling"],
+                        default="rising")
 
 
 def _channel_summaries(data, no_quality=False, no_analyze=False):
@@ -648,8 +681,15 @@ def cmd_arm(a) -> None:
         if arm.captured:
             result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
             if a.measure:
+                details = {str(ch): measure_channel_detailed(inst, d, ch, items)
+                           for ch in plan.read}
                 result.set("measurements", {
-                    str(ch): measure_channel(inst, d, ch, items) for ch in plan.read})
+                    ch: {item: found.value for item, found in per.items()}
+                    for ch, per in details.items()})
+                result.set("measurement_details", {
+                    ch: {item: found.as_dict() for item, found in per.items()}
+                    for ch, per in details.items()})
+            _apply_timing(a, result, data)
             if a.out:
                 path = Path(a.out).expanduser()
                 fmt = a.format or path.suffix.lstrip(".").lower() or "csv"
@@ -948,6 +988,9 @@ def cmd_analyze(a) -> None:
     out = dict(channels[target])
     out.update({"file": str(path), "columns": header, "channel": target,
                 "channels": channels})
+    result = Result(values=out)
+    _apply_timing(a, result, {ch: {"times": t, "volts": v}
+                              for ch, (t, v) in series.items()})
     evidence = Evidence()
     if a.plot:
         if Path(a.plot).suffix.lower() != ".svg":
@@ -956,8 +999,9 @@ def cmd_analyze(a) -> None:
         evidence.svg("plot", a.plot, times, volts,
                      title=f"{path.name} ch{target}", extra=out,
                      max_points=a.plot_points)
-        out.update(evidence.manifest())
-    emit(Result(values=out).to_dict(), as_json=True)
+    for kind, path in evidence.manifest().items():
+        result.add_evidence(kind, path)
+    emit(result.to_dict(), as_json=True)
 
 
 def _logic_levels(volts):
@@ -1094,6 +1138,7 @@ def main() -> None:
                    help="arm a single sequence and wait up to N seconds before reading")
     p.add_argument("--no-analyze", action="store_true",
                    help="skip FFT/harmonics/waveform classification")
+    _add_timing_options(p)
     p.set_defaults(fn=cmd_capture)
 
     p = sub.add_parser("measure", help="automatic measurements")
@@ -1129,6 +1174,7 @@ def main() -> None:
     p.add_argument("--shot")
     p.add_argument("--no-quality", action="store_true")
     p.add_argument("--no-analyze", action="store_true")
+    _add_timing_options(p)
     p.set_defaults(fn=cmd_arm)
 
     p = sub.add_parser("watch", help="measure the same signals repeatedly and summarize")
@@ -1179,6 +1225,7 @@ def main() -> None:
     p.add_argument("--csv")
     p.add_argument("--npz")
     p.add_argument("--fft", action="store_true", help="include FFT, harmonics and THD")
+    _add_timing_options(p)
     p.add_argument("--channel", type=int, help="channel for --plot (default: first)")
     p.add_argument("--plot", help="write an SVG waveform plot")
     p.add_argument("--plot-points", type=int, default=4000)
