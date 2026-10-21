@@ -74,6 +74,30 @@ def test_cli_arm_one_shot(rigol, tmp_path):
     assert cmds.count(":TRIGger:MODE EDGE") == 1
 
 
+def test_cli_arm_preset_fills_measurements(rigol, tmp_path):
+    p = run(base(rigol, "arm", "--preset", "vdd-droop", "--wait", "1", "--json"),
+            tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["preset"] == "vdd-droop"
+    assert {"vmin", "vmax", "vavg", "pulse_width"} <= set(data["measurements"]["1"])
+
+
+def test_cli_arm_auto_fit_reports_adjustments(rigol, tmp_path):
+    # A clipped-looking record: 60% of the samples sit on the rails.
+    rigol.samples = [0] * 20 + list(range(10, 70)) + [99] * 20
+    p = run(base(rigol, "arm", "--ch", "1:0.05", "--auto-fit", "--wait", "1", "--json"),
+            tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    data = json.loads(p.stdout)
+    assert data["captured"] is True
+    scales = [step["scale"] for step in data["adjustments"] if "scale" in step]
+    assert scales and scales == sorted(scales)
+    assert scales[0] > 0.05
+    assert len(scales) <= 3
+    assert data["channels"]["1"]["points"] == 100
+
+
 def test_cli_arm_no_wait_reports_armed_without_capturing(rigol, tmp_path):
     p = run(base(rigol, "arm", "--no-wait", "--json"), tmp_path / "home")
     assert p.returncode == 0, p.stderr

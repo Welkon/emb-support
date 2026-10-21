@@ -41,6 +41,7 @@ scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
 | What is the instrument set to? | `status --json` |
 | Show me this event once | `arm --ch ... --timebase ... --measure ...` |
 | Prepare the trigger, then act outside the scope | `arm ... --no-wait` |
+| Let the skill choose scale/trigger/timebase | `arm --auto-fit` |
 | What is on the screen right now? | `capture --out ... --json` |
 | Measure the same signal over time | `watch --samples ... --items ...` |
 | Catch an intermittent event and keep evidence | `monitor --preset ...` |
@@ -139,6 +140,22 @@ signal quality and writes the files. When it times out it says so and does not
 save a meaningless record. Use `--mode normal` for a free-running read instead
 of a single sequence.
 
+`--auto-fit` closes the loop: if the capture is clipped, off-centre, low
+resolution or aliased, `arm` adjusts scale, offset, timebase or trigger level
+and captures again (at most three adjustments). Every change is listed under
+`adjustments`, so the result stays auditable.
+
+`--preset` fills the setup for a recurring scenario: `vdd-droop`, `power-on`,
+`pulse-train`, `button-bounce`. A preset only supplies values you did not give,
+and it sets the measurements that scenario usually needs (`pulse_width`,
+`vmin`/`vmax`, ...). Combine it with `--auto-fit` when the signal level is
+unknown:
+
+```bash
+scripts/scope.py arm --preset vdd-droop --auto-fit --ch 2:1:0:10:DC \
+  --out evidence/droop.csv --json
+```
+
 ### 4.3 Arm first, act outside the scope
 
 Some tests need the scope waiting before you power the board:
@@ -207,7 +224,7 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
 | `run` | Run, stop, single, or autoscale. | action |
 | `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
-| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait` |
+| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot`, `--no-wait`, `--auto-fit`, `--preset` |
 | `watch` | Measure the same signals repeatedly and summarize the trend. | `--channel`, `--items`, `--samples`, `--interval`, `--state` |
 | `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
 | `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
@@ -338,6 +355,7 @@ scripts/scopescpi/plan.py           Plan + Executor shared by arm, capture --sin
 scripts/scopescpi/session.py        one session per intent; reconnect and retry once
 scripts/scopescpi/connection.py     ordered chain: flags, config, usbtmc, cache, discovery, WSL
 scripts/scopescpi/capabilities.py   closed vocabulary: driver query or waveform fallback
+scripts/scopescpi/autofit.py        deterministic scale/offset/timebase/level fitting
 scripts/scopescpi/result.py         Result envelope; refuses command strings
 scripts/scopescpi/evidence.py       atomic artifact writes, one manifest per intent
 scripts/scopescpi/dialects/         adapters: one module per family, the only place with SCPI
@@ -363,6 +381,8 @@ Six invariants hold this shape together. `tests/test_architecture.py` and
    partial artifact.
 6. **No commands in results.** `Result` refuses command strings, and
    `status.connection.source` reports how the instrument was found.
+7. **Corrections are auditable.** `--auto-fit` reports every change under
+   `adjustments`; no adjustment happens silently.
 
 **Adding a capability.** Keep the interface at the intent level:
 

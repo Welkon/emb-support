@@ -37,6 +37,12 @@ from scopescpi.analysis import (  # noqa: F401
 )
 from scopescpi.transport import pick_single_resource  # noqa: F401
 from scopescpi.connection import connect  # noqa: F401
+from scopescpi.plan import (  # noqa: F401
+    ArmResult, ChannelSetup, Executor, Plan, TriggerSetup, query_run_state,
+)
+from scopescpi.autofit import (  # noqa: F401
+    Adjustment, apply_to_plan, level_for, snap, suggest,
+)
 from scopescpi.wsl import (  # noqa: F401
     attach_hint, attach_scope_devices, ensure_scope_attached, is_wsl,
     list_devices, parse_usbipd, usbipd_path, windows_host_ip,

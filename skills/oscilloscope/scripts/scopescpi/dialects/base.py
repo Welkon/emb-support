@@ -117,6 +117,10 @@ class Dialect:
     def measure_source(self, n: int) -> str:
         return f"CHANnel{n}"
 
+    def offset_for_center(self, volts: float) -> float:
+        """Translate a desired screen-centre voltage into the offset value."""
+        return volts
+
     # --- screenshot
     def screenshot_queries(self) -> list[str]:
         return [":DISPlay:DATA? PNG", ":DISPlay:DATA? PNG,SCReen,COLor", ":DISPlay:DATA?"]

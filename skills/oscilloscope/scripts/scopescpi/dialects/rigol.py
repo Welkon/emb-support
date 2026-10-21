@@ -46,6 +46,10 @@ class RigolDialect(Dialect):
         center = meta.get("ycenter", meta["yorig"])
         return [(float(b) - meta["yref"]) * meta["yincr"] + center for b in raw]
 
+    def offset_for_center(self, volts: float) -> float:
+        # Rigol's offset sign is inverted: -2.3 V puts the screen centre at +2.3 V.
+        return -volts
+
     def measure_query(self, item, n):
         # Rigol wants the ITEM form and long item names; FREQ alone is not
         # recognised and the instrument then never answers (USB timeout).

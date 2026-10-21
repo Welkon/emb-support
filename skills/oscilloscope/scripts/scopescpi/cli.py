@@ -27,6 +27,7 @@ from .quality import check as check_quality
 from .analysis import advanced, classify, load_npz, spectrum
 from .evidence import Evidence
 from .plan import ChannelSetup, Executor, Plan, TriggerSetup, query_run_state
+from .autofit import Adjustment, apply_to_plan, level_for, suggest
 from .result import Result
 from .wsl import (
     attach_hint, attach_scope_devices, is_wsl, list_devices, windows_host_ip,
@@ -531,28 +532,117 @@ def _plan_settings(plan):
     return {k: v for k, v in settings.items() if v is not None}
 
 
+ARM_PRESETS = {
+    "vdd-droop": {"timebase": 5e-3, "measure": "vmin,vmax,vavg,pulse_width"},
+    "power-on": {"timebase": 1e-3, "slope": "rising", "measure": "vmin,vmax,vpp"},
+    "pulse-train": {"measure": "vmin,vmax,pulse_width,period,freq"},
+    "button-bounce": {"timebase": 100e-6, "measure": "pulse_width,negative_width"},
+}
+
+
+def apply_arm_preset(a) -> None:
+    if not a.preset:
+        return
+    if a.preset not in ARM_PRESETS:
+        die(f"unknown preset '{a.preset}'; choose from: {', '.join(sorted(ARM_PRESETS))}")
+    for key, value in ARM_PRESETS[a.preset].items():
+        if getattr(a, key, None) is None:
+            setattr(a, key, value)
+
+
+def _to_float(text):
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _target_channel(plan) -> int:
+    if plan.trigger and plan.trigger.source is not None:
+        return plan.trigger.source
+    return plan.read[0] if plan.read else 1
+
+
+def _prime_fit(inst, d, plan, target) -> None:
+    """Fill in the current scale/timebase so the first adjustment can compute."""
+    channel = next((item for item in plan.channels if item.n == target), None)
+    if channel is None:
+        channel = ChannelSetup(target)
+        plan.channels.append(channel)
+    if channel.scale is None:
+        value, _ = _query_or_none(inst, d.channel_status_queries(target)["scale"])
+        channel.scale = _to_float(value)
+    if plan.timebase is None:
+        value, _ = _query_or_none(inst, d.status_queries()["timebase_scale"])
+        plan.timebase = _to_float(value)
+
+
+def _next_adjustment(plan, data, target, arm, d):
+    item = data.get(target)
+    if not item:
+        return None
+    st = stats(item["volts"], item["times"])
+    if not arm.captured:
+        if (plan.trigger and plan.trigger.type == "edge"
+                and plan.trigger.level is None and st.get("vpp")):
+            return Adjustment("no trigger: level from the current record",
+                              trigger_level=level_for(st))
+        return None
+    quality = check_quality(item["volts"], item["times"], item["meta"])
+    channel = next((c for c in plan.channels if c.n == target), None)
+    return suggest(st, quality, scale=channel.scale if channel else None,
+                   timebase=plan.timebase, offset_for_center=d.offset_for_center,
+                   trigger_level=plan.trigger.level if plan.trigger else None)
+
+
 def cmd_arm(a) -> None:
     """Apply a setup, arm, wait for the trigger, then capture in one connection."""
+    apply_arm_preset(a)
     items = _check_items(a.measure) if a.measure else []
     inst = Session(a)
     try:
         d, idn = _dialect_for(a, inst)
         plan = _arm_plan(a)
+        target = _target_channel(plan)
+        if a.auto_fit:
+            _prime_fit(inst, d, plan, target)
         executor = Executor(inst, d)
-        arm = executor.arm_wait(plan)
+        adjustments = []
+        arm = None
+        data, recovery = {}, []
+        for attempt in range(1, 5):
+            arm = executor.arm_wait(plan)
+            if arm.captured or a.auto_fit:
+                try:
+                    data, recovery = executor.acquire(plan)
+                except Exception:  # noqa: BLE001
+                    if arm.captured:
+                        raise
+                    data, recovery = {}, []
+            else:
+                data, recovery = {}, []
+            if not a.auto_fit or len(adjustments) >= 3:
+                break
+            adjustment = _next_adjustment(plan, data, target, arm, d)
+            if adjustment is None:
+                break
+            adjustments.append({"attempt": attempt, **adjustment.as_dict()})
+            apply_to_plan(plan, adjustment, target)
+
         result = Result(idn=idn, family=d.name)
         result.set("mode", a.mode).set("armed", arm.armed)
         result.set("waited_s", arm.waited_s).set("trigger_state", arm.trigger_state)
         result.set("captured", arm.captured)
+        if a.preset:
+            result.set("preset", a.preset)
+        if adjustments:
+            result.set("adjustments", adjustments)
         if arm.timed_out:
             result.set("timed_out", True)
         if arm.warnings:
             result.set("warnings", arm.warnings)
         evidence = Evidence()
         if arm.captured:
-            data, recovery = executor.acquire(plan)
-            if recovery:
-                result.set("recovery", recovery)
             result.set("channels", _channel_summaries(data, a.no_quality, a.no_analyze))
             if a.measure:
                 result.set("measurements", {
@@ -586,7 +676,6 @@ def cmd_arm(a) -> None:
         emit(payload, None if a.json else _arm_human(payload), as_json=a.json)
     finally:
         inst.close()
-
 
 def cmd_monitor(a) -> None:
     apply_preset(a)
@@ -1024,6 +1113,10 @@ def main() -> None:
     p.add_argument("--wait", type=float, default=10.0, help="seconds to wait for the trigger")
     p.add_argument("--no-wait", action="store_true",
                    help="arm and report the state; do not wait for a trigger")
+    p.add_argument("--preset", choices=sorted(ARM_PRESETS),
+                   help="fill timebase, slope and measurements for a common scenario")
+    p.add_argument("--auto-fit", action="store_true",
+                   help="adjust scale, offset, timebase and trigger level from the capture")
     p.add_argument("--points", type=int)
     p.add_argument("--measure", help="measurements to take on each captured channel")
     p.add_argument("--out")
