@@ -58,17 +58,17 @@ def suggest(stats: dict, quality: list[dict], *, scale: float | None,
     if "CLIPPING" in codes and scale:
         reasons.append("clipping: coarser vertical scale")
         new_scale = snap(scale * 2)
-        new_offset = offset_for_center(center)
+        new_offset = round(offset_for_center(center), 6)
     elif "LOW_RESOLUTION" in codes and scale and vpp > 0:
         target = snap(vpp / 5.0)
         if target and target < scale:
             reasons.append("low resolution: finer vertical scale")
             new_scale = target
-            new_offset = offset_for_center(center)
+            new_offset = round(offset_for_center(center), 6)
 
     if "DC_OFFSET" in codes and not reasons:
         reasons.append("large DC offset: center the trace")
-        new_offset = offset_for_center(center)
+        new_offset = round(offset_for_center(center), 6)
 
     period = stats.get("period")
     if period:

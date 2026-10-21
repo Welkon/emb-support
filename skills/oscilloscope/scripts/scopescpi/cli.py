@@ -444,13 +444,16 @@ def _parse_channel_spec(text: str) -> dict:
 
 
 def _arm_human(out: dict) -> str:
-    lines = [f"{out['idn']}  [{out['family']}]  {out['mode']}"]
+    lines = [f"{out['idn']}  [{out['family']}]  {out['mode']}" +
+             (f"  preset={out['preset']}" if out.get("preset") else "")]
     if out.get("armed"):
         lines.append(f"armed; trigger state {out.get('trigger_state')} (no capture)")
     elif out.get("timed_out"):
         lines.append(f"no trigger within {out['waited_s']} s; nothing captured")
     else:
         lines.append(f"captured after {out['waited_s']} s")
+    for step in out.get("adjustments", []):
+        lines.append(f"  adjusted (attempt {step['attempt']}): {step['reason']}")
     for ch, st in out.get("channels", {}).items():
         lines.append(f"CH{ch}: {st.get('points')} pts  Vpp={st.get('vpp'):.4g}V "
                      f"mean={st.get('mean'):.4g}V" +
