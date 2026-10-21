@@ -2,7 +2,11 @@
 
 Extracted from the previously validated TBS1102B catalog (2026-04-22).
 Only operations marked **supported** (verified on live hardware) are listed.
-Send them with `scope.py scpi "<command>" [--query]`; placeholders are shown as `<value>`.
+
+This is maintainer reference material for keys the driver does not model yet.
+Workflows use intent verbs; use `scope.py scpi "<command>" [--query]` only to
+verify a command before turning it into a dialect method. Placeholders are
+shown as `<value>`.
 Guarded/destructive operations (autoset, reset, calibration, save/recall, filesystem) are intentionally omitted.
 
 | group | key | ops | query | set/action | notes |

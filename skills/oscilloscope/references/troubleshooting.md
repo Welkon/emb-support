@@ -6,10 +6,10 @@
 2. Check the port. Most instruments use port **5025** (Rigol, Siglent, Keysight, and Rohde & Schwarz). VXI-11 uses port 111 for port mapping.
 3. Enable the remote, SCPI, or LAN option on the instrument. The menu name is different for each brand.
 4. Remove firewall and router isolation. Use a wired connection on the same subnet. This step excludes access-point isolation.
-5. Try a raw connection:
+5. Try one intent-level read:
 
 ```bash
-scripts/scope.py scpi --host <ip> "*IDN?" --query
+scripts/scope.py status --host <ip> --json
 scripts/scope.py doctor --host <ip>
 ```
 
@@ -52,7 +52,7 @@ The `shot` command accepts only PNG, JPEG, or BMP data. A failure usually has on
 
 - The model has no screen download command. This is common on a TBS 1102B.
 - The instrument needs `:HARDcopy:SETUP` first.
-- The firmware returns BMP. Use `scpi` to read the raw block, then convert the image.
+- The firmware returns BMP. Capture the waveform instead; the skill does not convert vendor image blocks in a workflow.
 
 When no screen dump is available, the skill captures CH1 and writes an SVG waveform plot. The JSON output has `fallback: waveform-plot`.
 
@@ -64,7 +64,7 @@ When no screen dump is available, the skill captures CH1 and writes an SVG wavef
 - The sweep mode is AUTO. AUTO triggers without a signal. Use NORMAL or SINGLE.
 - The probe attenuation setting does not match the probe.
 
-If `monitor` does not find an event, first use `--dry-run`. Check the commands. Then read back `:TRIGger:STATe?` and `:TRIGger:EDGE:LEVel?` with `scpi`.
+If `monitor` does not find an event, first use `--dry-run` to see the plan. Then compare the trigger settings with `status --json`, and capture one event with `arm --json` to see whether it fires at all.
 
 ## Windows problems
 

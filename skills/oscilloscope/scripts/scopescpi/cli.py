@@ -8,6 +8,7 @@ import glob
 import json
 import os
 import socket
+import statistics
 import subprocess
 import sys
 import time
@@ -380,41 +381,97 @@ def _query_or_none(inst, cmd):
     return (value or None), None
 
 
+_DEAD_SESSION = ("invalid session", "invalid handle", "session handle", "vi_error",
+                 "timed out", "timeout", "closed", "broken pipe", "connection reset")
+
+
+def _is_dead_text(text: str) -> bool:
+    text = (text or "").lower()
+    return any(marker in text for marker in _DEAD_SESSION)
+
+
+def _measure_session(a, inst, d, channels, items):
+    """Measure several channels, reconnecting once if the session died.
+
+    An item the instrument cannot answer (or a query timeout) closes the USB
+    session; without this, one bad measurement would fail the whole intent.
+    """
+    def take(open_inst):
+        return {str(ch): measure_channel(open_inst, d, ch, items) for ch in channels}
+
+    try:
+        return inst, take(inst)
+    except Exception as exc:  # noqa: BLE001
+        if not _is_dead_text(f"{type(exc).__name__}: {exc}"):
+            raise
+        inst = connect(a)
+        return inst, take(inst)
+
+
+def _status_query(a, inst, cmd, reconnects):
+    """Read one field without letting a rejected query poison the rest.
+
+    Some instruments (Rigol DS1000Z over USB) drop the session when they get a
+    query they do not implement, and every later field then fails with
+    `Invalid session handle`. Reconnect and retry once, so `status` stays a
+    single intent that degrades to `null` instead of handing raw errors back.
+    """
+    value, err = _query_or_none(inst, cmd)
+    if not err or reconnects[0] >= 3:
+        return inst, value, err
+    if not _is_dead_text(err):
+        return inst, value, err
+    try:
+        inst.close()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        inst = connect(a)
+    except Exception as exc:  # noqa: BLE001
+        return inst, None, f"{err}; reconnect failed: {exc}"
+    reconnects[0] += 1
+    value, retry_err = _query_or_none(inst, cmd)
+    if retry_err:
+        return inst, None, f"{err}; retry: {retry_err}"
+    return inst, value, None
+
+
 def cmd_status(a) -> None:
     """Describe the whole instrument in one connection (read-only).
 
-    Replaces the usual idn + channel + timebase + trigger + run chain: on a
-    sandboxed host every separate command is an approval prompt, and each extra
-    connection is another chance for the instrument to be busy.
+    Channels first: every dialect supports those queries, so a vendor quirk in
+    an acquisition query cannot hide the wiring. The caller sees values, `null`,
+    and an `unsupported` list, never a SCPI error to work around.
     """
     inst = connect(a)
+    reconnects = [0]
     try:
         d, idn = _dialect_for(a, inst)
         channels = [int(x) for x in (a.channels or "1").split(",") if x.strip()]
         problems = []
 
-        settings = {}
-        for key, cmd in d.status_queries().items():
-            value, err = _query_or_none(inst, cmd)
-            settings[key] = value
-            if err:
-                problems.append(f"{key}: {err}")
-
         per_channel = {}
         for n in channels:
             item = {}
             for key, cmd in d.channel_status_queries(n).items():
-                value, err = _query_or_none(inst, cmd)
-                item[key] = value
+                inst, item[key], err = _status_query(a, inst, cmd, reconnects)
                 if err:
                     problems.append(f"CH{n} {key}: {err}")
             per_channel[str(n)] = item
+
+        settings = {}
+        for key, cmd in d.status_queries().items():
+            inst, settings[key], err = _status_query(a, inst, cmd, reconnects)
+            if err:
+                problems.append(f"{key}: {err}")
 
         out = {"ok": True, "idn": idn, "family": d.name, "settings": settings,
                "channels": per_channel}
         unsupported = [k for k, v in settings.items() if v is None]
         if unsupported:
             out["unsupported"] = unsupported
+        if reconnects[0]:
+            out["reconnects"] = reconnects[0]
         if problems:
             out["errors"] = problems
         emit(out, as_json=True)
@@ -422,17 +479,226 @@ def cmd_status(a) -> None:
         inst.close()
 
 
+def _check_items(text: str) -> list[str]:
+    items = [x.strip().lower() for x in (text or "").split(",") if x.strip()]
+    bad = [x for x in items if x not in MEASURE_ITEMS]
+    if bad:
+        die(f"unknown measurement(s): {', '.join(bad)}; choose from {', '.join(MEASURE_ITEMS)}")
+    return items
+
+
+def _fmt_value(value) -> str:
+    return f"{value:.6g}" if isinstance(value, (int, float)) else str(value)
+
+
 def cmd_measure(a) -> None:
     inst = connect(a)
     try:
         d, idn = _dialect_for(a, inst)
-        items = [x.strip().lower() for x in (a.items or "vpp,rms,freq,period").split(",")]
-        bad = [x for x in items if x not in MEASURE_ITEMS]
-        if bad:
-            die(f"unknown measurement(s): {', '.join(bad)}; choose from {', '.join(MEASURE_ITEMS)}")
-        values = measure_channel(inst, d, a.channel, items)
+        items = _check_items(a.items or "vpp,rms,freq,period")
+        inst, values = _measure_session(a, inst, d, [a.channel], items)
         emit({"ok": True, "idn": idn, "family": d.name, "channel": a.channel,
-              "measurements": values}, as_json=True)
+              "measurements": values[str(a.channel)]}, as_json=True)
+    finally:
+        inst.close()
+
+
+def _parse_channel_spec(text: str) -> dict:
+    """Parse `N[:scale[:offset[:probe[:coupling]]]]`, e.g. `1:0.5:-2.3:10:DC`."""
+    parts = text.split(":")
+    spec = {"n": int(parts[0])}
+    for key, raw in zip(("scale", "offset", "probe", "coupling"), parts[1:]):
+        if raw:
+            spec[key] = raw.upper() if key == "coupling" else float(raw)
+    return spec
+
+
+def _arm_human(out: dict) -> str:
+    lines = [f"{out['idn']}  [{out['family']}]  {out['mode']}"]
+    if out.get("timed_out"):
+        lines.append(f"no trigger within {out['waited_s']} s; nothing captured")
+    else:
+        lines.append(f"captured after {out['waited_s']} s")
+    for ch, st in out.get("channels", {}).items():
+        lines.append(f"CH{ch}: {st.get('points')} pts  Vpp={st.get('vpp'):.4g}V "
+                     f"mean={st.get('mean'):.4g}V" +
+                     (f"  f={st['freq']:.4g}Hz" if "freq" in st else "") +
+                     (f"  [{st['analysis']['waveform']['type']}]"
+                      if st.get("analysis", {}).get("waveform") else ""))
+        for w in st.get("quality", []):
+            lines.append(f"  [{w['severity']}] {w['code']}: {w['message']} -> {w['suggestion']}")
+    for ch, values in out.get("measurements", {}).items():
+        lines.append(f"measure CH{ch}: " +
+                     "  ".join(f"{k}={_fmt_value(v)}" for k, v in values.items()))
+    for key in ("out", "plot", "shot"):
+        if out.get(key):
+            lines.append(f"saved {key}: {out[key]}")
+    if out.get("shot_error"):
+        lines.append(f"shot: {out['shot_error']}")
+    return "\n".join(lines)
+
+
+def cmd_arm(a) -> None:
+    """Apply a setup, arm, wait for the trigger, then capture in one connection.
+
+    This is the intent "show me this event". The caller gives volts and seconds;
+    vendor commands, sweep modes and transfer details stay in the driver layer.
+    """
+    specs = [_parse_channel_spec(x) for x in (a.ch or [])]
+    channels = [int(x) for x in (a.channels or "").split(",") if x.strip()]
+    if not channels:
+        channels = [s["n"] for s in specs] or [1]
+    items = _check_items(a.measure) if a.measure else []
+    single = a.mode == "single"
+    inst = connect(a)
+    try:
+        d, idn = _dialect_for(a, inst)
+        setup = []
+        for s in specs:
+            n = s["n"]
+            setup.append(d.channel_display(n, True))
+            if "scale" in s:
+                setup.append(d.channel_scale(n, s["scale"]))
+            if "offset" in s:
+                setup.append(d.channel_offset(n, s["offset"]))
+            if "coupling" in s:
+                setup.append(d.channel_coupling(n, s["coupling"]))
+            if "probe" in s:
+                setup.append(d.channel_probe(n, s["probe"]))
+        if a.timebase is not None:
+            setup.append(d.timebase_scale(a.timebase))
+        if a.timebase_offset is not None:
+            setup.append(d.timebase_offset(a.timebase_offset))
+        if a.source is not None:
+            setup += [d.trigger_type(), d.trigger_source(a.source)]
+        if a.level is not None:
+            setup += [d.trigger_type(), d.trigger_level(a.level)]
+        if a.slope:
+            setup += [d.trigger_type(), d.trigger_slope(a.slope.upper())]
+        if single:
+            setup.extend(d.arm_single())
+        else:
+            setup += [d.trigger_sweep("NORMal"), d.run()]
+        setup = list(dict.fromkeys(setup))       # one EDGE write, not three
+        for cmd in setup:
+            inst.write(cmd)
+
+        started = time.time()
+        state = None
+        while single and time.time() - started < a.wait:
+            state = query_run_state(inst, d)
+            if state is True:
+                break
+            time.sleep(0.05)
+        out = {"ok": True, "idn": idn, "family": d.name, "mode": a.mode,
+               "setup": setup, "waited_s": round(time.time() - started, 3),
+               "trigger_state": None if state is None else ("STOP" if state else "RUN"),
+               "captured": not single or state is True}
+        if single and not out["captured"]:
+            out["timed_out"] = True
+
+        if out["captured"]:
+            try:
+                data = acquire_channels(inst, d, channels, a.points)
+            except Exception:  # noqa: BLE001
+                data, recovery = acquire_with_recovery(inst, d, channels, a.points, attempts=3)
+                out["recovery"] = recovery
+            out["channels"] = {}
+            for ch, item in data.items():
+                st = stats(item["volts"], item["times"])
+                if not a.no_quality:
+                    st["quality"] = check_quality(item["volts"], item["times"], item["meta"])
+                if not a.no_analyze:
+                    adv = advanced(item["volts"], item["times"], item["meta"])
+                    adv["waveform"] = classify(item["volts"], item["times"], st, adv)
+                    st["analysis"] = adv
+                out["channels"][str(ch)] = st
+            if a.measure:
+                inst, out["measurements"] = _measure_session(a, inst, d, channels, items)
+            if a.out:
+                path = Path(a.out).expanduser()
+                fmt = a.format or path.suffix.lstrip(".").lower() or "csv"
+                if fmt == "csv":
+                    _write_csv(path, data)
+                elif fmt == "json":
+                    path.write_text(json.dumps({str(k): {"times": v["times"], "volts": v["volts"]}
+                                                for k, v in data.items()}, indent=2))
+                else:
+                    die(f"unsupported output format: {fmt}")
+                out["out"] = str(path)
+            if a.plot:
+                first = next(iter(data.values()))
+                extra = advanced(first["volts"], first["times"], first["meta"])
+                write_svg(Path(a.plot).expanduser(), first["times"], first["volts"],
+                          title=f"{idn} CH{list(data)[0]}", extra=extra,
+                          max_points=a.plot_points)
+                out["plot"] = a.plot
+        if a.shot:
+            out["shot"] = str(Path(a.shot).expanduser())
+            _, blob = d.screenshot(inst)
+            if blob:
+                Path(a.shot).expanduser().write_bytes(blob)
+            else:
+                out["shot_error"] = "this model has no screen dump"
+        emit(out, _arm_human(out) if not a.json else None, as_json=a.json)
+    finally:
+        inst.close()
+
+
+def cmd_watch(a) -> None:
+    """Measure the same signals repeatedly and report the trend.
+
+    Covers the poll loop that otherwise turns into one heredoc per sample.
+    """
+    channels = [int(x) for x in a.channel.split(",") if x.strip()]
+    items = _check_items(a.items)
+    inst = connect(a)
+    try:
+        d, idn = _dialect_for(a, inst)
+        rows = []
+        for i in range(a.samples):
+            row = {"sample": i + 1, "channels": {}}
+            inst, row["channels"] = _measure_session(a, inst, d, channels, items)
+            if a.state:
+                row["trigger_state"] = query_run_state(inst, d)
+            rows.append(row)
+            if not a.json:
+                cells = [f"CH{ch} " + " ".join(f"{k}={_fmt_value(row['channels'][str(ch)].get(k))}"
+                                                for k in items)
+                         for ch in channels]
+                trig = ""
+                if a.state:
+                    trig = f"  trig={'STOP' if row.get('trigger_state') else 'RUN'}"
+                print(f"[{i + 1}/{a.samples}] " + "  ".join(cells) + trig, flush=True)
+            if i + 1 < a.samples and a.interval:
+                time.sleep(a.interval)
+        summary = {}
+        for ch in channels:
+            summary[str(ch)] = {}
+            for item in items:
+                values = [r["channels"][str(ch)].get(item) for r in rows]
+                values = [v for v in values if isinstance(v, (int, float))]
+                if values:
+                    summary[str(ch)][item] = {
+                        "min": min(values), "median": statistics.median(values),
+                        "max": max(values), "mean": sum(values) / len(values)}
+        out = {"ok": True, "idn": idn, "family": d.name, "samples": len(rows),
+               "items": items, "rows": rows, "summary": summary}
+        if a.out:
+            path = Path(a.out).expanduser()
+            path.write_text(json.dumps(out, indent=2))
+            out["out"] = str(path)
+        if a.json:
+            emit(out, as_json=True)
+        else:
+            lines = []
+            for ch, per_item in summary.items():
+                for item, s in per_item.items():
+                    lines.append(f"CH{ch} {item}: min={s['min']:.6g} "
+                                 f"median={s['median']:.6g} max={s['max']:.6g}")
+            if out.get("out"):
+                lines.append(f"saved: {out['out']}")
+            print("\n".join(lines))
     finally:
         inst.close()
 
@@ -465,14 +731,26 @@ def cmd_shot(a) -> None:
 
 
 def cmd_scpi(a) -> None:
+    """Batch raw SCPI on one connection (maintainer escape hatch).
+
+    Deliberately hidden from help and docs: if a workflow needs a command
+    sequence, add an intent verb here or a query to the driver, do not teach
+    the caller SCPI.
+    """
+    commands = a.command if isinstance(a.command, list) else [a.command]
     inst = connect(a)
     try:
-        if a.query:
-            val = inst.query(a.command)
-            emit({"ok": True, "command": a.command, "response": val}, as_json=True)
-        else:
-            inst.write(a.command)
-            emit({"ok": True, "command": a.command, "response": None}, as_json=True)
+        results = []
+        for cmd in commands:
+            try:
+                value = inst.query(cmd) if a.query else inst.write(cmd)
+                results.append({"ok": True, "command": cmd,
+                                "response": value if a.query else None})
+            except Exception as exc:  # noqa: BLE001
+                results.append({"ok": False, "command": cmd, "error": str(exc)})
+        emit(results[0] if len(results) == 1 else results, as_json=True)
+        if any(not r["ok"] for r in results):
+            sys.exit(1)
     finally:
         inst.close()
 
@@ -692,10 +970,29 @@ def add_conn(p):
     p.add_argument("--json", action="store_true")
 
 
+RAW_COMMANDS = {"scpi": None, "query": True, "write": False}
+
+
+def _raw_main(name: str, argv: list[str]) -> None:
+    """Maintainer escape hatch, kept out of the documented interface on purpose."""
+    ap = argparse.ArgumentParser(prog=f"scope.py {name}",
+                                 description="internal escape hatch; prefer an intent verb")
+    add_conn(ap)
+    ap.add_argument("command", nargs="+")
+    if name == "scpi":
+        ap.add_argument("--query", action="store_true")
+    a = ap.parse_args(argv)
+    if name != "scpi":
+        a.query = RAW_COMMANDS[name]
+    cmd_scpi(a)
+
+
 def main() -> None:
     target = venv_reexec_argv(sys.argv)
     if target is not None:
         os.execv(target[0], target)
+    if len(sys.argv) > 1 and sys.argv[1] in RAW_COMMANDS:
+        return _raw_main(sys.argv[1], sys.argv[2:])
     ap = argparse.ArgumentParser(prog="scope.py", description="Generic oscilloscope control (LAN/USB)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -789,16 +1086,43 @@ def main() -> None:
     p.add_argument("--items", default="vpp,rms,freq,period")
     p.set_defaults(fn=cmd_measure)
 
+    p = sub.add_parser("arm", help="apply a setup, arm, wait, then capture and measure")
+    add_conn(p)
+    p.add_argument("--ch", action="append", metavar="N[:SCALE[:OFFSET[:PROBE[:COUPLING]]]]",
+                   help="channel to set up; repeat for more channels")
+    p.add_argument("--channels", help="channels to capture (default: the --ch channels, else 1)")
+    p.add_argument("--timebase", type=float, help="seconds per division")
+    p.add_argument("--timebase-offset", type=float)
+    p.add_argument("--source", type=int, help="trigger source channel")
+    p.add_argument("--level", type=float, help="trigger level in volts")
+    p.add_argument("--slope", choices=["rising", "falling", "either"])
+    p.add_argument("--mode", choices=["single", "normal"], default="single")
+    p.add_argument("--wait", type=float, default=10.0, help="seconds to wait for the trigger")
+    p.add_argument("--points", type=int)
+    p.add_argument("--measure", help="measurements to take on each captured channel")
+    p.add_argument("--out")
+    p.add_argument("--format", choices=["csv", "json"])
+    p.add_argument("--plot")
+    p.add_argument("--plot-points", type=int, default=4000)
+    p.add_argument("--shot")
+    p.add_argument("--no-quality", action="store_true")
+    p.add_argument("--no-analyze", action="store_true")
+    p.set_defaults(fn=cmd_arm)
+
+    p = sub.add_parser("watch", help="measure the same signals repeatedly and summarize")
+    add_conn(p)
+    p.add_argument("--channel", default="1", help="channel or comma-separated channels")
+    p.add_argument("--items", default="vavg,vmin,vmax")
+    p.add_argument("--samples", type=int, default=5)
+    p.add_argument("--interval", type=float, default=0.5, help="seconds between samples")
+    p.add_argument("--state", action="store_true", help="also record the trigger state")
+    p.add_argument("--out")
+    p.set_defaults(fn=cmd_watch)
+
     p = sub.add_parser("shot", help="save a screenshot")
     add_conn(p)
     p.add_argument("--out", default="scope.png")
     p.set_defaults(fn=cmd_shot)
-
-    p = sub.add_parser("scpi", help="raw SCPI write or query")
-    add_conn(p)
-    p.add_argument("command")
-    p.add_argument("--query", action="store_true")
-    p.set_defaults(fn=cmd_scpi)
 
     p = sub.add_parser("monitor", help="arm, wait for an event, capture evidence")
     add_conn(p)
@@ -842,16 +1166,6 @@ def main() -> None:
     p.add_argument("--backend")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_discover, scan=None, port=None)
-
-    p = sub.add_parser("query", help="send one SCPI query (alias)")
-    add_conn(p)
-    p.add_argument("command")
-    p.set_defaults(fn=cmd_scpi, query=True)
-
-    p = sub.add_parser("write", help="send one SCPI write (alias)")
-    add_conn(p)
-    p.add_argument("command")
-    p.set_defaults(fn=cmd_scpi, query=False)
 
     a = ap.parse_args()
     a.fn(a)

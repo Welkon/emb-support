@@ -118,9 +118,10 @@ def _edges(volts, times, vmin, vmax):
 
 def acquire_channels(inst, dialect, channels, points):
     result = {}
+    scale = getattr(dialect, "to_volts", to_volts)
     for ch in channels:
         meta, raw = dialect.acquire(inst, ch, points)
-        volts = to_volts(raw, meta)
+        volts = scale(raw, meta)
         times = to_times(meta, len(volts))
         if not volts:
             # An empty transfer used to reach the caller as an empty list, where
@@ -133,8 +134,10 @@ def acquire_channels(inst, dialect, channels, points):
     return result
 
 
-MEASURE_ITEMS = ["vpp", "vmin", "vmax", "mean", "rms", "freq", "period", "duty", "rise", "fall"]
-ITEM_MAP = {"vpp": "vpp", "vmin": "vmin", "vmax": "vmax", "mean": "mean", "rms": "rms",
+MEASURE_ITEMS = ["vpp", "vmin", "vmax", "mean", "vavg", "rms", "freq", "period",
+                 "duty", "rise", "fall"]
+ITEM_MAP = {"vpp": "vpp", "vmin": "vmin", "vmax": "vmax", "mean": "mean",
+            "vavg": "mean", "rms": "rms",
             "freq": "freq", "period": "period", "duty": "duty_pct", "rise": "rise_time",
             "fall": "fall_time"}
 

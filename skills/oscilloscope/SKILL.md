@@ -1,30 +1,59 @@
 ---
 name: oscilloscope
-description: Control bench oscilloscopes over a LAN (SCPI socket) or USB (USBTMC or VISA). Supports Rigol, Keysight, Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa, OWON, Hantek, Micsig, BK Precision, UNI-T, Fluke, PeakTech and generic SCPI instruments. Use this skill when the user mentions an oscilloscope, scope, DSO, MSO, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe or channel configuration, screen capture, frequency measurement, or asks to inspect a signal on real hardware. Use it also for intermittent-fault monitoring (arm, wait, capture evidence) and for offline analysis of exported waveform files, even when the user does not name the brand.
+description: Control bench oscilloscopes over a LAN (SCPI socket) or USB (USBTMC or VISA). Supports Rigol, Keysight, Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa, OWON, Hantek, Micsig, BK Precision, UNI-T, Fluke, PeakTech and generic SCPI instruments. Use this skill when the user mentions an oscilloscope, scope, DSO, MSO, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe or channel configuration, screen capture, frequency measurement, or asks to inspect a signal on real hardware. Use it also for intermittent-fault monitoring (arm, wait, capture evidence) and for offline analysis of exported waveform files, even when the user does not name the brand. Bench questions are answered one intent per command (status, arm, watch, capture, monitor); the caller never composes SCPI.
 ---
 
 # Oscilloscope
 
-This skill controls bench oscilloscopes from a command line. It has three layers:
+This skill answers bench questions about a live instrument. The interface is
+**intents** — "what is it doing", "show me this event", "watch this rail" —
+never vendor commands. It has four layers:
 
-1. **Transport layer.** It uses a raw TCP socket, pyvisa, or a Linux usbtmc device.
-2. **Dialect layer.** It builds SCPI commands for each instrument family.
-3. **Acquisition layer.** It converts raw samples to volts, measures the waveform, and writes evidence files.
+1. **Intent layer.** `status`, `arm`, `watch`, `capture`, `monitor`, `shot`,
+   `analyze`. One invocation answers one question on one connection.
+2. **Driver layer.** One module per family turns an intent into that vendor's
+   command set. SCPI does not leave this layer.
+3. **Transport layer.** Raw socket, pyvisa, or Linux usbtmc.
+4. **Acquisition layer.** Samples to volts, measurements, quality checks, evidence.
+
+Rule: if a bench question has no verb, add a verb (or a driver method). Do not
+work around it with a raw command or a heredoc. Raw commands are what make the
+skill expensive to use: one more connection, one more approval, one more typo.
 
 ```bash
-scripts/scope.py idn --host 192.168.1.50
-scripts/scope.py capture --host 192.168.1.50 --channels 1,2 --out run.csv
-scripts/scope.py measure --host 192.168.1.50 --channel 1 --items vpp,rms,freq
-scripts/scope.py shot --host 192.168.1.50 --out screen.png
+# Give the connection once. Later commands remember it.
+scripts/scope.py status --resource 'USB0::...::INSTR' --json
+
+# One event: set up, arm, wait, capture, measure, screenshot.
+scripts/scope.py arm --ch 1:0.5:0:10:DC --timebase 1e-3 \
+  --source 1 --level 1.5 --measure vpp,vavg \
+  --out evidence/power-on.csv --shot evidence/power-on.png
+
+# A trend: 10 samples on one connection, with summary statistics.
+scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
+  --samples 10 --interval 0.5 --out evidence/vdd-decay.json
 ```
 
-## 1. Before you start
+## 1. Ask for the answer
 
-Make these three decisions first:
+| Question | Command |
+|---|---|
+| What is the instrument set to? | `status --json` |
+| Show me this event once | `arm --ch ... --timebase ... --measure ...` |
+| What is on the screen right now? | `capture --out ... --json` |
+| Measure the same signal over time | `watch --samples ... --items ...` |
+| Catch an intermittent event and keep evidence | `monitor --preset ...` |
+| Save a screenshot | `shot --out ...` |
+| Analyze a saved capture offline | `analyze --csv ... --fft` |
 
-1. **Interface.** Use `--host` for a LAN instrument. Use `--resource USB0::...::INSTR` for USB.
-2. **Family.** The `idn` command reads `*IDN?` and selects the family. If the result is wrong, add `--family`.
-3. **State change.** Start with read-only commands: `idn`, `measure`, `capture`. Tell the user before you change a channel, the timebase, or the trigger.
+Three rules keep the command count low:
+
+1. **One connection per question.** `status`, `arm`, `watch`, `capture` and
+   `monitor` each set up, act, read back and save in a single invocation.
+2. **Give the connection once.** The first `--host` or `--resource` is stored in
+   the skill config; later commands need no connection flags.
+3. **Read before you write.** `status` is read-only. Say what you will change
+   before you change the timebase, a channel, or the trigger.
 
 ## 2. Environment
 
@@ -54,51 +83,76 @@ A device in state `Not shared` needs `usbipd bind --busid X` (Administrator). A 
 
 ## 3. Families
 
-The `family` field from `idn` selects the command syntax.
+`idn` selects the family from the identification string. Override with
+`--family` only when detection is wrong.
 
-| Family | Typical instruments | Notes |
-|---|---|---|
-| `rigol` | DHO800/900, MSO5000, DS1000Z | Uses `:TIMebase:MAIN:SCALe` and `:WAVeform:PREamble?`. |
-| `keysight` | InfiniiVision DSO and MSO | Uses `:TIMebase:SCALe`. Supports PNG screenshots. |
-| `tektronix` | TBS, TDS, DPO, MSO | Uses ASCII `CURVe?` with WFMPre and WFMOutpre fallback. |
-| `siglent` | SDS series | Uses `:TDIV` and `C1` channel names. |
-| `lecroy` | WaveRunner, WaveSurfer | Measures the waveform in software. |
-| `rns` | Rohde & Schwarz | Reuses the Keysight dialect. |
-| `gwinstek` | GDS series | Uses `:MEASure:*? CHANnelN`. |
-| `owon` | OWON XDS, Hanmatek DOS and SDS | Uses a 4-byte length frame with a JSON header. |
-| `peaktech` | PeakTech 13xx | Uses the Owon protocol. |
-| `hantek` | Hantek DSO2000 (DSO2C50) | Control and measurement are verified. Waveform export uses a vendor command. |
-| `micsig` | Micsig MHO series | Uses `:MENU:RUN`, `:MENU:STOP`, `:MEASure:*? CHn` and `:SYS:SCR?`. |
-| `bkprecision` | BK Precision 2540 and 2560 | Uses the LeCroy MAUI command set. |
-| `unit` | UNI-T UPO 2000E and 3000E | Uses `:CHANn:SCAL` and `:WAVeform:*`. |
-| `fluke` | Fluke PM3370, PM3380 and PM3390 | Uses `SENSe:SWEep:TIME` and `TRACe?`. |
-| `atten`, `zlg` | ATTEN, ZLG ZDS | No public SCPI manual was found. The skill identifies the device and uses generic commands. |
-| `yokogawa`, `generic` | Other SCPI instruments | Uses generic commands and the `scpi` command. |
+| Family | Typical instruments |
+|---|---|
+| `rigol` | DHO800/900, MSO5000, DS1000Z |
+| `keysight` | InfiniiVision DSO and MSO |
+| `tektronix` | TBS, TDS, DPO, MSO |
+| `siglent` | SDS series |
+| `lecroy` | WaveRunner, WaveSurfer |
+| `rns` | Rohde & Schwarz |
+| `gwinstek` | GDS series |
+| `owon` | OWON XDS, Hanmatek DOS and SDS |
+| `peaktech` | PeakTech 13xx |
+| `hantek` | Hantek DSO2000 (DSO2C50) |
+| `micsig` | Micsig MHO series |
+| `bkprecision` | BK Precision 2540 and 2560 |
+| `unit` | UNI-T UPO 2000E and 3000E |
+| `fluke` | Fluke PM3370, PM3380 and PM3390 |
+| `atten`, `zlg` | ATTEN, ZLG ZDS |
+| `yokogawa`, `generic` | Other instruments |
 
-Read `references/dialects.md` for command sources and confidence levels. Read `references/tektronix.md` for Tektronix details, including the Windows TekVISA bitness problem.
+The per-family command mapping is driver material in `references/dialects.md`.
+Workflows never depend on it. Read `references/tektronix.md` only for the
+Tektronix details, including the Windows TekVISA bitness problem.
 
-## 4. Basic workflow
+## 4. Workflow
+
+### 4.1 First contact
 
 ```bash
-# 1. Identify the instrument.
-scripts/scope.py idn --host <ip> --json
-
-# 2. Read the state. Do not change it.
-scripts/scope.py scpi --host <ip> ":TRIGger:STATe?" --query
-scripts/scope.py measure --host <ip> --channel 1 --items vpp,rms,freq,period
-
-# 3. Change the settings only when necessary.
-scripts/scope.py channel  --host <ip> --ch 1 --scale 0.5 --offset 0 --coupling DC --probe 10
-scripts/scope.py timebase --host <ip> --scale 1e-3
-scripts/scope.py trigger  --host <ip> --source 1 --level 0.8 --slope rising --mode normal
-
-# 4. Capture the waveform and the evidence.
-scripts/scope.py run single --host <ip>
-scripts/scope.py capture --host <ip> --channels 1,2 --points 10000 --out captures/run.csv --json
-scripts/scope.py shot --host <ip> --out captures/run.png
+scripts/scope.py status --resource 'USB0::6833::1303::DS1ZE255216073::0::INSTR' --json
 ```
 
-Use numeric waveform files (CSV or JSON) as the primary evidence. A screenshot is a secondary aid for a human reader. A CSV file supports diff, statistics, and machine analysis.
+`status` returns the identification, the family, the timebase, the trigger and
+the per-channel settings. A field the instrument does not implement is `null`
+and listed under `unsupported`. That is not an error and needs no follow-up
+command. After this call the connection is remembered.
+
+### 4.2 Capture one event
+
+```bash
+scripts/scope.py arm --ch 1:0.5:0:10:DC --ch 2:1:0:10:DC \
+  --timebase 1e-3 --source 1 --level 1.5 --slope rising \
+  --channels 1,2 --measure vpp,vavg,freq \
+  --out evidence/run.csv --plot evidence/run.svg --shot evidence/run.png --json
+```
+
+`--ch` is `N[:scale[:offset[:probe[:coupling]]]]`, in volts and seconds. Omit a
+field and the instrument keeps its current value. `arm` applies the setup, arms
+one sequence, waits for the trigger (`--wait`), then captures, measures, checks
+signal quality and writes the files. When it times out it says so and does not
+save a meaningless record. Use `--mode normal` for a free-running read instead
+of a single sequence.
+
+### 4.3 Watch a signal over time
+
+```bash
+scripts/scope.py watch --channel 1 --items vavg,vmin,vmax \
+  --samples 20 --interval 0.5 --state --out evidence/vdd-decay.json
+```
+
+One connection, 20 samples. The JSON has every row plus min, median, max and
+mean per channel and item. This replaces a hand-written poll loop.
+
+### 4.4 Evidence
+
+Use numeric waveform files (CSV or JSON) as the primary evidence. A screenshot
+is a secondary aid for a human reader. A CSV file supports diff, statistics and
+machine analysis.
 
 ## 5. Intermittent faults: `monitor`
 
@@ -119,7 +173,7 @@ The `monitor` command does these steps:
 
 1. It applies the setup.
 2. It arms a single or sequence trigger.
-3. It polls `:TRIGger:STATe?` or `:ACQuire:STATE?`.
+3. It waits for the trigger state the driver reports.
 4. It writes `captures/<prefix>-NN.csv` and `.json` after a hit.
 5. It re-arms when you use `--auto-rearm`.
 
@@ -138,17 +192,26 @@ If a dialect has no pulse trigger, the command uses an edge trigger and writes a
 | `timebase` | Set the timebase. | `--scale`, `--offset` |
 | `trigger` | Set an edge trigger. | `--source`, `--level`, `--slope`, `--mode` |
 | `run` | Run, stop, single, or autoscale. | action |
-| `capture` | Capture a waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
+| `capture` | Read the current screen settings and waveform. | `--channels`, `--points`, `--out`, `--format`, `--single`, `--plot`, `--cache` |
+| `arm` | Set up, arm, wait, then capture, measure and save in one connection. | `--ch`, `--timebase`, `--source`, `--level`, `--measure`, `--out`, `--shot` |
+| `watch` | Measure the same signals repeatedly and summarize the trend. | `--channel`, `--items`, `--samples`, `--interval`, `--state` |
 | `measure` | Measure the signal. The skill calculates the value when the instrument cannot. | `--channel`, `--items` |
 | `shot` | Save a screenshot, or a waveform plot when no screen dump is available. | `--out` |
-| `scpi`, `query`, `write` | Send a raw SCPI command. | `--query` |
 | `monitor` | Watch for an event and write evidence. | See section 5. |
 | `analyze` | Analyze a CSV or NPZ file offline. | `--csv`, `--npz`, `--fft`, `--plot` |
 | `config` | Store default values. | `set`, `get`, `list`, `unset` |
 
-Connection options: `--host`, `--port 5025`, `--resource`, `--backend`, `--family`, `--timeout`, `--json`.
+Advanced knobs for a one-off change: `channel`, `timebase`, `trigger`, `run`.
+They are not part of the normal flow; `arm` applies the same settings and also
+captures the result.
 
-Start with `status`: it is read-only and needs one connection instead of `idn` + `channel` + `timebase` + `trigger` + `run`. Queries the instrument does not implement come back as `null` and are listed under `unsupported`.
+Connection options: `--host`, `--port 5025`, `--resource`, `--backend`. Give them
+once: the working endpoint is stored in the skill config and reused. `--family`,
+`--timeout` and `--json` apply to the current command only.
+
+Start with `status`: it is read-only and replaces a chain of individual reads.
+Queries the instrument does not implement come back as `null` and are listed
+under `unsupported`.
 
 WSL with an instrument only Windows can see: `scripts/scope.py --bridge windows status --json`. The command runs on the Windows interpreter with the same dialect code; add `--win-python C:\path\to\python.exe` (or set `SCOPE_WIN_PYTHON`) to pick a Windows venv that has pyvisa.
 
@@ -160,9 +223,9 @@ The `capture` command has two protection layers.
 
 If the waveform is empty or a timeout occurs, the command tries these steps in order:
 
-1. Send `*OPC?` and wait.
-2. Send `:RUN` and force a trigger.
-3. Run autoset. This step is optional and needs `--autoset-on-empty`.
+1. Wait for the instrument to finish the pending operation.
+2. Re-run the acquisition and force a trigger.
+3. Autoscale. This step is optional and needs `--autoset-on-empty`.
 
 The `recovery` field in the JSON output records each attempt and each action. Use `--no-recovery` to disable retries.
 
@@ -185,18 +248,21 @@ Use `--no-quality` to disable the checks. The `analyze` command applies the same
 
 By default, `capture` does all of these steps in one command:
 
-1. Capture the waveform.
+1. Read the waveform.
 2. Calculate the statistics.
 3. Run the signal-quality checks.
 4. Calculate the FFT, the harmonics, and the THD.
 5. Classify the waveform: sine, square, triangle, sawtooth, pulse, or DC.
 6. Write an SVG plot when you use `--plot`.
 
+Use `arm` when the setup is part of the question, and `capture` when the
+instrument is already set up and you only want the data.
+
 ```bash
-# Single-shot capture: arm, wait for the trigger, read, analyze.
+# Single-shot read: arm, wait for the trigger, read, analyze.
 scripts/scope.py capture --single 3 --points 2000 --json
 
-# Capture only. This is faster.
+# Read only. This is faster.
 scripts/scope.py capture --single 3 --no-analyze --json
 ```
 
@@ -227,7 +293,7 @@ scripts/scope.py analyze --npz run.npz --fft --plot run-an.svg
 ## 10. Safety
 
 - `channel`, `timebase`, `trigger`, `run`, and `autoscale` change the live state of the instrument. Use read-only commands first unless the user asks for a change.
-- Read the old value before you write a new value (`scpi "...?" --query`). You can then restore the old value.
+- Read `status --json` before you write. Keep that output so you can restore the old values.
 - For high-impedance or high-voltage signals, check the probe attenuation and the coupling first. Do not assume a 10x probe.
 - `monitor` re-arms the trigger and can stop the acquisition. Make sure that this action does not disturb the waveform that the user is watching.
 - A screenshot or a long capture can occupy the front panel. Restore the original settings before you finish.
@@ -240,14 +306,30 @@ Read `references/troubleshooting.md` for connection failures, USBTMC permissions
 
 ```text
 scripts/scope.py                  stable entry point (arguments and compatibility exports)
-scripts/scopescpi/common.py       configuration, output, block and frame parsers
-scripts/scopescpi/transport.py    socket, pyvisa, usbtmc
-scripts/scopescpi/dialects/       one module per family, registry, auto-detection
+scripts/scopescpi/cli.py          intent verbs (status, arm, watch, capture, monitor)
+scripts/scopescpi/dialects/       driver layer: one module per family, the only place with SCPI
 scripts/scopescpi/acquisition.py  scaling, statistics, measurement fallback
-scripts/scopescpi/cli.py          subcommands
+scripts/scopescpi/transport.py    socket, pyvisa, usbtmc
+scripts/scopescpi/common.py       configuration, output, block and frame parsers
+scripts/scopescpi/quality.py      signal-quality checks
+scripts/scopescpi/analysis.py     FFT, harmonics, classification, plots
 ```
 
-Old scripts can call `scripts/scope.py` as before. To reuse the internal API, import it directly:
+**Adding a capability.** Keep the interface at the intent level:
+
+1. Add the verb to `cli.py`. It must complete on one connection and return
+   values, `null` and evidence paths, not commands.
+2. Add the mapping to the dialects. If a family cannot do it, return `None` or
+   an empty list so the verb degrades instead of failing.
+3. Add a test with the mock instrument. Assert the number of connections and
+   the shape of the answer, not the vendor string.
+4. Document the verb in the table above. Do not document its commands.
+
+A raw-command escape hatch exists for maintainers, but it is not part of the
+documented interface and no workflow may depend on it.
+
+Old scripts can call `scripts/scope.py` as before. To reuse the internal API,
+import it directly:
 
 ```python
 from scopescpi.dialects import RigolDialect

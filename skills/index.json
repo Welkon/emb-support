@@ -53,7 +53,7 @@
     {
       "name": "oscilloscope",
       "path": "./oscilloscope",
-      "description": "Control bench oscilloscopes over LAN (SCPI socket) or USB (USBTMC/VISA) from any brand — Rigol, Keysight/Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa and generic SCPI instruments. Use this skill whenever the user mentions an oscilloscope, scope, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe/channel configuration, screen capture, 示波器 / 抓波形 / 看波形 / 调触发 / 测频率 / 截图, or asks to inspect a signal on real hardware — even if they do not name the brand. Also use it for intermittent-fault monitoring (arm, wait, capture evidence) and for analyzing exported waveform CSV files.",
+      "description": "Control bench oscilloscopes over LAN (SCPI socket) or USB (USBTMC/VISA) from any brand — Rigol, Keysight/Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa and generic SCPI instruments. Use this skill whenever the user mentions an oscilloscope, scope, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe/channel configuration, screen capture, 示波器 / 抓波形 / 看波形 / 调触发 / 测频率 / 截图, or asks to inspect a signal on real hardware — even if they do not name the brand. Also use it for intermittent-fault monitoring (arm, wait, capture evidence) and for analyzing exported waveform CSV files. Bench questions are answered one intent per command (status, arm, watch, capture, monitor); the caller never composes SCPI.",
       "detect": {
         "project_files": [
           "*.wfm",

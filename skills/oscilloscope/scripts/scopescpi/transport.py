@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from .common import HOME, block_bounds, die, is_block, load_config, parse_block
+from .common import HOME, block_bounds, die, is_block, load_config, parse_block, save_config
 from .wsl import ensure_scope_attached, is_wsl
 
 class SocketInstrument:
@@ -243,7 +243,44 @@ def _list_resources(backend):
         return []
 
 
+def _remember_instance(inst) -> None:
+    """Persist the connection that worked, so later commands need no flags.
+
+    Repeating `--resource USB0::...` on every command was the single most
+    common source of noise on the bench: the agent had to copy a long string
+    into every invocation, and one typo cost a whole round trip.
+    """
+    resource = getattr(inst, "resource", None) or ""
+    if "::SOCKET" in resource:
+        parts = resource.split("::")
+        try:
+            port = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        cfg = load_config()
+        cfg.pop("resource", None)
+        cfg["host"], cfg["port"] = parts[1], port
+    elif "::INSTR" in resource:
+        cfg = load_config()
+        cfg.pop("host", None)
+        cfg.pop("port", None)
+        cfg["resource"] = resource
+    else:
+        return
+    try:
+        save_config(cfg)
+    except OSError:
+        pass
+
+
 def connect(a):
+    inst = _connect(a)
+    if getattr(a, "resource", None) or getattr(a, "host", None):
+        _remember_instance(inst)
+    return inst
+
+
+def _connect(a):
     cfg = load_config()
     resource = getattr(a, "resource", None) or cfg.get("resource")
     host = getattr(a, "host", None) or cfg.get("host")

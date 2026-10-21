@@ -134,3 +134,8 @@ class Dialect:
         meta = self.parse_preamble(text)
         raw = inst.query_block(self.data_query())
         return meta, raw
+
+    def to_volts(self, raw, meta: dict) -> list[float]:
+        """Scaled samples. Families with an unusual preamble override this."""
+        yincr, yorig, yref = meta["yincr"], meta["yorig"], meta["yref"]
+        return [(float(b) - yref) * yincr + yorig for b in raw]

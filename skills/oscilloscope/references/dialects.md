@@ -1,8 +1,15 @@
 # Dialects and command differences
 
-The skill uses a dialect class for each instrument family. The `idn` command selects the dialect automatically. Use `--family` to select a dialect manually.
+This is driver documentation. Workflows use intent verbs (`status`, `arm`,
+`watch`, `capture`, `monitor`) and never compose commands from this file.
 
-To send a command that the dialect layer does not support, use the `scpi` command:
+If an intent needs something a driver does not implement, add a method to the
+dialect (and a verb if it is a new question). Do not add a raw command to a
+workflow: that is how the skill became expensive to use, with one connection
+and one approval per SCPI line.
+
+A maintainer escape hatch exists for probing an unknown instrument. It is not
+part of the documented interface:
 
 ```bash
 scripts/scope.py scpi --host <ip> "<SCPI command>" --query
@@ -37,7 +44,7 @@ The Tektronix dialect maps pulse-width trigger commands:
 :TRIGger:A:PULse:POLarity POSitive|NEGative
 ```
 
-Other families use an edge trigger and write a warning. Use `scpi` to send a vendor-specific pulse trigger command.
+Other families use an edge trigger and write a warning. Add a pulse-trigger method to the driver when a family needs one.
 
 ## Waveform transfer
 
