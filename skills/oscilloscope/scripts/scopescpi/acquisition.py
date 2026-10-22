@@ -245,4 +245,11 @@ def acquire_with_recovery(inst, dialect, channels, points,
             log.append({"attempt": attempt + 1,
                         "issue": f"{type(last).__name__}: {last}",
                         "recovery": step})
-    raise last if last else RuntimeError("acquisition failed")
+    if last is not None:
+        text = str(last)
+        if "TMO" in text or "timeout" in text.lower():
+            raise RuntimeError(
+                f"{last}. The waveform transfer timed out: retry with "
+                "--acquire normal --points 1200 --timeout 30") from last
+        raise last
+    raise RuntimeError("acquisition failed")

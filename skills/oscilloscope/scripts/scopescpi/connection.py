@@ -86,7 +86,7 @@ def resolve(a) -> Connected:
     resource = explicit_resource or cfg.get("resource")
     host = explicit_host or cfg.get("host")
     port = int(getattr(a, "port", None) or cfg.get("port") or 5025)
-    timeout = float(getattr(a, "timeout", None) or cfg.get("timeout") or 5.0)
+    timeout = float(getattr(a, "timeout", None) or cfg.get("timeout") or 10.0)
     backend = getattr(a, "backend", None) or cfg.get("backend")
     no_auto_attach = (getattr(a, "no_auto_attach", False)
                       or os.environ.get("SCOPE_NO_AUTO_ATTACH") == "1")

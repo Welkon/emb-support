@@ -28,7 +28,8 @@ from .acquisition import (
 from .quality import check as check_quality
 from .analysis import advanced, classify, load_npz, spectrum
 from .evidence import Evidence
-from .plan import ChannelSetup, Executor, Plan, TriggerSetup, query_run_state
+from .plan import (ChannelSetup, Executor, Plan, TriggerSetup,
+                  acquire_mode_name, query_run_state)
 from .autofit import Adjustment, apply_to_plan, level_for, suggest
 from .timing import channel_timing
 from .result import Result
@@ -472,19 +473,6 @@ def _sweep_name(text):
     return None
 
 
-def _acquire_mode_name(text):
-    if not text:
-        return None
-    value = str(text).upper()
-    if "AVER" in value:
-        return "average"
-    if "PEAK" in value:
-        return "peak"
-    if "HRES" in value:
-        return "hires"
-    return "normal"
-
-
 def _channel_number(text):
     if not text:
         return None
@@ -511,7 +499,7 @@ def _snapshot_plan(data) -> Plan:
         timebase=_to_float(settings.get("timebase_scale")),
         timebase_offset=_to_float(settings.get("timebase_offset")),
         trigger=trigger,
-        acquire_mode=_acquire_mode_name(settings.get("acquire_type")),
+        acquire_mode=acquire_mode_name(settings.get("acquire_type")),
         averages=_to_int(settings.get("acquire_averages")),
         depth=settings.get("acquire_points") or None,
     )

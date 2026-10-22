@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from test_capture import base, run
 
 
@@ -85,3 +87,47 @@ def test_snapshot_save_writes_a_restorable_file(rigol, tmp_path):
     saved = json.loads(path.read_text())
     assert "settings" in saved and "channels" in saved
     assert set(saved["channels"]) == {"1", "2"}
+
+
+def test_capture_exports_in_normal_mode_then_restores(rigol, tmp_path):
+    rigol.acquire_type = "HRES"
+    p = run(base(rigol, "capture", "--channels", "1", "--json"), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    commands = rigol.commands
+    normal = commands.index(":ACQuire:TYPE NORMal")
+    data = next(i for i, c in enumerate(commands) if c.startswith(":WAVeform:DATA?"))
+    restored = max(i for i, c in enumerate(commands) if c == ":ACQuire:TYPE HRESolution")
+    assert normal < data < restored
+
+
+def test_an_explicit_acquire_mode_is_not_overridden(rigol, tmp_path):
+    rigol.acquire_type = "HRES"
+    p = run(base(rigol, "capture", "--channels", "1", "--acquire", "average", "--json"),
+            tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    commands = " ".join(rigol.commands)
+    assert ":ACQuire:TYPE AVERages" in commands
+    assert ":ACQuire:TYPE NORMal" not in commands
+    assert ":ACQuire:TYPE HRESolution" not in commands
+
+
+def test_arm_restores_the_ambient_acquire_mode(rigol, tmp_path):
+    rigol.acquire_type = "HRES"
+    p = run(base(rigol, "arm", "--wait", "1", "--json"), tmp_path / "home")
+    assert p.returncode == 0, p.stderr
+    commands = rigol.commands
+    normal = commands.index(":ACQuire:TYPE NORMal")
+    data = next(i for i, c in enumerate(commands) if c.startswith(":WAVeform:DATA?"))
+    restored = max(i for i, c in enumerate(commands) if c == ":ACQuire:TYPE HRESolution")
+    assert normal < data < restored
+
+
+def test_timeout_error_names_the_workaround(scope):
+    class SlowDialect:
+        def acquire(self, inst, ch, points):
+            raise RuntimeError("VI_ERROR_TMO (-1073807339): Timeout expired")
+
+    with pytest.raises(RuntimeError) as error:
+        scope.acquire_with_recovery(object(), SlowDialect(), [1], None, attempts=1)
+    assert "--acquire normal" in str(error.value)
+    assert "--points 1200" in str(error.value)

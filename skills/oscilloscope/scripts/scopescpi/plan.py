@@ -74,6 +74,20 @@ class ArmResult:
     warnings: list = field(default_factory=list)
 
 
+def acquire_mode_name(value: str | None) -> str | None:
+    """Map a driver string (NORMal, AVERages, HRESolution, PEAK) to a mode name."""
+    if not value:
+        return None
+    text = str(value).upper()
+    if "AVER" in text:
+        return "average"
+    if "PEAK" in text:
+        return "peak"
+    if "HRES" in text:
+        return "hires"
+    return "normal"
+
+
 def query_run_state(inst, dialect) -> bool | None:
     """True = stopped (event captured), False = running, None = unknown."""
     for query in dialect.state_queries():
@@ -224,10 +238,36 @@ class Executor:
 
     # -- read ----------------------------------------------------------
     def acquire(self, plan: Plan):
+        """Read the requested channels, restoring the ambient acquire mode.
+
+        Rigol DS1000Z transfers in HRES/PEAK mode can exceed the USB timeout
+        (seen on a real bench: 5 s default, 200 ms/div, HRES). Export in
+        normal mode and put the previous mode back, unless the caller asked
+        for a mode explicitly.
+        """
         if not plan.read:
             return {}, []
-        if plan.no_recovery:
-            return acquire_channels(self.session, self.dialect, plan.read, plan.points), []
-        return acquire_with_recovery(
-            self.session, self.dialect, plan.read, plan.points,
-            attempts=plan.attempts, allow_autoset=plan.autoset)
+        d, s = self.dialect, self.session
+        restore_mode = None
+        if plan.acquire_mode is None:
+            query = d.status_queries().get("acquire_type")
+            current = None
+            if query:
+                try:
+                    current = s.query(query).strip()
+                except Exception:  # noqa: BLE001
+                    current = None
+            if current and not current.upper().startswith("NORM"):
+                restore_mode = acquire_mode_name(current)
+                for command in d.acquire_mode("normal"):
+                    s.write(command)
+        try:
+            if plan.no_recovery:
+                return acquire_channels(s, d, plan.read, plan.points), []
+            return acquire_with_recovery(
+                s, d, plan.read, plan.points,
+                attempts=plan.attempts, allow_autoset=plan.autoset)
+        finally:
+            if restore_mode:
+                for command in d.acquire_mode(restore_mode):
+                    s.write(command)

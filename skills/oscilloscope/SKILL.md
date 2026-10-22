@@ -159,6 +159,12 @@ Acquisition and trigger shape the record as well:
 
 A feature the driver does not map returns a warning instead of a wrong command.
 
+Waveform export runs in `normal` acquisition mode and then restores the mode
+that was active. This avoids transfer timeouts in HRES/peak mode on a DS1000Z
+(seen at 200 ms/div with the default timeout). Pass `--acquire ...` explicitly
+when the acquisition mode is part of the measurement; an explicit mode is not
+overridden.
+
 `--timing 1,2` adds an edge-to-edge result between two captured channels:
 `delay` (signed mean), `skew` (standard deviation over pairs), `pair` counts and
 the matching `window_s`. `--timing-edge-a` and `--timing-edge-b` select rising or

@@ -23,6 +23,7 @@ class MockScope:
         self.commands = []
         self.samples = list(range(100))
         self.trigger_status = "STOP"
+        self.acquire_type = "NORM"
         if family == "tektronix":
             self.idn = "TEKTRONIX,TBS1102B,C012345,CFG100"
         else:
@@ -81,6 +82,8 @@ class MockScope:
                 return "2.0"
             if "TRIGGER:STAT" in u:
                 return self.trigger_status
+            if "ACQUIRE:TYPE" in u:
+                return self.acquire_type
             if "ACQUIRE:STATE" in u:
                 return "0"
             if "DISPLAY:DATA" in u:
