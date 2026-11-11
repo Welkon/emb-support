@@ -1,0 +1,292 @@
+{
+  "ide_version": "V2.00.16",
+  "parts": [
+    {
+      "id": "SC8F052",
+      "header": "data/include/sc8f052.h",
+      "sha256": "98e95bf21e72eaf42ffda9c9e777e593672297dade3a7dde2073f98207cce2f3",
+      "registers": 39,
+      "bits": 150
+    },
+    {
+      "id": "SC8F054",
+      "header": "data/include/SC8F054.h",
+      "sha256": "5f964ae1a42fc7a6fc40a631d4ee6ac4c9e82f71961c9d118734e4237ad60cf9",
+      "registers": 49,
+      "bits": 217
+    },
+    {
+      "id": "SC8F072",
+      "header": "data/include/SC8F072.h",
+      "sha256": "47cd3fe95102f1103fd60ef452d0aae4e7482fa8121187810041b3969c0d3589",
+      "registers": 55,
+      "bits": 244
+    },
+    {
+      "id": "SC8F073",
+      "header": "data/include/sc8f073.h",
+      "sha256": "943722175ce5c2f1784c73c717b682397134710a766905be9382d4cd83426ed5",
+      "registers": 71,
+      "bits": 312
+    },
+    {
+      "id": "SC8F074",
+      "header": "data/include/SC8F074.h",
+      "sha256": "1c4c912d67b84455d732377e4674fc6cf71fd3552aa4b0664d3b6ee370f420ad",
+      "registers": 89,
+      "bits": 0
+    },
+    {
+      "id": "SC8F076",
+      "header": "data/include/SC8F076.h",
+      "sha256": "d3c3ae36bff59b6cdb1000fcf6db9226cbe42dc96b07d33972c4ec478542a150",
+      "registers": 88,
+      "bits": 0
+    },
+    {
+      "id": "SC8F082",
+      "header": "data/include/SC8F082.h",
+      "sha256": "330fffea8a3cd9a99ff939ca602c8987b2ea062de9e5ecfb5fb091bfd348bfb1",
+      "registers": 73,
+      "bits": 312
+    },
+    {
+      "id": "SC8F083",
+      "header": "data/include/sc8f083.h",
+      "sha256": "3754ee4edb033be176dae4d8800bf2b1ccee7744b8e763fcc75f762909e0822c",
+      "registers": 76,
+      "bits": 335
+    },
+    {
+      "id": "SC8F092",
+      "header": "data/include/sc8f092.h",
+      "sha256": "6c843afbca822f01e7225c4a03c9499193e76301c236000c1cce6f6e530ec234",
+      "registers": 72,
+      "bits": 302
+    },
+    {
+      "id": "SC8F093",
+      "header": "data/include/sc8f093.h",
+      "sha256": "3a5958495f0763137166dd31dd569e633c6cc66dfc9bf49deb7ca6f8da16fac6",
+      "registers": 100,
+      "bits": 432
+    },
+    {
+      "id": "SC8F096",
+      "header": "data/include/SC8F096.h",
+      "sha256": "4807aa8e6609a39e596bbef19bba8ebfd6a4e83651226fc7765d74385e70a646",
+      "registers": 108,
+      "bits": 0
+    },
+    {
+      "id": "SC8F2792",
+      "header": "data/include/SC8F2792.h",
+      "sha256": "06a27a01621471c5d652e155424dc9f3c45b33522f22ec26649af4239ec73d67",
+      "registers": 44,
+      "bits": 167
+    },
+    {
+      "id": "SC8F279XB",
+      "header": "data/include/sc8f279xb.h",
+      "sha256": "e7cadfa62a8c8371ff4671f6f6f1647afac8d26f2213a1471e7f82f6795b45b2",
+      "registers": 53,
+      "bits": 210
+    },
+    {
+      "id": "SC8F2892",
+      "header": "data/include/SC8F2892.h",
+      "sha256": "c7f2461710daaf1b6c67e09699837b4be74ad6cc3e4c20516a528ad557398d4d",
+      "registers": 48,
+      "bits": 182
+    },
+    {
+      "id": "SC8F289XB",
+      "header": "data/include/sc8f289xb.h",
+      "sha256": "321a8fa538b49c19a9ea0cd4a075c905f890b0416c71ee3f08f820197f8aeae7",
+      "registers": 72,
+      "bits": 299
+    },
+    {
+      "id": "SC8F3715",
+      "header": "data/include/sc8f3715.h",
+      "sha256": "10c65ad306f3549e903e44ac2e2231b8af1c739c213b0f0d7f1e6ba10bd3f887",
+      "registers": 77,
+      "bits": 299
+    },
+    {
+      "id": "SC8F3762",
+      "header": "data/include/sc8f3762.h",
+      "sha256": "18339a2a7409d19202f7d150e2fd85dd61cb3ac7792632b7ee808f6078bf2dfc",
+      "registers": 77,
+      "bits": 299
+    },
+    {
+      "id": "SC8F5776",
+      "header": "data/include/SC8F5776.h",
+      "sha256": "99e3fe0e95bc415b2b29347694d93ec75c45929bccd6cc963536b1c6a58e098b",
+      "registers": 81,
+      "bits": 351
+    },
+    {
+      "id": "SC8F677X",
+      "header": "data/include/sc8f677x.h",
+      "sha256": "c8c0483bc3b2f55b311f9f608a70dec5a91cb5d2f1531122e6c9326021b363d3",
+      "registers": 57,
+      "bits": 180
+    },
+    {
+      "id": "SC8F677Y",
+      "header": "data/include/sc8f677y.h",
+      "sha256": "25ebb3e99e4f6ea49ac237f1af51aa01976ccfd2c8362e187b7530441c59d0cf",
+      "registers": 92,
+      "bits": 397
+    },
+    {
+      "id": "SC8F677Z",
+      "header": "data/include/sc8f677z.h",
+      "sha256": "8dc878e56840e0beeb8cc6d31da8e8228386e1daefb056147393994c8550235a",
+      "registers": 83,
+      "bits": 340
+    },
+    {
+      "id": "SC8F6796AD",
+      "header": "data/include/sc8f6796ad.h",
+      "sha256": "b73f02e2ff42fc932ce77741b6b5bdb6e350a0aca94005983d505147b23d5136",
+      "registers": 88,
+      "bits": 320
+    },
+    {
+      "id": "SC8F679X",
+      "header": "data/include/sc8f679x.h",
+      "sha256": "bbe7d1a4a76e6aedf558f90788c81cc0606265f4576e5b26b60c283b7e2ad002",
+      "registers": 100,
+      "bits": 429
+    },
+    {
+      "id": "SC8F6890",
+      "header": "data/include/sc8f6890.h",
+      "sha256": "e900b417fea141d286720fba29299103a963c94c627d17b554ad051a227fc1a2",
+      "registers": 82,
+      "bits": 359
+    },
+    {
+      "id": "SC8F8122",
+      "header": "data/include/SC8F8122.h",
+      "sha256": "b2c01811e512385799da5dab0ce7d937e12796117e0eb3c72be2a1df8216d530",
+      "registers": 31,
+      "bits": 93
+    },
+    {
+      "id": "SC8F8222",
+      "header": "data/include/sc8f8222.h",
+      "sha256": "4cd72d0479fcd784afc6a773c7f071bd814c9c1430fb6689700443a7025b3671",
+      "registers": 67,
+      "bits": 264
+    },
+    {
+      "id": "SC8P051",
+      "header": "data/include/SC8P051.h",
+      "sha256": "0e1435759420e69143d9528dcccdc0949e2ce67d71fb5b3cb71d2e705bbe3294",
+      "registers": 33,
+      "bits": 0
+    },
+    {
+      "id": "SC8P052",
+      "header": "data/include/sc8p052.h",
+      "sha256": "0c4a046ef88b378051c6a4aee7776141db174b3ae317fa14cca5b0b5423ea922",
+      "registers": 32,
+      "bits": 110
+    },
+    {
+      "id": "SC8P052C",
+      "header": "data/include/SC8P052C.h",
+      "sha256": "04ff93a3b3e7d11ef2eae5c29d4e5e68b2eeee32a5034d9e90e28722ae8af5be",
+      "registers": 32,
+      "bits": 0
+    },
+    {
+      "id": "SC8P054",
+      "header": "data/include/sc8p054.h",
+      "sha256": "cda89a73bc07929bb098aab6bc980fe74095a2f3b17be469d8c0e2f0ac55641f",
+      "registers": 43,
+      "bits": 179
+    },
+    {
+      "id": "SC8P062",
+      "header": "data/include/SC8P062.h",
+      "sha256": "136707f5e303b482c4810c5fadfb29eab261d5f5b0ec69fc94e7d2124b37609e",
+      "registers": 52,
+      "bits": 178
+    },
+    {
+      "id": "SC8P062BD",
+      "header": "data/include/SC8P062BD.h",
+      "sha256": "c62938b96aa3294e62f5bf4a5e8b015ce5156be64b20e4ec17bceb447f039adc",
+      "registers": 49,
+      "bits": 209
+    },
+    {
+      "id": "SC8P1712D",
+      "header": "data/include/SC8P1712D.h",
+      "sha256": "4115dde13d2b75733954b1c3ff2b25db197ba3336be3ae93a01b65b1c4c838ff",
+      "registers": 43,
+      "bits": 160
+    },
+    {
+      "id": "SC8P1712G",
+      "header": "data/include/SC8P1712G.h",
+      "sha256": "92efd8e17767130d143835dc83f67c645a3d4956b9d97ce41129df4022c8068b",
+      "registers": 49,
+      "bits": 209
+    },
+    {
+      "id": "SC8P1715",
+      "header": "data/include/SC8P1715.h",
+      "sha256": "52056e0fd2e8d33f095341724579f70083bf24e109d9c34524bdacc2bdfbcf76",
+      "registers": 43,
+      "bits": 118
+    },
+    {
+      "id": "SC8P171XE",
+      "header": "data/include/SC8P171xE.h",
+      "sha256": "c8ef6e26b80be64f29e97a5e23fd35cf6d90be80735c90e8d3ffba1d1deaa938",
+      "registers": 52,
+      "bits": 178
+    },
+    {
+      "id": "SC8P1762E",
+      "header": "data/include/SC8P1762E.h",
+      "sha256": "adca1a6e79f11878c764d9b970445d367c52da3a854afeba6e0da091b679ab42",
+      "registers": 43,
+      "bits": 160
+    },
+    {
+      "id": "SC8P8022AD",
+      "header": "data/include/sc8p8022ad.h",
+      "sha256": "d7be2c6de5f928f5bfa4a34a237bfa6c4113e7cff963119b7b0ae3bf191d4f86",
+      "registers": 43,
+      "bits": 142
+    },
+    {
+      "id": "SC8P8022D",
+      "header": "data/include/SC8P8022D.h",
+      "sha256": "2493cf1996fa86a3312a50c20ff2d01fd30f0feb464202509fed1b87a6e28cef",
+      "registers": 44,
+      "bits": 159
+    },
+    {
+      "id": "SC8P8122AD",
+      "header": "data/include/sc8p8122ad.h",
+      "sha256": "e4439dee5e41a96a9c6492230802a9a913054b43e5c19204a683d660aa9a32e6",
+      "registers": 43,
+      "bits": 142
+    },
+    {
+      "id": "SC8S5706",
+      "header": "data/include/SC8S5706.h",
+      "sha256": "119d6ca6844f062b18003b8dd2d96d807d86eb78603da84b5860c9412d376c6c",
+      "registers": 81,
+      "bits": 351
+    }
+  ]
+}

@@ -127,6 +127,112 @@ function runAltiumSkillTests() {
 }
 
 
+function runScmcuMapTests() {
+  const script = path.resolve(
+    __dirname,
+    '..',
+    'skills',
+    'mcu-debug',
+    'scripts',
+    'scmcu',
+    'sfr_extract.py'
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-support-scmcu-'));
+  const include = path.join(root, 'include');
+  const out = path.join(root, 'out');
+  fs.mkdirSync(include, { recursive: true });
+
+  const header = (registers, bits) =>
+    [
+      '#ifndef TEST_H',
+      '#define TEST_H',
+      '',
+      ...registers.map(([name, address]) => `volatile \tunsigned char \t${name}\t\t@\t${address};`),
+      '',
+      ...bits.map(([name, register, index]) => `volatile \t bit \t ${name}\t @ ((unsigned)&${register}*8)+${index};`),
+      '',
+      '#endif',
+      ''
+    ].join('\n');
+
+  fs.writeFileSync(
+    path.join(include, 'SC8T001.h'),
+    header(
+      [
+        ['PORTB', '0x06'],
+        ['TRISB', '0x05']
+      ],
+      [
+        ['RB0', 'PORTB', 0],
+        ['RB1', 'PORTB', 1]
+      ]
+    ),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(include, 'SC8T002.h'),
+    header(
+      [
+        ['PORTC', '0x106'],
+        ['TRISC', '0x105']
+      ],
+      [['RC0', 'PORTC', 0]]
+    ),
+    'utf8'
+  );
+
+  const run = args =>
+    childProcess.spawnSync('python3', [script, ...args], { encoding: 'utf8' });
+
+  let result = run(['--include-dir', include, '--out-dir', out, '--ide-version', 'TEST']);
+  if (result.error && result.error.code === 'ENOENT') {
+    logResult('scmcu map extractor', 'skip', 'python3 not found');
+    skipped++;
+    return;
+  }
+  const problems = [];
+  if (result.status !== 0) problems.push('generate failed: ' + (result.stderr || '').trim());
+  const plain = fs.existsSync(path.join(out, 'SC8T001.md'))
+    ? fs.readFileSync(path.join(out, 'SC8T001.md'), 'utf8')
+    : '';
+  const banked = fs.existsSync(path.join(out, 'SC8T002.md'))
+    ? fs.readFileSync(path.join(out, 'SC8T002.md'), 'utf8')
+    : '';
+  if (!plain.includes('`RB0`')) problems.push('bit column missing');
+  if (!plain.includes('Addressing: 8-bit')) problems.push('8-bit addressing not reported');
+  if (!banked.includes('0x106')) problems.push('banked address truncated');
+  if (!banked.includes('banked')) problems.push('banked addressing not reported');
+  const index = fs.existsSync(path.join(out, 'index.json'))
+    ? JSON.parse(fs.readFileSync(path.join(out, 'index.json'), 'utf8'))
+    : { parts: [] };
+  if (index.parts.length !== 2) problems.push('index has ' + index.parts.length + ' parts');
+
+  result = run(['--check', '--include-dir', include, '--out-dir', out]);
+  if (result.status !== 0) problems.push('check on a fresh map failed');
+
+  fs.appendFileSync(path.join(out, 'SC8T001.md'), '\nstale\n');
+  result = run(['--check', '--include-dir', include, '--out-dir', out]);
+  if (result.status === 0) problems.push('check accepted a stale file');
+
+  fs.writeFileSync(
+    path.join(include, 'SC8T003.h'),
+    header([['PORTD', '0x07']], [['RD0', 'PORTD', 8]]),
+    'utf8'
+  );
+  result = run(['--include-dir', include, '--out-dir', out, '--only', 'SC8T003']);
+  if (result.status === 0) problems.push('accepted a bit index above 7');
+  if (!(result.stderr || '').includes('index 8')) problems.push('bit index error not explained');
+
+  if (problems.length === 0) {
+    logResult('scmcu map extractor', 'pass', '2 parts, banked addresses, drift and validation');
+    passed++;
+  } else {
+    logResult('scmcu map extractor', 'fail', problems.join('; '));
+    failed++;
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 function runAllTests() {
   console.log('emb-support checks\n');
 
@@ -135,6 +241,9 @@ function runAllTests() {
 
   console.log('\naltium-pcb:');
   runAltiumSkillTests();
+
+  console.log('\nscmcu map:');
+  runScmcuMapTests();
 
   console.log('\n---');
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);
