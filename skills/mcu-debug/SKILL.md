@@ -29,6 +29,7 @@ Do this step first. The three toolchains are independent.
 | Prescaler/period arithmetic, ADC code, comparator threshold, LVDC level, charger current step, register field layout | `references/sources/calculators.md` and the matching `references/sources/<chip>-registers.md`. |
 | GPIO, pin direction, pull-up, open-drain, interrupt-on-change, analog select | The matching `references/sources/<chip>-gpio.md`. |
 | Padauk mini-C, `PAC`/`PAPH`/`PADIER`, `$ PA.0 out,high`, `.ADJUST_IC` | `references/sources/padauk-pms15x-gpio.md`. |
+| Padauk register address, usable-bit mask, RAM/ROM budget for any part | `references/sources/padauk/<PART>.md` (generated map) and `references/sources/padauk/index.json`. |
 | Register name, address, or bit position for any SC8 part | `references/sources/scmcu/<PART>.md` (generated map) and `references/sources/scmcu/index.json`. |
 
 Do not apply the CACHIP or XC8 flow to an ARM target. Do not connect pyOCD to a CA51 or PIC target.
@@ -38,10 +39,10 @@ Do not apply the CACHIP or XC8 flow to an ARM target. Do not connect pyOCD to a 
 PMB180B, SC8F072 and
 the TQ322 part, the SC8P062B sleep/wake pattern, and `calculators.md` with the
 formulae the removed `.cjs` calculators used. `references/sources/scmcu/` holds
-generated register maps for 41 SC8 parts; see its `README.md` for the address
-encoding and the regeneration command. Read the formula, compute the
-value, then write the register. Confirm the formula against the register summary
-before you rely on it.
+generated register maps for 41 SC8 parts, and `references/sources/padauk/` for
+127 PADAUK parts; each `README.md` explains its encoding and regeneration
+command. Read the formula, compute the value, then write the register. Confirm
+the formula against the register summary before you rely on it.
 
 ## 0.1 Probe task routing
 

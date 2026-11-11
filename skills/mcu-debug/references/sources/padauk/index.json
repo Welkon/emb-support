@@ -1,0 +1,1021 @@
+{
+  "ide_version": "1.05",
+  "parts": [
+    {
+      "id": "AT_ISP_ICE",
+      "file": "INC_PDK/AT_ISP_ICE.INC",
+      "sha256": "7ed112a848a1248221ee29e05118fd69ecca01e79c2f658e94f291c0b34ebdbd",
+      "registers": 14,
+      "rom_size": null,
+      "ram_size": null
+    },
+    {
+      "id": "EV_3",
+      "file": "INC_PDK/EV_3.INC",
+      "sha256": "bb687eeac83c16d2e9c25da3c685d8f7bfd5480d3d61fe7856fdc8522c360c84",
+      "registers": 69,
+      "rom_size": "2000h",
+      "ram_size": "1E0h"
+    },
+    {
+      "id": "EV_5",
+      "file": "INC_PDK/EV_5.INC",
+      "sha256": "5d3dc20e7a8787d72d8c22087a4941615b2f326c850da20ad61b884ff9f017ff",
+      "registers": 84,
+      "rom_size": "0F00h",
+      "ram_size": "0F0h"
+    },
+    {
+      "id": "MF520",
+      "file": "INC_PDK/MF520.INC",
+      "sha256": "cfdcb43101c47c511f4f8f93f676df67d0d567f2ff6b8b3a817575207cf4165e",
+      "registers": 26,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "MF610",
+      "file": "INC_PDK/MF610.INC",
+      "sha256": "cfdcb43101c47c511f4f8f93f676df67d0d567f2ff6b8b3a817575207cf4165e",
+      "registers": 26,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "MF610B",
+      "file": "INC_PDK/MF610B.INC",
+      "sha256": "cfdcb43101c47c511f4f8f93f676df67d0d567f2ff6b8b3a817575207cf4165e",
+      "registers": 26,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "MF616",
+      "file": "INC_PDK/MF616.INC",
+      "sha256": "cfdcb43101c47c511f4f8f93f676df67d0d567f2ff6b8b3a817575207cf4165e",
+      "registers": 26,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "PDK82C12",
+      "file": "INC_PDK/PDK82C12.INC",
+      "sha256": "6aac36c681eeca5e9634dfe94b5f8c31f70a56a678c1af664ebd2a0a68e4876d",
+      "registers": 27,
+      "rom_size": "800h",
+      "ram_size": "0C0h"
+    },
+    {
+      "id": "PDK82C13",
+      "file": "INC_PDK/PDK82C13.INC",
+      "sha256": "6aac36c681eeca5e9634dfe94b5f8c31f70a56a678c1af664ebd2a0a68e4876d",
+      "registers": 27,
+      "rom_size": "800h",
+      "ram_size": "0C0h"
+    },
+    {
+      "id": "PES501",
+      "file": "INC_PDK/PES501.INC",
+      "sha256": "ebbf0e0edc0744795397f49f936d05b5d1777de0d953701640291fd7d715acda",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PES502C",
+      "file": "INC_PDK/PES502C.INC",
+      "sha256": "1dbbc34c13eafd212b4d3b068fedc2a2fadf14a3e7a85046b5ed5e190868e359",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PES503",
+      "file": "INC_PDK/PES503.INC",
+      "sha256": "2f36baaadbb209b08402b4448f0be16b5c95976f39f4f601f3ef64252fbca23d",
+      "registers": 31,
+      "rom_size": "800h",
+      "ram_size": "0xA0"
+    },
+    {
+      "id": "PFB190",
+      "file": "INC_PDK/PFB190.INC",
+      "sha256": "841b631daf9c164a3c328dded035fee632ad49d15fe04eeca4a418d3b29afcb0",
+      "registers": 44,
+      "rom_size": "0C00h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFC151",
+      "file": "INC_PDK/PFC151.INC",
+      "sha256": "56017c4f9350b5abb3c488f6bcae858d64af5ef0178b2f5e17ab35acec032ced",
+      "registers": 31,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFC154",
+      "file": "INC_PDK/PFC154.INC",
+      "sha256": "ccfabb39ccf44eb07935a5a9bc463773eb4a59e23d477ad472ecdf287e5e52f4",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFC161",
+      "file": "INC_PDK/PFC161.INC",
+      "sha256": "d97b175a21b3a6754db1931e61a71e2bf2352a20ea3b0b69d024a2004784002a",
+      "registers": 40,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFC232",
+      "file": "INC_PDK/PFC232.INC",
+      "sha256": "d8283834fe99a5787c1ad7af09f7438e7afe6cb47e5ebb296e35142db94ca5c5",
+      "registers": 61,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFC460",
+      "file": "INC_PDK/PFC460.INC",
+      "sha256": "8f660a3932ec6709be752022a10234fc7ef172f6c5409013132a7896d8861ce3",
+      "registers": 104,
+      "rom_size": "1000h",
+      "ram_size": "0x200"
+    },
+    {
+      "id": "PFC886",
+      "file": "INC_PDK/PFC886.INC",
+      "sha256": "cfdcb43101c47c511f4f8f93f676df67d0d567f2ff6b8b3a817575207cf4165e",
+      "registers": 26,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "PFC887",
+      "file": "INC_PDK/PFC887.INC",
+      "sha256": "de64246bb9b7575a54bea2a05f82185386a00e861a893402eb39b312472eadec",
+      "registers": 34,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "PFC888",
+      "file": "INC_PDK/PFC888.INC",
+      "sha256": "2fcf030ebb48e57e8d780d07044e23acec4b0671bec7459a1a85b06db5b79120",
+      "registers": 34,
+      "rom_size": "1000h",
+      "ram_size": "(-0x20)"
+    },
+    {
+      "id": "PFS121",
+      "file": "INC_PDK/PFS121.INC",
+      "sha256": "6d41e3afa5ca4922b3964abf952a6f309d92d5bcdf8f0fa1e05f1780cbe925b5",
+      "registers": 33,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PFS122",
+      "file": "INC_PDK/PFS122.INC",
+      "sha256": "009c9c7334bb91c6129e338802e572d384907f6220f4b7bcbb32864341eba40f",
+      "registers": 34,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PFS122B",
+      "file": "INC_PDK/PFS122B.INC",
+      "sha256": "0e1401d06dd3e34b004284a8c10951e5dc7bc80513e3886335b4fa737dc09478",
+      "registers": 35,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PFS123",
+      "file": "INC_PDK/PFS123.INC",
+      "sha256": "9cae4629940f07705c26ae36fffaba2065f13eafdf339a2ab2729a4657e63186",
+      "registers": 50,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PFS123B",
+      "file": "INC_PDK/PFS123B.INC",
+      "sha256": "f50897ce7c14341da289106203ef5f4bc1fa3b772d6fe0fd15f54d84d703f989",
+      "registers": 50,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PFS132",
+      "file": "INC_PDK/PFS132.INC",
+      "sha256": "2cff160cb8a3d32e823256756eec1e1fe18a36e4fcae934aeb7cb343bcb91460",
+      "registers": 57,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFS154",
+      "file": "INC_PDK/PFS154.INC",
+      "sha256": "0a5e79efd6196d18b961eea6dd73b51bb66753c5e4e0679541f8122c3bcaa494",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PFS157",
+      "file": "INC_PDK/PFS157.INC",
+      "sha256": "76b21ca2ddd55ee213c3f7d48b57b48803d921d0aa6361eda4862a044e9495a8",
+      "registers": 45,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PFS172",
+      "file": "INC_PDK/PFS172.INC",
+      "sha256": "31fc684c23e62027132607137811bb48cd9fe6aca281535d38d99f0bbe36a60c",
+      "registers": 33,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PFS172B",
+      "file": "INC_PDK/PFS172B.INC",
+      "sha256": "31fc684c23e62027132607137811bb48cd9fe6aca281535d38d99f0bbe36a60c",
+      "registers": 33,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PFS173",
+      "file": "INC_PDK/PFS173.INC",
+      "sha256": "1a4ab136ae10a1bce654faba36a29f7b052a6b96037b2ac1b38c2dd813ea4c35",
+      "registers": 49,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PFS173B",
+      "file": "INC_PDK/PFS173B.INC",
+      "sha256": "1a4ab136ae10a1bce654faba36a29f7b052a6b96037b2ac1b38c2dd813ea4c35",
+      "registers": 49,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PFS252",
+      "file": "INC_PDK/PFS252.INC",
+      "sha256": "f881c2f28e1aee23af5a57f44d48eb22188de85e7fe418d131afa12188f30be2",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PGC134",
+      "file": "INC_PDK/PGC134.INC",
+      "sha256": "7a961b6f2098e4d6f979a267583ac68fa217b44e6bf0b7e1918bb9fd193de529",
+      "registers": 61,
+      "rom_size": "(-0x300)",
+      "ram_size": "0x100"
+    },
+    {
+      "id": "PGC152",
+      "file": "INC_PDK/PGC152.INC",
+      "sha256": "2bf1503b76683503fc16110020956a6690fe0dfe6cf73cdc499fbaa284ce6dfb",
+      "registers": 47,
+      "rom_size": "600h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PGR431",
+      "file": "INC_PDK/PGR431.INC",
+      "sha256": "3cc59a5c2fd4429f809e02f1ef9046d4e693e0fd55df3287c1b8d24d63f0e6f0",
+      "registers": 39,
+      "rom_size": "6000h",
+      "ram_size": "0x100"
+    },
+    {
+      "id": "PGS134",
+      "file": "INC_PDK/PGS134.INC",
+      "sha256": "7a961b6f2098e4d6f979a267583ac68fa217b44e6bf0b7e1918bb9fd193de529",
+      "registers": 61,
+      "rom_size": "(-0x300)",
+      "ram_size": "0x100"
+    },
+    {
+      "id": "PGS152",
+      "file": "INC_PDK/PGS152.INC",
+      "sha256": "2bf1503b76683503fc16110020956a6690fe0dfe6cf73cdc499fbaa284ce6dfb",
+      "registers": 47,
+      "rom_size": "600h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMB180",
+      "file": "INC_PDK/PMB180.INC",
+      "sha256": "dd9fa302bbdd72e6b71dfc8135bd2c097ac412388ee2544834037ef3e297aff5",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMB180B",
+      "file": "INC_PDK/PMB180B.INC",
+      "sha256": "7c9cd6a58a519ff64e275fbcd896773b423ac82732a743d86bf89663573ba686",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMB182",
+      "file": "INC_PDK/PMB182.INC",
+      "sha256": "d41e768017faaa650af9e15b87ef4a8ea7e4d066bc13e4e42f8ec210d116ba21",
+      "registers": 42,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "PMB182B",
+      "file": "INC_PDK/PMB182B.INC",
+      "sha256": "2bba263bcbfc2f070445d577b93094af50d897f913ac53d3120d07db8d86ef7c",
+      "registers": 42,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "PMB183",
+      "file": "INC_PDK/PMB183.INC",
+      "sha256": "75a407194d0270da894cbbe0793f2e0000fe4ee0388e19afbf7664b14f31d8dc",
+      "registers": 43,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMB183B",
+      "file": "INC_PDK/PMB183B.INC",
+      "sha256": "038589ea82a6f1693d2f1ed9edbbf03ef0949660b51ff8974d02c122bbe343de",
+      "registers": 43,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMC131",
+      "file": "INC_PDK/PMC131.INC",
+      "sha256": "72f0529ae2d1ce6b4bda5ba990b5b3fb05c693e4e54d806739317c94d79d8e37",
+      "registers": 32,
+      "rom_size": "600h",
+      "ram_size": "0x58"
+    },
+    {
+      "id": "PMC150",
+      "file": "INC_PDK/PMC150.INC",
+      "sha256": "f3a2c293b6d433939fb83435f2afca5bafc335e32c792af9d9b4d310cb954317",
+      "registers": 12,
+      "rom_size": "400h",
+      "ram_size": "0x3C"
+    },
+    {
+      "id": "PMC153",
+      "file": "INC_PDK/PMC153.INC",
+      "sha256": "d106c288fa291b1830f1d83e004615dac88f31fea4ed05cee587cf73ca3cc207",
+      "registers": 15,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMC156",
+      "file": "INC_PDK/PMC156.INC",
+      "sha256": "9ccab4daa5d29e589f842227dbb16a9ad5a0c852011e7d23cd6b35b779724724",
+      "registers": 16,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMC166",
+      "file": "INC_PDK/PMC166.INC",
+      "sha256": "82b32f1a6ccf72f045918b51ff555786a83eacf5655f4becde4984c12690c91a",
+      "registers": 16,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMC232",
+      "file": "INC_PDK/PMC232.INC",
+      "sha256": "4de3cfeed2807b70f5e774dac173ac20ed1136867ec0eb21df287a4cff1078fc",
+      "registers": 31,
+      "rom_size": "800h",
+      "ram_size": "0xA0"
+    },
+    {
+      "id": "PMC234",
+      "file": "INC_PDK/PMC234.INC",
+      "sha256": "dca54543ea0f5519e09b7deea7833524592fb5058b7e4831612239880acb2c26",
+      "registers": 36,
+      "rom_size": "1000h",
+      "ram_size": "0xD0"
+    },
+    {
+      "id": "PMC251",
+      "file": "INC_PDK/PMC251.INC",
+      "sha256": "5444ce2428c58590d409a2a2a5d403160c2c088a7a3c630e14b836dbad31e1ff",
+      "registers": 21,
+      "rom_size": "400h",
+      "ram_size": "60"
+    },
+    {
+      "id": "PMC271",
+      "file": "INC_PDK/PMC271.INC",
+      "sha256": "8172066c9dd78c1c6ba188929e70161af9f6ab9541c0a764380d8e04f2643eaf",
+      "registers": 25,
+      "rom_size": "400h",
+      "ram_size": "64"
+    },
+    {
+      "id": "PMC884",
+      "file": "INC_PDK/PMC884.INC",
+      "sha256": "2c32fc11d02e5df54c6617b1442104d76145d9341ee80af3ef1071eba413b97f",
+      "registers": 40,
+      "rom_size": "1000h",
+      "ram_size": "0xD0"
+    },
+    {
+      "id": "PML100",
+      "file": "INC_PDK/PML100.INC",
+      "sha256": "2b86d8ba81ad79c5b8a3417b33983934926013a403196709ac539ebab2a336dc",
+      "registers": 34,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PML100B",
+      "file": "INC_PDK/PML100B.INC",
+      "sha256": "63828c01e77ad8ae4d3c2f3e9afe4a8157d730ce73f9e6f01b50223c50daace8",
+      "registers": 34,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMR110",
+      "file": "INC_PDK/PMR110.INC",
+      "sha256": "99f95c4da760a64ce9a1c882ecce4daf9b95c663943d6d003508979f09693170",
+      "registers": 18,
+      "rom_size": "280h",
+      "ram_size": "0x20"
+    },
+    {
+      "id": "PMR210",
+      "file": "INC_PDK/PMR210.INC",
+      "sha256": "8e0e222e07021ed364b42f6789589b600e7f49aafa2b3973489a10d8eaabaef5",
+      "registers": 18,
+      "rom_size": "400h",
+      "ram_size": "0x20"
+    },
+    {
+      "id": "PMS120",
+      "file": "INC_PDK/PMS120.INC",
+      "sha256": "0e1401d06dd3e34b004284a8c10951e5dc7bc80513e3886335b4fa737dc09478",
+      "registers": 35,
+      "rom_size": "0800h",
+      "ram_size": "0x080"
+    },
+    {
+      "id": "PMS121",
+      "file": "INC_PDK/PMS121.INC",
+      "sha256": "2274c888fd226e56295fb119c58dc86c3f08ad9ce9815900c338fb9d208739e3",
+      "registers": 34,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS122",
+      "file": "INC_PDK/PMS122.INC",
+      "sha256": "3c459038b913de7e583ca362577df0794127645c96b3b9cebb97e519c67e8364",
+      "registers": 46,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PMS123",
+      "file": "INC_PDK/PMS123.INC",
+      "sha256": "9cae4629940f07705c26ae36fffaba2065f13eafdf339a2ab2729a4657e63186",
+      "registers": 50,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PMS130",
+      "file": "INC_PDK/PMS130.INC",
+      "sha256": "3af072e504e319ff7e1b2cde904bd84d7dba0e5fc0e0fdf1cc4d54fafccb6ac2",
+      "registers": 32,
+      "rom_size": "600h",
+      "ram_size": "0x58"
+    },
+    {
+      "id": "PMS131",
+      "file": "INC_PDK/PMS131.INC",
+      "sha256": "72f0529ae2d1ce6b4bda5ba990b5b3fb05c693e4e54d806739317c94d79d8e37",
+      "registers": 32,
+      "rom_size": "600h",
+      "ram_size": "0x58"
+    },
+    {
+      "id": "PMS132",
+      "file": "INC_PDK/PMS132.INC",
+      "sha256": "07e4f908e1d80fd3dab6e7a3feb730dcfabf0fdc063f2ae0ade2bf5892c9943e",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS132B",
+      "file": "INC_PDK/PMS132B.INC",
+      "sha256": "07e4f908e1d80fd3dab6e7a3feb730dcfabf0fdc063f2ae0ade2bf5892c9943e",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS132C",
+      "file": "INC_PDK/PMS132C.INC",
+      "sha256": "cc02fbd2f40a1282357c73819b4152f8fb4c1797ceafb1e8b5d475d2a8bffa63",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS132K",
+      "file": "INC_PDK/PMS132K.INC",
+      "sha256": "da9fd50e6010bbb019099a4de51e16689b334f056885ac5512bab22965cf50fa",
+      "registers": 54,
+      "rom_size": "1000h",
+      "ram_size": "080h"
+    },
+    {
+      "id": "PMS133",
+      "file": "INC_PDK/PMS133.INC",
+      "sha256": "0018226aab8a12b74e5e36d3d6d9e9e67cf45171964de899f941be1225e49dd4",
+      "registers": 57,
+      "rom_size": "1000h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PMS134",
+      "file": "INC_PDK/PMS134.INC",
+      "sha256": "d7f2153f632561cd8a66219408b5d48a2b418895b759a57add7565340d8e3343",
+      "registers": 59,
+      "rom_size": "1000h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PMS134G",
+      "file": "INC_PDK/PMS134G.INC",
+      "sha256": "ede538e4964fc9fe1e0eb4d2fc2a74fe793f91a6d6081ea3fd1fa6b52788ac0d",
+      "registers": 56,
+      "rom_size": "1000h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "PMS150",
+      "file": "INC_PDK/PMS150.INC",
+      "sha256": "f3a2c293b6d433939fb83435f2afca5bafc335e32c792af9d9b4d310cb954317",
+      "registers": 12,
+      "rom_size": "400h",
+      "ram_size": "0x3C"
+    },
+    {
+      "id": "PMS150B",
+      "file": "INC_PDK/PMS150B.INC",
+      "sha256": "c822a57a058f36c396a06911bbb3a68d581b279069bb14bc63b2ab318ed73559",
+      "registers": 12,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS150C",
+      "file": "INC_PDK/PMS150C.INC",
+      "sha256": "b0c9d485fd63026a71427d04ab7a0755a54e072561316d338b344cec2319ec80",
+      "registers": 22,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS150G",
+      "file": "INC_PDK/PMS150G.INC",
+      "sha256": "a5be729d48e9b79bce8007991f47185eb04d0449fc03e49367066a7fbfcc2cbb",
+      "registers": 23,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS152",
+      "file": "INC_PDK/PMS152.INC",
+      "sha256": "f01cf5ab5af7c9c472940c3b10791d50fe3fd733c5c7c5686678dd8f33275d40",
+      "registers": 36,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "PMS152E",
+      "file": "INC_PDK/PMS152E.INC",
+      "sha256": "41b9e96f0e8e37831f763b5b89bb037f0e86fc1d44f048f18561b71a718983b1",
+      "registers": 38,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS152G",
+      "file": "INC_PDK/PMS152G.INC",
+      "sha256": "77ef0133ff5f4908ee5cffd77036ac9aa1032b9066b6b39cfc76d2039e200ac4",
+      "registers": 36,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "PMS153",
+      "file": "INC_PDK/PMS153.INC",
+      "sha256": "d106c288fa291b1830f1d83e004615dac88f31fea4ed05cee587cf73ca3cc207",
+      "registers": 15,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS154",
+      "file": "INC_PDK/PMS154.INC",
+      "sha256": "abb84c4e30864293813320642824db5e033f597cbd35a1d6448b30d58f287add",
+      "registers": 36,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS154B",
+      "file": "INC_PDK/PMS154B.INC",
+      "sha256": "5bc5ad9d731bb6d7064e6fd4a7086b9287ce436b145ccaa7342561768fc18edb",
+      "registers": 36,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS154C",
+      "file": "INC_PDK/PMS154C.INC",
+      "sha256": "3e6755c7a8c519d93f280a14aea844cf1529f4b239867ffd574baee6da25147d",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS154G",
+      "file": "INC_PDK/PMS154G.INC",
+      "sha256": "536ef93725b9275dbe818bcacca77dab93d208cb268c067db8a2b95e69c765f6",
+      "registers": 46,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS155",
+      "file": "INC_PDK/PMS155.INC",
+      "sha256": "3c5a73edf22f5930620a0bc5c646ea51d161b514a34ae553538119cfea9b7634",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS155B",
+      "file": "INC_PDK/PMS155B.INC",
+      "sha256": "a4adfc1be1c6d700e6908e1e1080dafe864f3ff95ca83fab4e776cc21c9d0b7b",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS155C",
+      "file": "INC_PDK/PMS155C.INC",
+      "sha256": "a4adfc1be1c6d700e6908e1e1080dafe864f3ff95ca83fab4e776cc21c9d0b7b",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS156",
+      "file": "INC_PDK/PMS156.INC",
+      "sha256": "9ccab4daa5d29e589f842227dbb16a9ad5a0c852011e7d23cd6b35b779724724",
+      "registers": 16,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS15A",
+      "file": "INC_PDK/PMS15A.INC",
+      "sha256": "aceebb71840592bfdd9777078a4a95c6049de88420e31e10714ce8bcab443ee1",
+      "registers": 22,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS15B",
+      "file": "INC_PDK/PMS15B.INC",
+      "sha256": "94c4d39bc6df6859791741d78b7513fdbfb07549e156c6a6bd9f2bd3300f3a1e",
+      "registers": 23,
+      "rom_size": "400h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "PMS160",
+      "file": "INC_PDK/PMS160.INC",
+      "sha256": "8a8dfb02be3b7cca42e6f64269fc88434a5ca6b02e3369f04e20e79125a7998b",
+      "registers": 49,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS160B",
+      "file": "INC_PDK/PMS160B.INC",
+      "sha256": "1048e99a23abcf7b68b944dd9eb197653d6d22f3bb0fe70e6f254c847fed488c",
+      "registers": 39,
+      "rom_size": "600h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS161",
+      "file": "INC_PDK/PMS161.INC",
+      "sha256": "1a94777cf9b6b3ddb3a4802844cb980e4ad78b97e066812e520b748da06dc439",
+      "registers": 40,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS163",
+      "file": "INC_PDK/PMS163.INC",
+      "sha256": "85c4444d28096dc5877abcf667da2eca8b3597207f8be63a1ba423b2f43ce5f9",
+      "registers": 70,
+      "rom_size": "0A00h",
+      "ram_size": "0xA8"
+    },
+    {
+      "id": "PMS164",
+      "file": "INC_PDK/PMS164.INC",
+      "sha256": "644eb8c8bb84ee306e0b1fc561e7d6718e092e4f7d47eb2fa9caec9dbe63c10b",
+      "registers": 39,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS165C",
+      "file": "INC_PDK/PMS165C.INC",
+      "sha256": "a4adfc1be1c6d700e6908e1e1080dafe864f3ff95ca83fab4e776cc21c9d0b7b",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "PMS171",
+      "file": "INC_PDK/PMS171.INC",
+      "sha256": "f1f88b811b0fe3fe3d480311bf4238564a82b1805c90089208d9fa249c5aa97e",
+      "registers": 33,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS171B",
+      "file": "INC_PDK/PMS171B.INC",
+      "sha256": "0f652a88318c3ba7514b6f627d07c72e1132b891f1b6c70dec2cd128d3d3eb34",
+      "registers": 33,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS171C",
+      "file": "INC_PDK/PMS171C.INC",
+      "sha256": "0f652a88318c3ba7514b6f627d07c72e1132b891f1b6c70dec2cd128d3d3eb34",
+      "registers": 33,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "PMS232",
+      "file": "INC_PDK/PMS232.INC",
+      "sha256": "4de3cfeed2807b70f5e774dac173ac20ed1136867ec0eb21df287a4cff1078fc",
+      "registers": 31,
+      "rom_size": "800h",
+      "ram_size": "0xA0"
+    },
+    {
+      "id": "PMS234",
+      "file": "INC_PDK/PMS234.INC",
+      "sha256": "dca54543ea0f5519e09b7deea7833524592fb5058b7e4831612239880acb2c26",
+      "registers": 36,
+      "rom_size": "1000h",
+      "ram_size": "0xD0"
+    },
+    {
+      "id": "PMS271",
+      "file": "INC_PDK/PMS271.INC",
+      "sha256": "8172066c9dd78c1c6ba188929e70161af9f6ab9541c0a764380d8e04f2643eaf",
+      "registers": 25,
+      "rom_size": "400h",
+      "ram_size": "64"
+    },
+    {
+      "id": "PUD310",
+      "file": "INC_PDK/PUD310.INC",
+      "sha256": "e88188e49a86b724a58fc2925887d76e7e8c6c1cdc4f4a47ac18f9a803792c6d",
+      "registers": 28,
+      "rom_size": "600h",
+      "ram_size": "0x60"
+    },
+    {
+      "id": "XDM1301",
+      "file": "INC_PDK/XDM1301.INC",
+      "sha256": "fb7e2094dd980eeb9c5a9834b9712b7059083bdf8245a5ad446cf386288613cc",
+      "registers": 36,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "XDM2801",
+      "file": "INC_PDK/XDM2801.INC",
+      "sha256": "644eb8c8bb84ee306e0b1fc561e7d6718e092e4f7d47eb2fa9caec9dbe63c10b",
+      "registers": 39,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XDM3101",
+      "file": "INC_PDK/XDM3101.INC",
+      "sha256": "ce73feb3bd903dfd5c49120aad2b34c5fa38f4248921408e47fd8979032892e8",
+      "registers": 18,
+      "rom_size": "400h",
+      "ram_size": "0x20"
+    },
+    {
+      "id": "XDM4105",
+      "file": "INC_PDK/XDM4105.INC",
+      "sha256": "ed76c302ff83e457825b58a61bbb5d402e7264c4e73fa4b0a37224ebde251219",
+      "registers": 49,
+      "rom_size": "0C00h",
+      "ram_size": "(-0x10)"
+    },
+    {
+      "id": "XDM4109",
+      "file": "INC_PDK/XDM4109.INC",
+      "sha256": "53cc847819363f2312335d6ac81977bc6033ca1053bbd33607dbf1ecba680985",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XDM4110",
+      "file": "INC_PDK/XDM4110.INC",
+      "sha256": "80f02b31d8f838ce43fc471ccf46e631684cc28a72c546d769b15b11f03ef832",
+      "registers": 31,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XDM4232",
+      "file": "INC_PDK/XDM4232.INC",
+      "sha256": "a2f29c667f7ca369cf4ee9d558dbb3907dedc0961f8360f0437c3ab4373520ef",
+      "registers": 61,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XDM4684",
+      "file": "INC_PDK/XDM4684.INC",
+      "sha256": "8c9321a6cbd3014d57c880712eefaee2ca72ec376c49c8b92fdba7815a921b17",
+      "registers": 113,
+      "rom_size": "1000h",
+      "ram_size": "0x200"
+    },
+    {
+      "id": "XDT0164",
+      "file": "INC_PDK/XDT0164.INC",
+      "sha256": "883f37d2189db4dc6f67d0bb9a1fda0051e85f2354a23abf924559b9f5d0ba8b",
+      "registers": 39,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XFS155",
+      "file": "INC_PDK/XFS155.INC",
+      "sha256": "f6ee80d0530e95a8a20c075bae343b5be0971bba3306d1a14aa3a0b85da6be02",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XMS155",
+      "file": "INC_PDK/XMS155.INC",
+      "sha256": "f8d46adce1224534b17884f885b6535f75ad732e5b6c22ad3fb143cf075370db",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XN1210C",
+      "file": "INC_PDK/XN1210C.INC",
+      "sha256": "b9898684ac1d8407e951d5e884430e55cfec9eef2a25ff463cbd55ef15631bc8",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XN1320B",
+      "file": "INC_PDK/XN1320B.INC",
+      "sha256": "cc3224b8dd16352be018e8a528e3baa054d0563328d492c895eff45e7cc990c5",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "XN1320C",
+      "file": "INC_PDK/XN1320C.INC",
+      "sha256": "07e4f908e1d80fd3dab6e7a3feb730dcfabf0fdc063f2ae0ade2bf5892c9943e",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "YFC1614",
+      "file": "INC_PDK/YFC1614.INC",
+      "sha256": "fc215257e8cdcfc08dfd9907f5857e6faa46442ab1b834d867fa616539dfbc68",
+      "registers": 40,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "YFC4604",
+      "file": "INC_PDK/YFC4604.INC",
+      "sha256": "597653ecf8668431a817e3cfe17eb6e6a6f78a2022d73549d8701064f85199b8",
+      "registers": 104,
+      "rom_size": "1000h",
+      "ram_size": "0x200"
+    },
+    {
+      "id": "YFS1544",
+      "file": "INC_PDK/YFS1544.INC",
+      "sha256": "d3c886e4f1b3dc2fd14885b6a1e73f4ac4b0697230b6e7a2f4e2e5a90a8259b5",
+      "registers": 48,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "YMB1801",
+      "file": "INC_PDK/YMB1801.INC",
+      "sha256": "36e014d4fa37f06fa9cfed3441206280f7a9e0dac0c902a68afd66c78b3ebdd9",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "YMB1801B",
+      "file": "INC_PDK/YMB1801B.INC",
+      "sha256": "ebf459e5a8071a4be5aedfc05acc49b923625df16e7b0a0c9b4a83fc4a67996b",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "YMB1805",
+      "file": "INC_PDK/YMB1805.INC",
+      "sha256": "154048cba4a4602e8d2058463f1821952b6d5802f30058c93e3ef808b1138900",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "YMB1805B",
+      "file": "INC_PDK/YMB1805B.INC",
+      "sha256": "9e407a7239d2297020e35165f0cc5164d343c787161535a8bcd74f3596fa05d8",
+      "registers": 34,
+      "rom_size": "500h",
+      "ram_size": "0x40"
+    },
+    {
+      "id": "YMS1324",
+      "file": "INC_PDK/YMS1324.INC",
+      "sha256": "5ae47572f167a054dc44260bce246ee6767fdb3ad56413639ceca29c508112c7",
+      "registers": 55,
+      "rom_size": "800h",
+      "ram_size": "0x80"
+    },
+    {
+      "id": "YMS1524",
+      "file": "INC_PDK/YMS1524.INC",
+      "sha256": "9bfc4bfadfcf316037fd8632076dffc534037bf4ef9da0d18964deb304a5aa36",
+      "registers": 36,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    },
+    {
+      "id": "YMS1524B",
+      "file": "INC_PDK/YMS1524B.INC",
+      "sha256": "7ec8610efebe30f82d22caf032f608e07bfce3293c7065c0f24d2d91bf2b8ac0",
+      "registers": 36,
+      "rom_size": "500h",
+      "ram_size": "0x50"
+    }
+  ]
+}

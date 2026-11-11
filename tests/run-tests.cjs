@@ -233,6 +233,81 @@ function runScmcuMapTests() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function runPadaukMapTests() {
+  const script = path.resolve(
+    __dirname,
+    '..',
+    'skills',
+    'mcu-debug',
+    'scripts',
+    'padauk',
+    'inc_extract.py'
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-support-padauk-'));
+  const inc = path.join(root, 'INC_PDK');
+  const out = path.join(root, 'out');
+  fs.mkdirSync(inc, { recursive: true });
+  const incFile = (rom, registers) =>
+    [
+      '.Assembly\tINC_VER\t\t01',
+      `.Assembly\tROM_Size\t${rom}`,
+      '.Assembly\tRAM_Size\t0x40',
+      '',
+      ...registers,
+      ''
+    ].join('\n');
+
+  fs.writeFileSync(
+    path.join(inc, 'PMSX1.INC'),
+    incFile('400h', ['\tPA\t\tIO_RW\t\t0x10 : 0xF9', '\tPAC\t\tIO_RW\t\t0x11 : 0xF9']),
+    'utf8'
+  );
+  // A part that states the same name twice on purpose must keep both rows.
+  fs.writeFileSync(
+    path.join(inc, 'PMSX2.INC'),
+    incFile('800h', ['\tPB\t\tIO_RW\t\t0x13', '\tPB\t\tIO_RW\t\t0x14 : 0x83']),
+    'utf8'
+  );
+
+  const run = args => childProcess.spawnSync('python3', [script, ...args], { encoding: 'utf8' });
+  let result = run(['--inc-dir', inc, '--out-dir', out, '--ide-version', 'TEST']);
+  if (result.error && result.error.code === 'ENOENT') {
+    logResult('padauk map extractor', 'skip', 'python3 not found');
+    skipped++;
+    return;
+  }
+  const problems = [];
+  if (result.status !== 0) problems.push('generate failed: ' + (result.stderr || '').trim());
+  const plain = fs.existsSync(path.join(out, 'PMSX1.md'))
+    ? fs.readFileSync(path.join(out, 'PMSX1.md'), 'utf8')
+    : '';
+  const alias = fs.existsSync(path.join(out, 'PMSX2.md'))
+    ? fs.readFileSync(path.join(out, 'PMSX2.md'), 'utf8')
+    : '';
+  if (!plain.includes('`0xF9` (0, 3, 4, 5, 6, 7)')) problems.push('usable-bit mask not decoded');
+  if (!plain.includes('- ROM_Size: `400h`')) problems.push('memory budget missing');
+  if ((alias.match(/\| `PB` \|/g) || []).length !== 2) problems.push('conditional duplicate rows dropped');
+  const index = fs.existsSync(path.join(out, 'index.json'))
+    ? JSON.parse(fs.readFileSync(path.join(out, 'index.json'), 'utf8'))
+    : { parts: [] };
+  if (index.parts.length !== 2) problems.push('index has ' + index.parts.length + ' parts');
+
+  result = run(['--check', '--inc-dir', inc, '--out-dir', out]);
+  if (result.status !== 0) problems.push('check on a fresh map failed');
+  fs.appendFileSync(path.join(out, 'PMSX1.md'), '\nstale\n');
+  result = run(['--check', '--inc-dir', inc, '--out-dir', out]);
+  if (result.status === 0) problems.push('check accepted a stale file');
+
+  if (problems.length === 0) {
+    logResult('padauk map extractor', 'pass', '2 parts, masks, budgets, aliases, drift');
+    passed++;
+  } else {
+    logResult('padauk map extractor', 'fail', problems.join('; '));
+    failed++;
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 function runAllTests() {
   console.log('emb-support checks\n');
 
@@ -244,6 +319,9 @@ function runAllTests() {
 
   console.log('\nscmcu map:');
   runScmcuMapTests();
+
+  console.log('\npadauk map:');
+  runPadaukMapTests();
 
   console.log('\n---');
   console.log(`Passed: ${passed}  Failed: ${failed}  Skipped: ${skipped}`);
