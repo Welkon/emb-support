@@ -104,3 +104,31 @@ cell means the file states none.
 | `RET_DATA_D` | `0x7D` | RW | — |
 | `RET_DATA_E` | `0x7E` | RW | — |
 | `RET_DATA_F` | `0x7F` | RW | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION | 15 | `GPC_EDGE` | Both Rising Falling |
+| OPTION | 14 | `PB_47` | Normal High_Drive |
+| OPTION | 13 | `Bootup_Time` | Slow Fast |
+| OPTION | 12 | `TMx_PWM` | Rise Fall |
+| OPTION | 10 | `TMx_6BIT` | 6BIT 6BIT2 5BIT 4BIT |
+| OPTION | 9 | `INTEN_7` | TM3 PWMG2 |
+| OPTION | 6 | `LCD` | PA_1234 PB_1256 PB0_A034 PC67_PD01 Disable |
+| OPTION | 3 | `INTEN_4` | COMP PWMG1 |
+| OPTION | 0 | `LVR` | 4.0V 3.5V 3.0V 2.8V 2.5V 1.8V 2.2V 2.0V |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_DEFAULT 0x0107
+```

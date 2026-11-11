@@ -69,3 +69,61 @@ cell means the file states none.
 | `LPWMG2DTL` | `0x4F` | WO | `0xE0` (5, 6, 7) |
 | `ILRCR` | `0x62` | WO | — |
 | `BGTR` | `0x63` | RW | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_REG | ROP: 1 | `Interrupt_Src0` | PA.0 PB.5 |
+| OPTION_REG | ROP: 0 | `Interrupt_Src1` | PB.0 PA.4 |
+| OPTION_REG | ROP: 6 | `GPC_PWM` | Disable Enable |
+| OPTION_REG | ROP: 7 | `PWM_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 5 %5 | `TMx_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 4 | `TMx_Bit` | 6BIT 7BIT |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 8 | `PB4_PB5_Drive` | Normal Strong |
+| OPTION | 11 | `Bootup_Time` | Slow X X Fast |
+| OPTION_VIRTUAL:8 | — | `LVR` | ^4.5V 4.0V X 3.5V X X 3.0V 2.7V 2.5V X X 2.2V X 2.0V X 1.8V |
+| OPTION_REG | MISC2: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_REG | MISC2: | `=` | 0 |
+| OPTION_VIRTUAL (ICE) | — | `GPC_PWM` | Disable Enable |
+| OPTION_VIRTUAL (ICE) | %7 | `PWM_Source` | 16MHz 32MHz |
+| OPTION_VIRTUAL (ICE) | %5 | `TMx_Source` | 16MHz 32MHz |
+| OPTION_VIRTUAL (ICE) | %4 | `TMx_Bit` | 6BIT 7BIT |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `PB4_PB5_Drive` | Normal Strong |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION (ICE) | 0 | `LVR` | 4.5V|4.0V|3.75V 3.5V|3.3V|3.15V 3.0V 2.7V 2.5V|2.4V|2.3V 1.8V 2.2V|2.1V 2.0V|1.9V |
+| OPTION (ICE) | 15 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_REG (ICE) | OPR21: 2 %1 | `Interrupt_Src0` | PA.0 PB.5 |
+| OPTION_REG (ICE) | OPR21: | `0:1` | %0 Interrupt_Src1 PB.0 PA.4 |
+| OPTION_REG (ICE) | OPR2: 1 %7 | `PWM_Source` | 16MHz 32MHz |
+| OPTION_REG (ICE) | OPR2: 5 %5 | `TMx_Source` | 16MHz 32MHz |
+| OPTION_REG (ICE) | OPR2: 4 %4 | `TMx_Bit` | 6BIT 7BIT |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION_VIRTUAL:8 (ICE) | — | `LVR` | 4.5V 4.0V X 3.5V X X 3.0V 2.7V 2.5V X X 2.2V X 2.0V X 1.8V |
+| OPTION_REG (ICE) | OPR20: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 10, 15
+OPTION_DEFAULT 0x7AFD
+OPTION_REG (ICE) @0x2A	1	Interrupt_Src0	PA.0	PB.5
+OPTION_REG (ICE) @0x2A	0	Interrupt_Src1	PB.0	PA.4
+OPTION_DEFAULT (ICE) 0x0047
+OPTION_REG (ICE) GPC2PWM	@	GPC_PWM			Enable = 0xFF	Disable = 0
+OPTION_REG (ICE) PBHD	@	PB4_PB5_Drive	Normal = 0	Strong = 0x30
+OPTION_REG (ICE) OPR20	+0x06
+OPTION_LOW (ICE) 7 ~ 8, 12, 14
+OPTION_DEFAULT (ICE) 0xAE7F
+```

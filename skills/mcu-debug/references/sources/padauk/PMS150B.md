@@ -32,3 +32,32 @@ cell means the file states none.
 | `PAC` | `0x11` | RW | `0xF9` (0, 3, 4, 5, 6, 7) |
 | `PAPH` | `0x12` | RW | `0xD9` (0, 3, 4, 6, 7) |
 | `MISC` | `0x1B` | WO | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 2 | `LVR` | X X X 2.8V X X 2.2V 2.0V X X X X X Disable |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.8V 2.5V 1.8V|Disable 2.2V 2.0V |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_DEFAULT 0x0FDC
+OPTION_LOW 1, 12 ~ 15
+OPTION_DEFAULT 0x03DC
+OPTION_LOW 1, 10 ~ 15
+OPTION_HIGH (ICE) 8
+```

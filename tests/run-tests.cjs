@@ -259,7 +259,15 @@ function runPadaukMapTests() {
 
   fs.writeFileSync(
     path.join(inc, 'PMSX1.INC'),
-    incFile('400h', ['\tPA\t\tIO_RW\t\t0x10 : 0xF9', '\tPAC\t\tIO_RW\t\t0x11 : 0xF9']),
+    incFile('400h', [
+      '\t.Assembly\tOPTION\t2\tLVR\t4.0V\t3.5V',
+      '\t.Assembly\tOPTION_DEFAULT\t0x02FC',
+      '.Assembly\tICE_INSTR\tSYM_86A',
+      '\t.Assembly\tOPTION_DEFAULT\t0x0107',
+      '.Assembly\tEND_INSTR',
+      '\tPA\t\tIO_RW\t\t0x10 : 0xF9',
+      '\tPAC\t\tIO_RW\t\t0x11 : 0xF9'
+    ]),
     'utf8'
   );
   // A part that states the same name twice on purpose must keep both rows.
@@ -286,6 +294,8 @@ function runPadaukMapTests() {
     : '';
   if (!plain.includes('`0xF9` (0, 3, 4, 5, 6, 7)')) problems.push('usable-bit mask not decoded');
   if (!plain.includes('- ROM_Size: `400h`')) problems.push('memory budget missing');
+  if (!plain.includes('| OPTION | 2 | `LVR` | 4.0V 3.5V |')) problems.push('option row missing');
+  if (!plain.includes('OPTION_DEFAULT (ICE) 0x0107')) problems.push('ICE section not marked');
   if ((alias.match(/\| `PB` \|/g) || []).length !== 2) problems.push('conditional duplicate rows dropped');
   const index = fs.existsSync(path.join(out, 'index.json'))
     ? JSON.parse(fs.readFileSync(path.join(out, 'index.json'), 'utf8'))

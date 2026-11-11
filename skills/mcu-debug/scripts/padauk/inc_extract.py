@@ -32,6 +32,14 @@ REGISTER = re.compile(
 BUDGET = re.compile(
     r"^\s*\.Assembly\s+(RAM_Size|ROM_Size|FPPA_NUM|ASM_INSTR)\s+(\S+)", re.M
 )
+# `.Assembly OPTION 2 LVR 4.0V 3.5V ...`, with variants OPTION_HIDE,
+# OPTION_VIRTUAL[:n], OPTION_REG, OPTION_MISC2, OPTION_SKIP, OPTION_ROP.
+OPTION = re.compile(
+    r"^(\s*)(//)?\s*\.Assembly\s+((?:OPTION)[A-Z0-9_]*(?::\d+)?)\s*(.*?)\s*(?://.*)?$",
+    re.M,
+)
+BIT_SPEC = re.compile(r"^[0-9,~]+$")
+ROW_TOKENS = ("{", "}", "@", "+")
 
 
 class Problem(Exception):
@@ -56,6 +64,93 @@ def parse(path: pathlib.Path):
     registers.sort(key=lambda item: (item[1], item[0]))
     budget = {key: value for key, value in BUDGET.findall(text)}
     return registers, budget
+
+
+def parse_options(text: str):
+    """Split `.Assembly OPTION*` lines into readable rows and verbatim notes.
+
+    The `.INC` files use a dozen spellings and some lines are conditional inside
+    a `.OPTION_RULE` block. A row is produced only when the line has the plain
+    shape `kind [label] bits [%n] name values...`; everything else keeps its
+    original text so nothing is guessed.
+    """
+    rows: list[tuple[str, str, str, str]] = []
+    notes: list[str] = []
+    # Two things make an option line conditional. A `.OPTION_RULE { ... }` block
+    # holds rule-bound alternatives and has nested braces, so track depth. An
+    # `ICE_INSTR ... END_INSTR` section restates the options the in-circuit
+    # emulator exposes, which can differ in name, bits, or value list.
+    depth = 0
+    armed = False
+    in_ice = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if ".Assembly" in stripped and "ICE_INSTR" in stripped:
+            in_ice = True
+            continue
+        if ".Assembly" in stripped and "END_INSTR" in stripped:
+            in_ice = False
+            continue
+        if stripped.startswith(".OPTION_RULE"):
+            armed = True
+            continue
+        if armed:
+            depth += stripped.count("{") - stripped.count("}")
+            if depth <= 0 and "{" not in stripped and "}" in stripped:
+                armed = False
+                depth = 0
+        in_rule = armed and depth > 0
+        match = OPTION.match(line)
+        if not match:
+            continue
+        if match.group(2):
+            continue  # a commented-out alternative
+        kind = match.group(3)
+        rest = match.group(4)
+        marks = []
+        if in_ice:
+            marks.append("ICE")
+        if in_rule:
+            marks.append("rule")
+        if marks:
+            kind = f"{kind} ({', '.join(marks)})"
+        tokens = rest.split()
+        if not tokens:
+            continue
+        if any(token in ROW_TOKENS or token.startswith(ROW_TOKENS) for token in tokens):
+            notes.append(f"{kind} {rest}".strip())
+            continue
+        base = kind.split(":")[0]
+        if base in {"OPTION_DEFAULT", "OPTION_LOW", "OPTION_HIGH"}:
+            notes.append(f"{kind} {rest}".strip())
+            continue
+        if base.startswith("OPTION_VIRTUAL"):
+            percent = ""
+            if tokens and tokens[0].startswith("%"):
+                percent = tokens.pop(0)
+            if len(tokens) < 2:
+                notes.append(f"{kind} {rest}".strip())
+                continue
+            rows.append((kind, percent, tokens[0], " ".join(tokens[1:])))
+            continue
+        label = ""
+        if tokens and not BIT_SPEC.fullmatch(tokens[0]) and not tokens[0].startswith("%"):
+            label = tokens.pop(0)
+        bits = []
+        while tokens and BIT_SPEC.fullmatch(tokens[0]):
+            bits.append(tokens.pop(0))
+        percent = ""
+        if tokens and tokens[0].startswith("%"):
+            percent = tokens.pop(0)
+        if len(tokens) < 2:
+            notes.append(f"{kind} {rest}".strip())
+            continue
+        name = tokens.pop(0)
+        span = " ".join(filter(None, [" ".join(bits), percent]))
+        if label:
+            span = f"{label}: {span}".strip()
+        rows.append((kind, span or "—", name, " ".join(tokens)))
+    return rows, notes
 
 
 def mask_note(mask: int) -> str:
@@ -94,6 +189,35 @@ def render(part: str, path: pathlib.Path, digest: str, ide: str) -> str:
     for name, address, access, mask in registers:
         note = f"`0x{mask:02X}` ({mask_note(mask)})" if mask is not None else "—"
         lines.append(f"| `{name}` | `0x{address:02X}` | {access} | {note} |")
+
+    rows, notes = parse_options(path.read_text(errors="replace"))
+    if rows:
+        lines += [
+            "",
+            "## Configuration options",
+            "",
+            "`Bits` is the configuration-word bit the option occupies, as the file",
+            "states it; `%n` marks a virtual or shared encoding. `Values` is the",
+            "list the IDE offers, in the file's order.",
+            "",
+            "| Kind | Bits | Option | Values |",
+            "| --- | --- | --- | --- |",
+        ]
+        for kind, bits, name, values in rows:
+            lines.append(f"| {kind} | {bits or '—'} | `{name}` | {values} |")
+    if notes:
+        lines += [
+            "",
+            "## Configuration notes",
+            "",
+            "Verbatim `.Assembly` lines that are not a plain option row: the default",
+            "word, the low/high bit lists, register relocations, and conditional",
+            "entries.",
+            "",
+            "```",
+            *notes,
+            "```",
+        ]
     lines.append("")
     return "\n".join(lines)
 
@@ -171,6 +295,8 @@ def main() -> int:
         if not args.only:
             produced = {name.upper() for name in rendered}
             for path in sorted(args.out_dir.glob("*.md")):
+                if path.name == "README.md":
+                    continue
                 if path.name.upper() not in produced:
                     stale.append(f"{path.name} (no longer produced)")
         if stale:

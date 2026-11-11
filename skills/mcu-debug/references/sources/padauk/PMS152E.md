@@ -58,3 +58,45 @@ cell means the file states none.
 | `LPWMG1DTL` | `0x3D` | WO | `0xE0` (5, 6, 7) |
 | `LPWMG2DTH` | `0x3E` | WO | — |
 | `LPWMG2DTL` | `0x3F` | WO | `0xE0` (5, 6, 7) |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_VIRTUAL | — | `ICE_LPWM_INTR` | As_G01 As_G2 |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 6 | `EMI` | Enable Disable |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION_REG | MISC3: 0 %0 | `Interrupt_Src0` | PA.0 PA.5 |
+| OPTION_VIRTUAL:8 | — | `LVR` | 4.5V 4.0V 3.75V 3.5V 3.3V 3.15V 3.0V 2.7V 2.5V 2.4V 2.3V 2.2V 2.1V 2.0V |
+| OPTION_VIRTUAL (ICE) | %0 | `Interrupt_Src0` | PA.0 PA.5 |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `EMI` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.7V 2.5V 1.8V 2.2V 2.0V|2.4V|2.3V X 2.2V|2.1V 2.0V |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION (ICE) | 13 | `EMI` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION_VIRTUAL (ICE) | %0 | `Interrupt_Src0` | PA.0 PA.5 |
+| OPTION_VIRTUAL:8 (ICE) | — | `LVR` | 4.5V 4.0V 3.75V 3.5V 3.3V 3.15V 3.0V 2.7V 2.5V 2.4V 2.3V 2.2V 2.1V 2.0V |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 8, 13 ~ 15
+OPTION_DEFAULT 0x12FC
+OPTION_DEFAULT (ICE) 0x0107
+OPTION_REG (ICE) OPR20	+7
+OPTION_REG (ICE) PADIER	+0xF9
+OPTION_REG (ICE) PBDIER	+0
+OPTION_REG (ICE) PCDIER	+0
+OPTION_DEFAULT (ICE) 0xAE7F
+```

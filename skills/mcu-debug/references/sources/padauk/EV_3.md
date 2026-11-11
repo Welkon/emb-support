@@ -88,3 +88,25 @@ cell means the file states none.
 | `TM2C` | `0x3C` | RW | — |
 | `TM2CT` | `0x3D` | RW | — |
 | `GPCC` | `0x3E` | RW | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION | 4 | `LVR` | 4.0V 3.0V 2.5V 2.2V |
+| OPTION | 7 | `Bootup` | Fast Slow |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_DEFAULT 0xFF9F
+OPTION_LOW 6
+```

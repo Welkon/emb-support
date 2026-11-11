@@ -76,3 +76,48 @@ cell means the file states none.
 | `PWMG2CUBL` | `0x51` | WO | `0xC0` (6, 7) |
 | `ILRCR` | `0x62` | WO | — |
 | `BGTR` | `0x63` | RW | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_VIRTUAL | — | `CheckROM_Enhancement` | Newer Older |
+| OPTION_REG | ROP: 7 %7 | `PWM_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 6 | `GPC_PWM` | Disable Enable |
+| OPTION_REG | ROP: 5 %5 | `TMx_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 4 %4 | `TMx_Bit` | 6BIT 7BIT |
+| OPTION_REG | ROP: 1,3 %1 | `Interrupt_Src0` | PA.0 PB.5 PA.2 PA.7 |
+| OPTION_REG | ROP: 0,2 %0 | `Interrupt_Src1` | PB.0 PA.4 PA.3 PB.6 |
+| OPTION_VIRTUAL:8 | — | `LVR` | 4.5V 4.0V 3.75V 3.5V 3.3V 3.15V 3.0V 2.7V 2.5V 2.4V 2.3V 2.2V 2.1V 2.0V 1.9V 1.8V |
+| OPTION_REG | MISC2: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_REG_SKIP | MISC2: 4 %3 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_REG_SKIP | MISC2: 3 %2 | `INTRQ_4` | COMP PWMG1 |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION_VIRTUAL | — | `LCD2` | Disable PB0_A034 PB_1256 |
+| OPTION_HIDE | 5 | `IC_LCD` | PB0_A034 PB_1256 |
+| OPTION | 8 | `PB4_PB7_Drive` | Normal X X Strong |
+| OPTION | 11 | `Bootup_Time` | Slow X X Fast |
+| OPTION (ICE) | 0 | `LVR` | 4.5V|4.0V|3.75V 3.5V|3.3V|3.15V 3.0V 2.7V 2.5V|2.4V|2.3V 1.8V 2.2V|2.1V 2.0V|1.9V |
+| OPTION_SKIP (ICE) | 15 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_SKIP (ICE) | 9 %3 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_SKIP (ICE) | 3 %2 | `INTRQ_4` | COMP PWMG1 |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION (ICE) | 6 | `LCD2` | X PB_1256 PB0_A034 X Disable |
+| OPTION (ICE) | 14 | `PB4_PB7_Drive` | Normal Strong |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 3, 4, 14, 15
+OPTION_DEFAULT 0x3FE5
+OPTION_DEFAULT (ICE) 0x0107
+```

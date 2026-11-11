@@ -66,3 +66,45 @@ cell means the file states none.
 | `TM3S` | `0x34` | WO | — |
 | `TM3B` | `0x35` | WO | — |
 | `ILRCR` | `0x39` | WO | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_VIRTUAL | — | `CheckROM_Enhancement` | Newer Older |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 8 | `Drive` | Low Normal |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION_REG | MISC: 4 | `LCD2` | Disable PB0_A034 |
+| OPTION_REG | MISC2: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_REG_SKIP | MISC2: 4 %4 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_REG_SKIP | MISC2: 3 %3 | `INTRQ_4` | COMP PWMG1 |
+| OPTION_REG_SKIP | MISC2: 2 | `LInv2` | Disable Enable |
+| OPTION_REG_SKIP | MISC2: 1 | `LInv1` | Disable Enable |
+| OPTION_VIRTUAL:4 | — | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 2.2V 2.0V 1.8V |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Drive` | Low Normal |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION (ICE) | 7 | `LCD2` | X PB0_A034 Disable |
+| OPTION (ICE) | 15 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_SKIP (ICE) | 9 %4 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_SKIP (ICE) | 3 %3 | `INTRQ_4` | COMP PWMG1 |
+| OPTION_VIRTUAL_SKIP (ICE) | — | `LInv2` | Disable Enable |
+| OPTION_VIRTUAL_SKIP (ICE) | — | `LInv1` | Disable Enable |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 1.8V 2.2V 2.0V |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 3, 4, 13 ~ 15
+OPTION_DEFAULT 0x1FE5
+OPTION_DEFAULT (ICE) 0x0107
+```

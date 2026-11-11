@@ -41,6 +41,28 @@ after an IDE update and regenerate with the new `--ide-version`.
   one configuration and the `.INC` covers them together. Read the source file
   before using one of those rows.
 
+## Configuration options
+
+Each map also lists the `.Assembly OPTION*` entries: the configuration word the
+IDE writes, beside the code.
+
+- `Bits` is the bit the option occupies, as the file states it. `%n` marks a
+  virtual or shared encoding; `—` means the file gives no bit.
+- `(ICE)` marks a line from the `ICE_INSTR ... END_INSTR` section. Those restate
+  what the in-circuit emulator exposes, and they can differ: on `PMS150G` the IC
+  default word is `0x02FC` while the ICE default is `0x0107`, and `LVR` lists
+  `2.0V|2.2V` in one order on the IC and another on the ICE.
+- `(rule)` marks a line inside a `.OPTION_RULE { ... }` block: the value applies
+  only when the named rule holds.
+
+Quote an option row together with its marker. A plain row is the IC behaviour;
+an `(ICE)` row describes the emulator, not the shipped part.
+
+Lines that are not a plain option row — the default word, the `OPTION_LOW` /
+`OPTION_HIGH` bit lists, register relocations such as `OPTION_REG ROP + 3`, and
+`{ ... }` groups — are reproduced verbatim under "Configuration notes" instead
+of being parsed. Guessing at their meaning would be worse than quoting them.
+
 ## Register conventions
 
 See [`../padauk-pms15x-gpio.md`](../padauk-pms15x-gpio.md) for what the GPIO

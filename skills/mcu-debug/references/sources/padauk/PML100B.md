@@ -54,3 +54,53 @@ cell means the file states none.
 | `LPWMG2DTH` | `0x2E` | WO | — |
 | `LPWMG2DTL` | `0x2F` | WO | `0xE0` (5, 6, 7) |
 | `ILRCR` | `0x39` | WO | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_REG | ROP: 7 %7 | `LPWM_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 5 %5 | `TM2_Source` | 16MHz 32MHz |
+| OPTION_REG | ROP: 4 %4 | `TM2_Bit` | 6BIT 7BIT |
+| OPTION_REG | ROP: 6 | `GPC_TM2` | Disable Enable |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION_REG | MISC2: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_VIRTUAL:8 | — | `LVR` | X 4.0V X 3.5V X X 3.0V 2.7V 2.5V X X 2.2V X 2.0V X 1.8V |
+| OPTION_VIRTUAL (ICE) | %7 | `LPWM_Source` | 16MHz 32MHz |
+| OPTION_VIRTUAL (ICE) | %5 | `TM2_Source` | 16MHz 32MHz |
+| OPTION_VIRTUAL (ICE) | %4 | `TM2_Bit` | 6BIT 7BIT |
+| OPTION_VIRTUAL (ICE) | — | `GPC_TM2` | Disable Enable |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION (ICE) | 15 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.7V 2.5V 1.8V 2.2V 2.0V |
+| OPTION_REG (ICE) | OPR2: 1 %7 | `LPWM_Source` | 16MHz 32MHz |
+| OPTION_REG (ICE) | OPR2: 5 %5 | `TM2_Source` | 16MHz 32MHz |
+| OPTION_REG (ICE) | OPR2: 4 %4 | `TM2_Bit` | 6BIT 7BIT |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION_REG (ICE) | OPR20: 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_VIRTUAL:8 (ICE) | — | `LVR` | X 4.0V X 3.5V X X 3.0V 2.7V 2.5V X X 2.2V X 2.0V X 1.8V |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 3, 4, 13 ~ 15
+OPTION_DEFAULT 0x1FE4
+OPTION_DEFAULT (ICE) 0x0105
+OPTION_REG (ICE) GPC2PWM	@	GPC_TM2		Enable = 0xC0	Disable = 0
+OPTION_LOW (ICE) 7 ~ 8, 12, 14
+OPTION_REG (ICE) OPR20	+0x06
+OPTION_REG (ICE) PBDIER	+0
+OPTION_REG (ICE) PCDIER	+0
+OPTION_DEFAULT (ICE) 0xAE7F
+```

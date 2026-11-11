@@ -75,3 +75,45 @@ cell means the file states none.
 | `ADCRH` | `0x3E` | RO | — |
 | `ADCRL` | `0x3F` | RO | — |
 | `TM3B` | `0x3F` | WO | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION_ROP | 1 | `Interrupt_Src0` | PA.0 PB.5 |
+| OPTION_ROP | 0 | `Interrupt_Src1` | PB.0 PA.4 |
+| OPTION_ROP | 7 | `PWM_Source` | 16MHz 32MHz |
+| OPTION_ROP | 6 | `GPC_PWM` | Disable Enable |
+| OPTION_MISC2_SKIP | 5 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_MISC2_SKIP | 4 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_MISC2_SKIP | 3 | `INTRQ_4` | COMP PWMG1 |
+| OPTION_ROP_SKIP | 5:0: | `AD_Mode` | Compatible Continuous |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 5 | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 1.8V 2.2V 2.0V |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION | 8 | `PB4_PB7_Drive` | Normal Strong |
+| OPTION_HIDE | 2 | `PB4_PB7_Slew` | Slow Fast |
+| OPTION_SKIP (ICE) | 15 | `Comparator_Edge` | All_Edge Rising_Edge Falling_Edge |
+| OPTION_SKIP (ICE) | 9 | `INTRQ_7` | TM3 PWMG2 |
+| OPTION_SKIP (ICE) | 3 | `INTRQ_4` | COMP PWMG1 |
+| OPTION_VIRTUAL_SKIP (ICE) | — | `AD_Mode` | Compatible Continuous |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 1.8V 2.2V 2.0V |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+| OPTION (ICE) | 14 | `PB4_PB7_Drive` | Normal Strong |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 3, 9, 13 ~ 15
+OPTION_DEFAULT 0x1D94
+OPTION_DEFAULT (ICE) 0x0107
+```

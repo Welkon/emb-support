@@ -42,3 +42,32 @@ cell means the file states none.
 | `TM2CT` | `0x1D` | RW | — |
 | `GPCS` | `0x1E` | WO | — |
 | `ILRCR` | `0x1F` | WO | — |
+
+## Configuration options
+
+`Bits` is the configuration-word bit the option occupies, as the file
+states it; `%n` marks a virtual or shared encoding. `Values` is the
+list the IDE offers, in the file's order.
+
+| Kind | Bits | Option | Values |
+| --- | --- | --- | --- |
+| OPTION | 0 | `Security` | Enable Disable |
+| OPTION | 2 | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 1.8V 2.2V 2.0V |
+| OPTION | 7 | `Drive` | Low Normal |
+| OPTION | 10 | `Bootup_Time` | Slow X X Fast |
+| OPTION_VIRTUAL (ICE) | — | `Security` | Enable Disable |
+| OPTION (ICE) | 0 | `LVR` | 4.0V 3.5V 3.0V 2.75V 2.5V 1.8V 2.2V 2.0V |
+| OPTION_VIRTUAL (ICE) | — | `Drive` | Low Normal |
+| OPTION_VIRTUAL (ICE) | — | `Bootup_Time` | Slow Fast |
+
+## Configuration notes
+
+Verbatim `.Assembly` lines that are not a plain option row: the default
+word, the low/high bit lists, register relocations, and conditional
+entries.
+
+```
+OPTION_LOW 1, 8, 12 ~ 15
+OPTION_DEFAULT 0x02FC
+OPTION_DEFAULT (ICE) 0x0107
+```
