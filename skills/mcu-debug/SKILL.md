@@ -28,6 +28,7 @@ Do this step first. The three toolchains are independent.
 | ARM Cortex-M, DAPLink, CMSIS-DAP, ST-Link, J-Link, SWD, RTT, HardFault, probe-rs | The rest of this document and `scripts/dap.py`. |
 | Prescaler/period arithmetic, ADC code, comparator threshold, LVDC level, charger current step, register field layout | `references/sources/calculators.md` and the matching `references/sources/<chip>-registers.md`. |
 | GPIO, pin direction, pull-up, open-drain, interrupt-on-change, analog select | The matching `references/sources/<chip>-gpio.md`. |
+| Padauk mini-C, `PAC`/`PAPH`/`PADIER`, `$ PA.0 out,high`, `.ADJUST_IC` | `references/sources/padauk-pms15x-gpio.md`. |
 | Register name, address, or bit position for any SC8 part | `references/sources/scmcu/<PART>.md` (generated map) and `references/sources/scmcu/index.json`. |
 
 Do not apply the CACHIP or XC8 flow to an ARM target. Do not connect pyOCD to a CA51 or PIC target.
