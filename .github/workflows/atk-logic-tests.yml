@@ -1,0 +1,58 @@
+name: atk-logic skill
+
+on:
+  push:
+    paths:
+      - 'skills/atk-logic/**'
+      - '.github/workflows/atk-logic-tests.yml'
+  pull_request:
+    paths:
+      - 'skills/atk-logic/**'
+      - '.github/workflows/atk-logic-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        working-directory: skills/atk-logic
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: CLI smoke test
+        working-directory: skills/atk-logic
+        run: |
+          python scripts/atkla.py --help
+          python scripts/atkla.py capture --help
+          python scripts/atkla.py decode --help
+      - name: Simulation smoke test
+        working-directory: skills/atk-logic
+        run: |
+          python scripts/atkla.py sim --vcd tests/fixtures/i2c.vcd --scl scl --sda sda_line --rate 10m --out /tmp/sim
+          test -f /tmp/sim/capture.json
+          python scripts/atkla.py read /tmp/sim --json > /dev/null
+      - name: Decoder host smoke test
+        working-directory: skills/atk-logic
+        run: |
+          python scripts/atkla.py decoders --decoders tests/fixtures/decoders --json
+          python scripts/atkla.py decode --help
+      - name: Evals schema
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path('skills/atk-logic/evals/evals.json').read_text())
+          assert data['skill_name'] == 'atk-logic'
+          cases = data['evals']
+          assert cases, 'no eval cases'
+          for case in cases:
+              assert case['id'] and case['prompt'] and case['expected_output']
+              assert case['expectations'], f"case {case['id']} has no expectations"
+              assert 'assertions' not in case, "use 'expectations' (skill-creator schema)"
+          print(f'{len(cases)} eval cases OK')
+          PY

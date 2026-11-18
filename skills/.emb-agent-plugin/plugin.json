@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Installable skill bundle source for emb-agent external support assets.",
   "skills": [
+    "./atk-logic/SKILL.md",
     "./altium-pcb/SKILL.md",
     "./mcu-debug/SKILL.md",
     "./oscilloscope/SKILL.md",

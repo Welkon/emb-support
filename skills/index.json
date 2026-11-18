@@ -3,6 +3,26 @@
   "generated_at_utc": "2026-04-22T08:00:00Z",
   "skills": [
     {
+      "name": "atk-logic",
+      "path": "./atk-logic",
+      "description": "Capture and decode digital timing with an ATK-Logic analyzer (ALIENTEK DL16/DL32) through the vendor's atk-logic-cli JSONL CLI. Provides a doctor/list/info device check, capability-driven frequency and duration selection (never guessing a legal combination), one capture with per-channel duty, edge and pulse statistics, repeated-capture series, ATKDL project reading, and CSV/VCD export for PulseView or sigrok. Also runs protocol decoding with the 209 sigrok decoders the ATK GUI ships (IR NEC/RC5/RC6/SIRC, UART/Modbus, I2C, SPI, CAN, SWD, 1-Wire, DHT11, WS2812), including multi-level stacks (uart+modbus, spi+spiflash), reading and writing the GUI's decode CSV. A capability matrix records which GUI features are scriptable and which need the GUI to acquire. Handles the Windows-only CLI from WSL by staging captures on the Windows side and copying them back. Use when the user asks to capture digital lines, set a sample rate or trigger, inspect PWM/UART/I2C/SPI timing, decode an IR remote or a serial bus, read an .atkdl project, or mentions \u903b\u8f91\u5206\u6790\u4eea / \u65f6\u5e8f\u91c7\u96c6 / \u6293\u6570\u5b57\u6ce2\u5f62 / \u534f\u8bae\u89e3\u7801 / \u7ea2\u5916\u89e3\u7801.",
+      "detect": {
+        "tools": [
+          "atk-logic-cli",
+          "atk-logic-cli.exe"
+        ],
+        "project_files": [
+          "*.atkdl"
+        ]
+      },
+      "short_description": "ATK/DL16/DL32 logic analyzer capture, timing statistics, protocol decoding (IR/UART/I2C/SPI), ATKDL/VCD/CSV export",
+      "interface": {
+        "display_name": "ATK Logic Analyzer",
+        "short_description": "Capture, decode and export digital timing on ATK-Logic analyzers",
+        "default_prompt": "Use $atk-logic to capture legal frequency/duration combinations, decode the result with the GUI's protocol decoders (IR, UART, I2C, SPI), and report timing facts or a VCD/CSV."
+      }
+    },
+    {
       "name": "altium-pcb",
       "path": "./altium-pcb",
       "description": "Operate on Altium PCB layout artifacts from parsed board evidence. Use when Codex needs to plan or apply conservative PcbDoc component placement, prepare Altium MCP live-apply commands, inspect PCB layout constraints, or run future PCB-side Altium automation while preserving the board outline, routing, pads, nets, and locked components unless a command explicitly scopes otherwise.",
@@ -53,28 +73,28 @@
     {
       "name": "oscilloscope",
       "path": "./oscilloscope",
-      "description": "Control bench oscilloscopes over LAN (SCPI socket) or USB (USBTMC/VISA) from any brand — Rigol, Keysight/Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa and generic SCPI instruments. Use this skill whenever the user mentions an oscilloscope, scope, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe/channel configuration, screen capture, 示波器 / 抓波形 / 看波形 / 调触发 / 测频率 / 截图, or asks to inspect a signal on real hardware — even if they do not name the brand. Also use it for intermittent-fault monitoring (arm, wait, capture evidence) and for analyzing exported waveform CSV files. Bench questions are answered one intent per command (status, arm, watch, capture, monitor); the caller never composes SCPI.",
+      "description": "Control bench oscilloscopes over LAN (SCPI socket) or USB (USBTMC/VISA) from any brand \u2014 Rigol, Keysight/Agilent, Tektronix, Siglent, LeCroy, Rohde & Schwarz, GW Instek, Yokogawa and generic SCPI instruments. Use this skill whenever the user mentions an oscilloscope, scope, SCPI, VISA, USBTMC, VXI-11, waveform capture, trigger setup, probe/channel configuration, screen capture, \u793a\u6ce2\u5668 / \u6293\u6ce2\u5f62 / \u770b\u6ce2\u5f62 / \u8c03\u89e6\u53d1 / \u6d4b\u9891\u7387 / \u622a\u56fe, or asks to inspect a signal on real hardware \u2014 even if they do not name the brand. Also use it for intermittent-fault monitoring (arm, wait, capture evidence) and for analyzing exported waveform CSV files. Bench questions are answered one intent per command (status, arm, watch, capture, monitor); the caller never composes SCPI.",
       "detect": {
         "project_files": [
           "*.wfm",
           "*.isf"
         ]
       },
-      "short_description": "多品牌示波器控制、抓波形、测量、截图与故障监视",
+      "short_description": "\u591a\u54c1\u724c\u793a\u6ce2\u5668\u63a7\u5236\u3001\u6293\u6ce2\u5f62\u3001\u6d4b\u91cf\u3001\u622a\u56fe\u4e0e\u6545\u969c\u76d1\u89c6",
       "interface": {
         "display_name": "Oscilloscope",
-        "short_description": "多品牌示波器控制与波形采集",
+        "short_description": "\u591a\u54c1\u724c\u793a\u6ce2\u5668\u63a7\u5236\u4e0e\u6ce2\u5f62\u91c7\u96c6",
         "default_prompt": "Use $oscilloscope to identify a scope, configure channels/timebase/trigger, capture waveforms to CSV, run measurements, save a screenshot, or monitor an intermittent fault."
       }
     },
     {
       "name": "powersupply",
       "path": "./powersupply",
-      "description": "Control programmable bench power supplies over LAN (SCPI socket), USB (USBTMC/VISA) or serial — Rigol DP800, Keysight E36xx, Siglent SPD, Rohde & Schwarz HMC, GW Instek, BK Precision, Owon, Aim-TTi and Korad. Use this skill whenever the user mentions a power supply, PSU, bench supply, programmable source, SCPI voltage/current setpoints, OVP/OCP, output enable, voltage ramp, or asks to set/measure/log supply rails — including 可编程电源 / 直流电源 / 设电压 / 设电流 / 开输出 / 限流保护 / 电源老化记录 — even if they do not name the model. Also use it for safe output control and power-rail logging.",
-      "short_description": "多品牌可编程电源控制、设压设流、保护与记录",
+      "description": "Control programmable bench power supplies over LAN (SCPI socket), USB (USBTMC/VISA) or serial \u2014 Rigol DP800, Keysight E36xx, Siglent SPD, Rohde & Schwarz HMC, GW Instek, BK Precision, Owon, Aim-TTi and Korad. Use this skill whenever the user mentions a power supply, PSU, bench supply, programmable source, SCPI voltage/current setpoints, OVP/OCP, output enable, voltage ramp, or asks to set/measure/log supply rails \u2014 including \u53ef\u7f16\u7a0b\u7535\u6e90 / \u76f4\u6d41\u7535\u6e90 / \u8bbe\u7535\u538b / \u8bbe\u7535\u6d41 / \u5f00\u8f93\u51fa / \u9650\u6d41\u4fdd\u62a4 / \u7535\u6e90\u8001\u5316\u8bb0\u5f55 \u2014 even if they do not name the model. Also use it for safe output control and power-rail logging.",
+      "short_description": "\u591a\u54c1\u724c\u53ef\u7f16\u7a0b\u7535\u6e90\u63a7\u5236\u3001\u8bbe\u538b\u8bbe\u6d41\u3001\u4fdd\u62a4\u4e0e\u8bb0\u5f55",
       "interface": {
         "display_name": "Programmable Power Supply",
-        "short_description": "多品牌可编程电源控制与安全限值",
+        "short_description": "\u591a\u54c1\u724c\u53ef\u7f16\u7a0b\u7535\u6e90\u63a7\u5236\u4e0e\u5b89\u5168\u9650\u503c",
         "default_prompt": "Use $powersupply to identify a bench supply, set voltage/current within safety limits, enable outputs, measure V/I/P, configure OVP/OCP, or run a ramp/sequence/log."
       }
     }

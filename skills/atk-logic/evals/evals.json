@@ -1,0 +1,178 @@
+{
+  "skill_name": "atk-logic",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The ATK logic analyzer is plugged in. Tell me what it is and what it can do with channels 0 and 1 enabled.",
+      "expected_output": "Runs doctor and info to identify the DL32/DL16 and its real channel range, then caps --ch 0,1 to list legal rates and durations, and reports the device model, channel count and the legal combinations without inventing numbers.",
+      "files": [],
+      "expectations": [
+        "Runs doctor or list before anything else",
+        "Runs info to get the device profile and usable channel range",
+        "Runs caps with the channels that will be enabled",
+        "Reports only rates and durations that came from the device"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Capture channels 0 and 2 at 2 MHz for 50 ms, channel 0 triggering on a rising edge, threshold 1.8 V, and tell me whether anything is toggling.",
+      "expected_output": "Runs capture with --ch 0:rising --ch 2:none --freq 2m --time 50ms --threshold 1.8, then reports the per-channel duty, edge count and cycle rate from the returned analysis, and mentions any adjustment the skill made to the rate or duration.",
+      "files": [],
+      "expectations": [
+        "Uses one capture command with both channels and their triggers",
+        "Passes the frequency and duration in base units or bench suffixes",
+        "Reports duty, edges and cycle rate per channel",
+        "Mentions adjustments when the requested combination was not legal"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I asked for a rising-edge capture on channel 3 but nothing is wired yet, and it hangs. What happened and how do I get a capture now?",
+      "expected_output": "Explains that the trigger never fires without a signal, that the skill stops after --trigger-timeout with trigger_not_found and keeps partial data, and that --ch 3:none captures unconditionally (or raise --trigger-timeout for a real wait).",
+      "files": [],
+      "expectations": [
+        "Explains the trigger wait as the cause of the hang",
+        "Mentions trigger_not_found and the trigger timeout flag",
+        "Suggests --ch N:none for an unconditional capture",
+        "Mentions that partial data and capture.json are kept"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Here is a capture directory from earlier: evidence/boot. Write me something I can open in PulseView and tell me the shortest pulse on channel 1.",
+      "expected_output": "Runs read on the directory with --vcd (and optionally CSV), reports minRunBits/minPulseUs for channel 1, and explains that pulse widths need --run-lengths when the capture is very large.",
+      "files": [],
+      "expectations": [
+        "Runs read against the capture directory",
+        "Produces a VCD or CSV usable by another tool",
+        "Reports a pulse-width figure for the requested channel",
+        "Explains the run-length limit for large captures"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I have a 10-second, 20 MHz capture saved as BH-TS0013-09.atkdl from the GUI. How much of channel 0 is high and how many edges does it have?",
+      "expected_output": "Runs read on the .atkdl file, uses the project's own sample count rather than the padded chunk sizes, and reports duty and edge counts (run-length details skipped unless --run-lengths is given).",
+      "files": [],
+      "expectations": [
+        "Runs read against the .atkdl project file",
+        "Reports duty and edges for channel 0 with the real sample count",
+        "Does not derive the sample count from the padded chunk file sizes",
+        "Explains --run-lengths for pulse widths on a capture this large"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "My board's boot log line should idle high and pulse low 5 times when it resets. Capture it on channel 1 at 1 MHz for 2 seconds and tell me whether the pulses are there.",
+      "expected_output": "Captures channel 1 with a level trigger that fires on the idle-high line (or none), 1 MHz for 2 s, then reports edges/rises/falls and pulse widths from the analysis, and says explicitly whether 5 pulses were seen. If the requested combination is not legal the skill adjusts and says so.",
+      "files": [],
+      "expectations": [
+        "Uses capture with channel 1 on 1 MHz for 2 s",
+        "Chooses a trigger that can fire on an idle-high line, or explains why none is used",
+        "Reports edge/rise/fall counts and pulse widths",
+        "States whether the expected number of pulses was observed"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I captured an IR remote receiver output on channel 0 at 2 MHz for 100 ms. Which button did I press?",
+      "expected_output": "Runs decode with --protocol ir_nec --ch ir=0 (optionally polarity=active-low), reads the fields row for address/command, and names the button from the decoder's remote table; if nothing decodes, cites the polarity and sample-rate checks instead of guessing.",
+      "files": [],
+      "expectations": [
+        "Uses decode with the ir_nec decoder and the captured channel",
+        "Reports address and command (or the remote/button name) from the fields row",
+        "Mentions polarity or sample-rate checks when the decoder produces nothing"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Channel 0 of this 10 MHz capture is the TX line of a 115200 8N1 console. Print what the firmware logged.",
+      "expected_output": "Runs decode --protocol uart --ch rx=0 (or tx=0) --option baudrate=115200 --option format=ascii --row rx-data-vals and reports the decoded text plus any framing warnings.",
+      "files": [],
+      "expectations": [
+        "Uses decode with the uart decoder and the right line",
+        "Passes the baud rate as an option",
+        "Reports the decoded text from the data row",
+        "Mentions framing/parity warnings when present"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Which protocols can this ATK-Logic installation decode, and can it do Modbus?",
+      "expected_output": "Runs decoders (optionally --search) and reports that the GUI ships the sigrok collection, lists relevant decoders such as ir_nec/uart/i2c/spi, and explains that modbus needs the uart decoder stacked upstream, which the skill does not host yet.",
+      "files": [],
+      "expectations": [
+        "Runs decoders to list what is installed",
+        "Names concrete decoder ids",
+        "Explains the stacking limit for modbus instead of claiming it works"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "The RS485 line on channel 0 carries Modbus RTU at 115200 8N1. Decode the register reads and tell me whether the CRCs are valid.",
+      "expected_output": "Runs decode with a stacked chain (--protocol uart+modbus, --ch rx=0, --option baudrate=115200, direction options if needed) and reports slave id, function, address/quantity and CRC status from the cs/sc rows; explains the chain syntax and the direction options if the first attempt lands in the wrong row.",
+      "files": [],
+      "expectations": [
+        "Uses a decoder chain rather than claiming Modbus cannot be decoded",
+        "Passes the baud rate as an option",
+        "Reports slave id, function and CRC validity",
+        "Explains channel/direction mapping when the frame decodes into the wrong row"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "I have no I2C signal generator. Can I still check that the I2C decoding works?",
+      "expected_output": "Explains the simulation route: run an HDL testbench (Icarus Verilog) to produce a VCD, convert it with `sim --vcd ... --scl scl --sda sda_line --rate 10m --out DIR`, then decode the resulting directory with `decode --protocol i2c --ch scl=0 --ch sda=1`. Notes that simulation validates decoder wiring but not real levels or glitches.",
+      "files": [],
+      "expectations": [
+        "Mentions `sim --vcd` and that it writes capture.json plus channel_N.bin",
+        "Runs decode on the produced directory with --ch scl=... / --ch sda=...",
+        "States the boundary: simulation cannot validate levels, glitches or trigger behaviour"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "I keep saving projects from the GUI into the same folder. Summarise new ones automatically.",
+      "expected_output": "Uses `watch --dir <folder> --once` (or without --once for a polling loop) and reports samples/channels/frequency for each new .atkdl file, mentioning --interval for the loop.",
+      "files": [],
+      "expectations": [
+        "Calls watch with --dir",
+        "Explains --once versus the polling loop with --interval",
+        "Reports per-project samples, channels and frequency"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "My captured waveform has 23 tiny glitches. I want statistics without them.",
+      "expected_output": "Re-runs the native capture with `usb capture ... --remove-glitches N` (or re-analyses with that flag) and shows that the glitch count drops to 0 while the frequency stays the same.",
+      "files": [],
+      "expectations": [
+        "Uses usb capture with --remove-glitches",
+        "Explains that short pulses are absorbed, not dropped",
+        "Reports the glitch count before and after"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "The analyzer only has a simple trigger. I need to catch an event that only matters after another edge happened first.",
+      "expected_output": "Runs `find SOURCE --stage CH:STATE --stage CH:STATE [--within ...]` on an existing capture: it locates stage 1, then looks ahead for stage 2 inside the window, and reports the matching sample indices/times. Explains that the hardware trigger is single-stage, so staged conditions are resolved after acquisition.",
+      "files": [],
+      "expectations": [
+        "Uses the find command with at least two --stage arguments",
+        "Explains that staged conditions are resolved after acquisition, not by the hardware trigger",
+        "Reports hit start/end samples or times, and mentions --within for bounding the window"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "The product blinks three times when I switch modes. Give me the timing and duty of each blink.",
+      "expected_output": "Captures the PWM pin (1 MHz x 5 s is enough) and runs `bursts SOURCE --ch N`, then reports each burst's start, duration, duty and frequency plus the gaps, instead of describing the waveform by eye.",
+      "files": [],
+      "expectations": [
+        "Uses the bursts command on the capture",
+        "Reports per-burst duration, duty and frequency, and the gaps between bursts",
+        "Notes that frequency must come from the median edge interval, not edge counting"
+      ]
+    }
+  ]
+}

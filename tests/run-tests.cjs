@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-// Checks that need no probe, no instrument and no supply: the XC8 build helper
-// and the altium-pcb skill tests. The chip-adapter vectors left with adapters/
+// Checks that need no probe, no instrument and no supply: the XC8 build helper,
+// the altium-pcb skill tests and the atk-logic skill (its fake CLI). The chip-adapter vectors left with adapters/
 // (2026-10); the arithmetic that mattered is prose in
 // skills/mcu-debug/references/sources/calculators.md.
 
@@ -122,6 +122,35 @@ function runAltiumSkillTests() {
     passed++;
   } else {
     logResult('altium-pcb skill tests', 'fail', summary || 'python failed');
+    failed++;
+  }
+}
+
+
+function runAtkLogicTests() {
+  const root = path.resolve(__dirname, '..');
+  const testsDir = path.join(root, 'skills', 'atk-logic', 'tests');
+  if (!fs.existsSync(testsDir)) {
+    logResult('atk-logic skill tests', 'skip', 'tests directory missing');
+    skipped++;
+    return;
+  }
+  const result = childProcess.spawnSync(
+    'python3',
+    ['-m', 'unittest', 'discover', '-s', testsDir, '-p', 'test_*.py'],
+    { encoding: 'utf8', cwd: root }
+  );
+  if (result.error && result.error.code === 'ENOENT') {
+    logResult('atk-logic skill tests', 'skip', 'python3 not found');
+    skipped++;
+    return;
+  }
+  const summary = ((result.stderr || result.stdout || '').trim().split('\n').pop()) || '';
+  if (result.status === 0) {
+    logResult('atk-logic skill tests', 'pass', summary);
+    passed++;
+  } else {
+    logResult('atk-logic skill tests', 'fail', summary || 'python failed');
     failed++;
   }
 }
@@ -326,6 +355,9 @@ function runAllTests() {
 
   console.log('\naltium-pcb:');
   runAltiumSkillTests();
+
+  console.log('\natk-logic:');
+  runAtkLogicTests();
 
   console.log('\nscmcu map:');
   runScmcuMapTests();
